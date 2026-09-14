@@ -10,7 +10,7 @@
 == Conceitos e definição do problema
 
 #note_from_advisor[
-  Esta seção deve fornecer o conhecimento necessário para compreender o problema e posicionar o estudo em relação à literatura. O levantamento bibliográfico pode ser sucinto, mas deve conter referências realmente relevantes para o tema. A descrição do trabalho prevê um estado da arte curto, com pelo menos 3--5 referências relevantes, além da apresentação de 2--3 exemplos de bases de dados e soluções típicas do domínio.
+  Defina os conceitos específicos do domínio e formalize a tarefa quando necessário. Explique o significado dos rótulos, variável-alvo, horizonte de previsão, grupos ou demais elementos do problema. Não repita conceitos gerais de aprendizado de máquina que não sejam necessários para compreender o estudo.
 ]
 
 #note_from_advisor(note: todo_note)[
@@ -26,6 +26,70 @@
 #note_from_advisor(note: todo_note)[
   Descreva bases de dados ou benchmarks relevantes para o tema.
 ]
+
+
+#describe_figure(
+  figure(
+    caption: "Bases de dados exploradas",
+    format_table(
+      table(
+        columns: (auto, auto, auto, auto, auto, auto),
+
+        [
+          Base
+        ],
+        [
+          Instâncias
+        ],
+        [
+          Atributos
+        ],
+        [
+          Alvo/classes
+        ],
+        [
+          Distribuição
+        ],
+        [
+          Observações
+        ],
+
+        [
+          @oliveira:2024:age_estimation_machine_learning
+        ],
+        [
+          10.035
+        ],
+        [
+          ID da imagem; idade; sexo; radiografia panorâmica (299x299 pixels).
+        ],
+        [
+        ],
+        [
+        ],
+        [
+        ],
+
+        [
+          @lee:2022:age_group_classification
+        ],
+        [
+          471
+        ],
+        [
+          ID do paciente; idade; sexo; 18 características extraídas.
+        ],
+        [
+        ],
+        [
+        ],
+        [
+        ],
+      ),
+    ),
+  ),
+)
+
 
 == Métodos e trabalhos relacionados
 
