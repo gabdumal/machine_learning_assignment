@@ -2,6 +2,8 @@
 
 from pathlib import Path
 
+import pandas as pd
+
 from data.common import DatasetBundle
 from data.loader import CsvDatasetLoader
 from schema.genis import GENIS_SCHEMA
@@ -30,4 +32,24 @@ def load_genis(
     return dataset_loader.load_bundle(
         training_csv_file_path=training_csv_file_path,
         test_csv_file_path=test_csv_file_path,
+    )
+
+
+def merge_genis_partitions(
+    genis_dataset_bundle: DatasetBundle,
+) -> pd.DataFrame:
+    """Merge the GENIS training and test DataFrames."""
+
+    if genis_dataset_bundle.train is None:
+        raise ValueError("GENIS training partition is not available.")
+
+    if genis_dataset_bundle.test is None:
+        raise ValueError("GENIS test partition is not available.")
+
+    return pd.concat(
+        (
+            genis_dataset_bundle.train.data_frame,
+            genis_dataset_bundle.test.data_frame,
+        ),
+        ignore_index=True,
     )

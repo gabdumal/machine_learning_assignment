@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from data import load_genis, load_rosids
+from data import load_genis, load_rosids, merge_genis_partitions
 
 DATA_ROOT = Path(__file__).resolve().parent / "_data"
 
@@ -8,10 +8,7 @@ genis_dataset_bundle = load_genis(
     training_csv_file_path=DATA_ROOT / "genis/genis-60-sec-train.csv",
     test_csv_file_path=DATA_ROOT / "genis/genis-60-sec-test.csv",
 )
-assert genis_dataset_bundle.train is not None
-genis_training_df = genis_dataset_bundle.train.data_frame
-assert genis_dataset_bundle.test is not None
-genis_test_df = genis_dataset_bundle.test.data_frame
+genis_df = merge_genis_partitions(genis_dataset_bundle)
 
 rosids_dataset_bundle = load_rosids(
     csv_file_path=DATA_ROOT / "rosids23/ROSIDS23.csv",

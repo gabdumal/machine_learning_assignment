@@ -5,7 +5,7 @@ from data.common import (
     DatasetPartition,
     DatasetSplit,
 )
-from data.genis import load_genis
+from data.genis import load_genis, merge_genis_partitions
 from data.loader import CsvDatasetLoader, CsvLoadingError
 from data.rosids import load_rosids
 
@@ -17,4 +17,5 @@ __all__ = [
     "DatasetSplit",
     "load_genis",
     "load_rosids",
+    "merge_genis_partitions",
 ]
