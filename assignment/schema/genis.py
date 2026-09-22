@@ -2,7 +2,7 @@
 
 from enum import StrEnum
 
-from schema.common import (
+from .common import (
     DatasetSchema,
     FeatureDataType,
     FeatureRole,
