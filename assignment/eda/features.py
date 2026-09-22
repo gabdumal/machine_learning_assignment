@@ -866,7 +866,7 @@ def _render_numerical_boxplots(
         boxplot_values,
         tick_labels=boxplot_labels,
         patch_artist=True,
-        showfliers=False,
+        showfliers=True,
     )
 
     for boxplot_artist, box_color in zip(
