@@ -5,6 +5,7 @@ from collections.abc import Sequence
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from IPython.display import HTML, display
 from matplotlib.figure import Figure
 
 from eda.common import (
@@ -1044,3 +1045,27 @@ def _render_categorical_stratified_bar_chart(
     figure.tight_layout()
 
     return figure
+
+
+def display_feature(
+    feature_specification: FeatureSpec,
+    target_feature_specification: FeatureSpec,
+    data_frame: pd.DataFrame,
+):
+    display(HTML(f"<h2>{feature_specification.name}</h2>"))
+    feature_inspection = inspect_feature(
+        data_frame=data_frame,
+        feature_specification=feature_specification,
+        target_feature_specification=target_feature_specification,
+    )
+    display(feature_inspection.metadata_table)
+    display(feature_inspection.statistics_table)
+    figures = render_feature_plots(
+        data_frame=data_frame,
+        feature_specification=feature_specification,
+        feature_inspection=feature_inspection,
+        target_feature_specification=target_feature_specification,
+    )
+    for figure in figures:
+        display(figure)
+        plt.close(figure)

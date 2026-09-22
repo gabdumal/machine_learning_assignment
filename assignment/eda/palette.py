@@ -1,7 +1,5 @@
 """Color palettes used by exploratory data analysis."""
 
-from __future__ import annotations
-
 from collections.abc import Sequence
 
 from matplotlib import colormaps

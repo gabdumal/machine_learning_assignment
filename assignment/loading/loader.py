@@ -4,16 +4,18 @@ from pathlib import Path
 
 import pandas as pd
 
-from data.common import (
+from loading.common import (
     DatasetBundle,
     DatasetPartition,
     DatasetSplit,
 )
 from schema.common import (
-    DatasetSchema,
     FeatureDataType,
-    FeatureSpec,
+    SourceDatasetSchema,
+    SourceFeatureSpec,
 )
+
+DATA_ROOT = Path(__file__).resolve().parent.parent / "_data"
 
 
 class CsvLoadingError(ValueError):
@@ -29,7 +31,7 @@ class CsvDatasetLoader:
     operation required for model training.
     """
 
-    def __init__(self, dataset_schema: DatasetSchema) -> None:
+    def __init__(self, dataset_schema: SourceDatasetSchema) -> None:
         """Create a loader for the provided dataset schema."""
 
         self._dataset_schema = dataset_schema
@@ -250,7 +252,7 @@ class CsvDatasetLoader:
     @staticmethod
     def _convert_feature_column(
         feature_series: pd.Series,
-        feature_specification: FeatureSpec,
+        feature_specification: SourceFeatureSpec,
     ) -> pd.Series:
         """Convert one feature column to its schema-defined pandas type."""
 
@@ -311,7 +313,7 @@ class CsvDatasetLoader:
 
 def _parse_datetime_column(
     feature_series: pd.Series,
-    feature_specification: FeatureSpec,
+    feature_specification: SourceFeatureSpec,
 ) -> pd.Series:
     """Parse a datetime column using its explicitly declared formats."""
 
