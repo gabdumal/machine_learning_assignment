@@ -1,4 +1,5 @@
 {
+  "python.envFile": "${workspaceFolder}/.env",
   "cSpell.words": [
     "genis",
     "rosids",

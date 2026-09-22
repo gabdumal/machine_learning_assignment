@@ -1,6 +1,6 @@
-"""Schema definitions for assignment datasets."""
+"""Schema definitions for datasets."""
 
-from .common import (
+from schema.common import (
     DatasetSchema,
     FeatureDataType,
     FeatureRole,
@@ -8,13 +8,13 @@ from .common import (
     FeatureSpec,
     SchemaValidationError,
 )
-from .genis import (
+from schema.genis import (
     GENIS_FEATURES,
     GENIS_SCHEMA,
     GenisCategoryLabel,
     GenisSubcategoryLabel,
 )
-from .rosids import (
+from schema.rosids import (
     ROSIDS_FEATURES,
     ROSIDS_SCHEMA,
     RosidsLabel,

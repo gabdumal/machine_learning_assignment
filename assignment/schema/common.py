@@ -46,6 +46,7 @@ class FeatureSpec:
     role: FeatureRole
     description: str
     category_enum: type[StrEnum] | None = None
+    datetime_formats: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         """Validate invariants that must always hold for a feature."""
@@ -66,11 +67,16 @@ class FeatureSpec:
                 f"Feature description must not be empty for '{self.label}'."
             )
 
-        if self.semantic_type is FeatureSemanticType.DATETIME:  # noqa: SIM102
-            if self.data_type is not FeatureDataType.DATETIME:
+        if self.semantic_type is FeatureSemanticType.DATETIME:
+            if len(self.datetime_formats) == 0:
                 raise SchemaValidationError(
-                    f"Datetime feature '{self.label}' must use "
-                    f"{FeatureDataType.DATETIME.value!r} as its data type."
+                    f"Datetime feature '{self.label}' must define a datetime format."
+                )
+        else:
+            if len(self.datetime_formats) >= 1:
+                raise SchemaValidationError(
+                    f"Feature '{self.label}' defines a datetime "
+                    "format but is not a datetime feature."
                 )
 
         if self.semantic_type is FeatureSemanticType.NUMERIC:  # noqa: SIM102

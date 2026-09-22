@@ -2,7 +2,7 @@
 
 from enum import StrEnum
 
-from .common import (
+from schema.common import (
     DatasetSchema,
     FeatureDataType,
     FeatureRole,
@@ -84,6 +84,10 @@ ROSIDS_FEATURES: tuple[FeatureSpec, ...] = (
         semantic_type=FeatureSemanticType.DATETIME,
         role=FeatureRole.METADATA,
         description="Timestamp associated with the network flow.",
+        datetime_formats=(
+            "%d/%m/%Y %I:%M:%S %p",
+            "%Y-%m-%d %H:%M:%S",
+        ),
     ),
     FeatureSpec(
         label="flow_duration",
