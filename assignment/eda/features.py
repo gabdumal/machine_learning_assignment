@@ -290,8 +290,9 @@ def _validate_feature_and_target_columns(
             f"role '{FeatureRole.TARGET.value}'."
         )
 
-    if target_feature_specification.semantic_type is not (
-        FeatureSemanticType.CATEGORICAL
+    if target_feature_specification.semantic_type not in (
+        FeatureSemanticType.CATEGORICAL,
+        FeatureSemanticType.BINARY,
     ):
         raise ValueError(
             f"Target feature '{target_feature_specification.label}' must be "
@@ -307,8 +308,7 @@ def _validate_feature_column(
 
     if feature_specification.label not in data_frame.columns:
         raise ValueError(
-            f"Feature '{feature_specification.label}' is not present in "
-            "the supplied DataFrame."
+            f"Feature '{feature_specification.label}' is not present in the supplied DataFrame."
         )
 
 
@@ -341,17 +341,16 @@ def _validate_plot_feature(
         and feature_specification.semantic_type is not FeatureSemanticType.NUMERIC
     ):
         raise ValueError(
-            f"Plot type '{plot_specification.plot_type.value}' requires a "
-            "numerical feature."
+            f"Plot type '{plot_specification.plot_type.value}' requires a numerical feature."
         )
 
     if (
         plot_specification.plot_type in categorical_plot_types
-        and feature_specification.semantic_type is not FeatureSemanticType.CATEGORICAL
+        and feature_specification.semantic_type
+        not in (FeatureSemanticType.CATEGORICAL, FeatureSemanticType.BINARY)
     ):
         raise ValueError(
-            f"Plot type '{plot_specification.plot_type.value}' requires a "
-            "categorical feature."
+            f"Plot type '{plot_specification.plot_type.value}' requires a binary or categorical feature."
         )
 
 
@@ -416,7 +415,7 @@ def _create_feature_statistics_table(
                 feature_series=feature_series,
             )
 
-        case FeatureSemanticType.CATEGORICAL:
+        case FeatureSemanticType.CATEGORICAL | FeatureSemanticType.BINARY:
             return _create_categorical_statistics_table(
                 feature_series=feature_series,
                 feature_specification=feature_specification,
@@ -439,6 +438,11 @@ def _create_feature_plot_specifications(
     if feature_specification.semantic_type is FeatureSemanticType.NUMERIC:
         return (
             FeaturePlotSpecification(
+                plot_type=FeaturePlotType.BOXPLOT,
+                feature_label=feature_specification.label,
+                target_feature_label=target_feature_specification.label,
+            ),
+            FeaturePlotSpecification(
                 plot_type=FeaturePlotType.HISTOGRAM,
                 feature_label=feature_specification.label,
                 histogram_bin_count=histogram_bin_count,
@@ -449,14 +453,12 @@ def _create_feature_plot_specifications(
                 target_feature_label=target_feature_specification.label,
                 histogram_bin_count=histogram_bin_count,
             ),
-            FeaturePlotSpecification(
-                plot_type=FeaturePlotType.BOXPLOT,
-                feature_label=feature_specification.label,
-                target_feature_label=target_feature_specification.label,
-            ),
         )
 
-    if feature_specification.semantic_type is FeatureSemanticType.CATEGORICAL:
+    if feature_specification.semantic_type in (
+        FeatureSemanticType.CATEGORICAL,
+        FeatureSemanticType.BINARY,
+    ):
         return (
             FeaturePlotSpecification(
                 plot_type=FeaturePlotType.BAR_CHART,
@@ -470,8 +472,7 @@ def _create_feature_plot_specifications(
         )
 
     raise ValueError(
-        f"Feature '{feature_specification.label}' has unsupported semantic "
-        f"type '{feature_specification.semantic_type}'."
+        f"Feature '{feature_specification.label}' has unsupported semantic type '{feature_specification.semantic_type}'."
     )
 
 
@@ -579,7 +580,6 @@ def _create_categorical_statistics_table(
                 category=category_value,
                 count=category_count,
                 frequency=category_frequency,
-                percentage=category_frequency * 100.0,
             )
         )
 
@@ -589,7 +589,6 @@ def _create_categorical_statistics_table(
                 "category": category_statistic.category,
                 "count": category_statistic.count,
                 "frequency": category_statistic.frequency,
-                "percentage": category_statistic.percentage,
             }
             for category_statistic in categorical_statistics
         ]

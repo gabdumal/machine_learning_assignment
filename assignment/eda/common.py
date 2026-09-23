@@ -17,9 +17,9 @@ from schema.common import (
 class FeaturePlotType(StrEnum):
     """Types of plots supported by feature-level exploratory analysis."""
 
+    BOXPLOT = "boxplot"
     HISTOGRAM = "histogram"
     STRATIFIED_HISTOGRAM = "stratified_histogram"
-    BOXPLOT = "boxplot"
     BAR_CHART = "bar_chart"
     STRATIFIED_BAR_CHART = "stratified_bar_chart"
 
@@ -42,8 +42,8 @@ class FeaturePlotSpecification:
         """Validate the invariants of the plot specification."""
 
         requires_target_feature = self.plot_type in {
-            FeaturePlotType.STRATIFIED_HISTOGRAM,
             FeaturePlotType.BOXPLOT,
+            FeaturePlotType.STRATIFIED_HISTOGRAM,
             FeaturePlotType.STRATIFIED_BAR_CHART,
         }
 
@@ -142,4 +142,3 @@ class CategoricalFeatureStatistics:
     category: str
     count: int
     frequency: float
-    percentage: float

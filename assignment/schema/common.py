@@ -20,6 +20,7 @@ class FeatureSemanticType(StrEnum):
     """Semantic interpretation of a feature."""
 
     NUMERIC = "numeric"
+    BINARY = "binary"
     CATEGORICAL = "categorical"
     DATETIME = "datetime"
 

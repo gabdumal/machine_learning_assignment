@@ -1,5 +1,7 @@
 """CSV loading utilities for network-traffic datasets."""
 
+from __future__ import annotations
+
 from pathlib import Path
 
 import pandas as pd
@@ -11,6 +13,7 @@ from loading.common import (
 )
 from schema.common import (
     FeatureDataType,
+    FeatureSemanticType,
     SourceDatasetSchema,
     SourceFeatureSpec,
 )
@@ -23,7 +26,7 @@ class CsvLoadingError(ValueError):
 
 
 class CsvDatasetLoader:
-    """Load and validate CSV files according to a dataset schema.
+    """Load and validate CSV files according to a source dataset schema.
 
     The loader is intentionally limited to ingestion and schema-level
     normalization. It does not perform feature selection, imputation,
@@ -31,7 +34,10 @@ class CsvDatasetLoader:
     operation required for model training.
     """
 
-    def __init__(self, dataset_schema: SourceDatasetSchema) -> None:
+    def __init__(
+        self,
+        dataset_schema: SourceDatasetSchema,
+    ) -> None:
         """Create a loader for the provided dataset schema."""
 
         self._dataset_schema = dataset_schema
@@ -66,18 +72,28 @@ class CsvDatasetLoader:
                 csv_file_path,
                 low_memory=False,
             )
-        except (OSError, pd.errors.ParserError, UnicodeDecodeError) as error:
+        except (
+            OSError,
+            pd.errors.ParserError,
+            UnicodeDecodeError,
+        ) as error:
             raise CsvLoadingError(
                 f"Could not read CSV file '{csv_file_path}'."
             ) from error
 
         self._validate_source_columns(data_frame)
 
-        canonical_data_frame = self._rename_columns_to_canonical_labels(data_frame)
+        canonical_data_frame = self._rename_columns_to_canonical_labels(
+            data_frame,
+        )
 
-        canonical_data_frame = self._convert_feature_data_types(canonical_data_frame)
+        canonical_data_frame = self._convert_feature_data_types(
+            canonical_data_frame,
+        )
 
-        self._validate_categorical_values(canonical_data_frame)
+        self._validate_categorical_values(
+            canonical_data_frame,
+        )
 
         return DatasetPartition(
             data_frame=canonical_data_frame,
@@ -159,8 +175,10 @@ class CsvDatasetLoader:
         )
 
     @staticmethod
-    def _validate_csv_file_path(csv_file_path: Path) -> None:
-        """Validate that a CSV file path refers to an existing regular file."""
+    def _validate_csv_file_path(
+        csv_file_path: Path,
+    ) -> None:
+        """Validate that a CSV path refers to an existing regular file."""
 
         if not csv_file_path.exists():
             raise CsvLoadingError(f"CSV file does not exist: '{csv_file_path}'.")
@@ -172,7 +190,7 @@ class CsvDatasetLoader:
         self,
         data_frame: pd.DataFrame,
     ) -> None:
-        """Ensure that the DataFrame exactly matches the expected CSV schema."""
+        """Ensure that the DataFrame exactly matches the source schema."""
 
         source_column_names = self._dataset_schema.source_column_names()
 
@@ -180,6 +198,7 @@ class CsvDatasetLoader:
             duplicated_column_names = tuple(
                 data_frame.columns[data_frame.columns.duplicated()].unique()
             )
+
             raise CsvLoadingError(
                 f"Dataset '{self._dataset_schema.dataset_name}' contains "
                 f"duplicate CSV columns: {duplicated_column_names!r}."
@@ -189,20 +208,29 @@ class CsvDatasetLoader:
         actual_column_names = set(data_frame.columns)
 
         missing_column_names = tuple(
-            sorted(expected_column_names - actual_column_names)
+            sorted(
+                expected_column_names - actual_column_names,
+            )
         )
+
         unexpected_column_names = tuple(
-            sorted(actual_column_names - expected_column_names)
+            sorted(
+                actual_column_names - expected_column_names,
+            )
         )
 
         if missing_column_names or unexpected_column_names:
             error_parts: list[str] = []
 
             if missing_column_names:
-                error_parts.append(f"missing columns: {missing_column_names!r}")
+                error_parts.append(
+                    f"missing columns: {missing_column_names!r}",
+                )
 
             if unexpected_column_names:
-                error_parts.append(f"unexpected columns: {unexpected_column_names!r}")
+                error_parts.append(
+                    f"unexpected columns: {unexpected_column_names!r}",
+                )
 
             details = "; ".join(error_parts)
 
@@ -237,14 +265,16 @@ class CsvDatasetLoader:
         self,
         data_frame: pd.DataFrame,
     ) -> pd.DataFrame:
-        """Convert every feature according to its declared physical type."""
+        """Convert every feature according to its schema definition."""
 
         converted_data_frame = data_frame.copy()
 
-        for feature in self._dataset_schema.all_features():
-            converted_data_frame[feature.label] = self._convert_feature_column(
-                converted_data_frame[feature.label],
-                feature,
+        for feature_specification in self._dataset_schema.all_features():
+            converted_data_frame[feature_specification.label] = (
+                self._convert_feature_column(
+                    converted_data_frame[feature_specification.label],
+                    feature_specification,
+                )
             )
 
         return converted_data_frame
@@ -254,7 +284,10 @@ class CsvDatasetLoader:
         feature_series: pd.Series,
         feature_specification: SourceFeatureSpec,
     ) -> pd.Series:
-        """Convert one feature column to its schema-defined pandas type."""
+        """Convert one feature according to its schema definition."""
+
+        if feature_specification.semantic_type is FeatureSemanticType.BINARY:
+            return feature_series.astype("boolean")
 
         match feature_specification.data_type:
             case FeatureDataType.INTEGER:
@@ -289,21 +322,31 @@ class CsvDatasetLoader:
         self,
         data_frame: pd.DataFrame,
     ) -> None:
-        """Validate values for categorical features with declared enums."""
+        """Validate categorical values against their declared enums."""
 
-        for feature in self._dataset_schema.all_features():
-            if feature.category_enum is None:
+        for feature_specification in self._dataset_schema.all_features():
+            if feature_specification.category_enum is None:
                 continue
 
-            feature_series = data_frame[feature.label].dropna()
-            observed_values = set(feature_series.tolist())
-            allowed_values = {category.value for category in feature.category_enum}
+            feature_series = data_frame[feature_specification.label].dropna()
 
-            unexpected_values = tuple(sorted(observed_values - allowed_values))
+            observed_values = set(
+                feature_series.tolist(),
+            )
+
+            allowed_values = {
+                category.value for category in feature_specification.category_enum
+            }
+
+            unexpected_values = tuple(
+                sorted(
+                    observed_values - allowed_values,
+                )
+            )
 
             if unexpected_values:
                 raise CsvLoadingError(
-                    f"Feature '{feature.label}' in dataset "
+                    f"Feature '{feature_specification.label}' in dataset "
                     f"'{self._dataset_schema.dataset_name}' contains "
                     f"unexpected categorical values: "
                     f"{unexpected_values!r}. Expected values are "
@@ -315,7 +358,7 @@ def _parse_datetime_column(
     feature_series: pd.Series,
     feature_specification: SourceFeatureSpec,
 ) -> pd.Series:
-    """Parse a datetime column using its explicitly declared formats."""
+    """Parse a datetime column using its declared formats."""
 
     if not feature_specification.datetime_formats:
         raise CsvLoadingError(
@@ -353,8 +396,8 @@ def _parse_datetime_column(
         )
 
         raise CsvLoadingError(
-            f"Feature '{feature_specification.label}' contains unsupported "
-            f"datetime values: {invalid_values!r}."
+            f"Feature '{feature_specification.label}' contains "
+            f"unsupported datetime values: {invalid_values!r}."
         )
 
     return parsed_values
