@@ -25,6 +25,18 @@
     key: "web",
     short: foreign_text[web],
   ),
+  (
+    key: "genis",
+    short: [GeNIS],
+  ),
+  (
+    key: "rosids",
+    short: [ROSIDS23],
+  ),
+  (
+    key: "westermo",
+    short: [Westermo],
+  ),
 )
 
 

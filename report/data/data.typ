@@ -5,7 +5,7 @@
 // Title — required.
 // Título — obrigatório.
 #let title = {
-  [Classificação de faixa etária por características odontológicas]
+  [Classificação de tipos de ataques de rede utilizando aprendizado de máquina e modelos de linguagem]
 }
 
 // Subtitle — optional.
