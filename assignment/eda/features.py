@@ -17,6 +17,7 @@ from eda.common import (
     FeaturePlotSpecification,
     FeaturePlotType,
     FrequencyAxisScale,
+    NumericalAxisScale,
     NumericalFeatureStatistics,
 )
 from eda.palette import (
@@ -62,7 +63,6 @@ _CATEGORICAL_PLOT_TYPES = frozenset(
     }
 )
 
-
 # ----------------------------------------
 # Public API
 # ----------------------------------------
@@ -75,6 +75,7 @@ def inspect_feature(
     *,
     histogram_bin_count: int = DEFAULT_HISTOGRAM_BIN_COUNT,
     frequency_axis_scale: FrequencyAxisScale = FrequencyAxisScale.LINEAR,
+    numerical_axis_scale: NumericalAxisScale = NumericalAxisScale.LINEAR,
 ) -> FeatureInspection:
     """Inspect one feature without rendering visualizations.
 
@@ -99,13 +100,16 @@ def inspect_feature(
         frequency_axis_scale:
             Scale used for the Y axis of frequency-based plots.
 
+        numerical_axis_scale:
+            Scale used for the X axis of numerical histograms.
+
     Returns:
         A complete, non-rendered feature inspection.
 
     Raises:
         ValueError:
             If required columns are missing, the target is invalid,
-            or the histogram bin count or frequency axis scale is invalid.
+            or any plot configuration is invalid.
     """
 
     _validate_feature_and_target_columns(
@@ -123,6 +127,10 @@ def inspect_feature(
         frequency_axis_scale,
     )
 
+    normalized_numerical_axis_scale = NumericalAxisScale(
+        numerical_axis_scale,
+    )
+
     return FeatureInspection(
         metadata_table=_create_feature_metadata_table(
             feature_specification,
@@ -136,6 +144,7 @@ def inspect_feature(
             target_feature_specification=target_feature_specification,
             histogram_bin_count=histogram_bin_count,
             frequency_axis_scale=normalized_frequency_axis_scale,
+            numerical_axis_scale=normalized_numerical_axis_scale,
         ),
     )
 
@@ -234,15 +243,18 @@ def render_feature_plot(
                 histogram_bin_count=_require_histogram_bin_count(
                     plot_specification,
                 ),
-                frequency_axis_scale=plot_specification.frequency_axis_scale,
+                numerical_axis_scale=(plot_specification.numerical_axis_scale),
+                frequency_axis_scale=(plot_specification.frequency_axis_scale),
             )
 
         case FeaturePlotType.BOXPLOT:
             return _render_numerical_boxplots(
                 data_frame=data_frame,
                 feature_specification=feature_specification,
-                target_feature_specification=_require_target_feature_specification(
-                    target_specification,
+                target_feature_specification=(
+                    _require_target_feature_specification(
+                        target_specification,
+                    )
                 ),
             )
 
@@ -250,30 +262,35 @@ def render_feature_plot(
             return _render_numerical_stratified_histogram(
                 data_frame=data_frame,
                 feature_specification=feature_specification,
-                target_feature_specification=_require_target_feature_specification(
-                    target_specification,
+                target_feature_specification=(
+                    _require_target_feature_specification(
+                        target_specification,
+                    )
                 ),
                 histogram_bin_count=_require_histogram_bin_count(
                     plot_specification,
                 ),
-                frequency_axis_scale=plot_specification.frequency_axis_scale,
+                numerical_axis_scale=(plot_specification.numerical_axis_scale),
+                frequency_axis_scale=(plot_specification.frequency_axis_scale),
             )
 
         case FeaturePlotType.BAR_CHART:
             return _render_categorical_aggregate_bar_chart(
                 data_frame=data_frame,
                 feature_specification=feature_specification,
-                frequency_axis_scale=plot_specification.frequency_axis_scale,
+                frequency_axis_scale=(plot_specification.frequency_axis_scale),
             )
 
         case FeaturePlotType.STRATIFIED_BAR_CHART:
             return _render_categorical_stratified_bar_chart(
                 data_frame=data_frame,
                 feature_specification=feature_specification,
-                target_feature_specification=_require_target_feature_specification(
-                    target_specification,
+                target_feature_specification=(
+                    _require_target_feature_specification(
+                        target_specification,
+                    )
                 ),
-                frequency_axis_scale=plot_specification.frequency_axis_scale,
+                frequency_axis_scale=(plot_specification.frequency_axis_scale),
             )
 
         case _:
@@ -326,7 +343,9 @@ def display_feature(
     target_feature_specification: FeatureSpec,
     data_frame: pd.DataFrame,
     *,
+    histogram_bin_count: int = DEFAULT_HISTOGRAM_BIN_COUNT,
     frequency_axis_scale: FrequencyAxisScale = FrequencyAxisScale.LINEAR,
+    numerical_axis_scale: NumericalAxisScale = NumericalAxisScale.LINEAR,
 ) -> None:
     """Display feature metadata, statistics, and visualizations.
 
@@ -340,8 +359,14 @@ def display_feature(
         data_frame:
             DataFrame containing the feature and target.
 
+        histogram_bin_count:
+            Number of bins used for numerical histograms.
+
         frequency_axis_scale:
             Scale used for the Y axis of frequency-based plots.
+
+        numerical_axis_scale:
+            Scale used for the X axis of numerical histograms.
     """
 
     display(
@@ -354,7 +379,9 @@ def display_feature(
         data_frame=data_frame,
         feature_specification=feature_specification,
         target_feature_specification=target_feature_specification,
+        histogram_bin_count=histogram_bin_count,
         frequency_axis_scale=frequency_axis_scale,
+        numerical_axis_scale=numerical_axis_scale,
     )
 
     display(feature_inspection.metadata_table)
@@ -589,6 +616,7 @@ def _create_feature_plot_specifications(
     target_feature_specification: FeatureSpec,
     histogram_bin_count: int,
     frequency_axis_scale: FrequencyAxisScale,
+    numerical_axis_scale: NumericalAxisScale,
 ) -> tuple[FeaturePlotSpecification, ...]:
     """Create plot configurations appropriate for a feature."""
 
@@ -604,6 +632,7 @@ def _create_feature_plot_specifications(
                 feature_label=feature_specification.label,
                 histogram_bin_count=histogram_bin_count,
                 frequency_axis_scale=frequency_axis_scale,
+                numerical_axis_scale=numerical_axis_scale,
             ),
             FeaturePlotSpecification(
                 plot_type=FeaturePlotType.STRATIFIED_HISTOGRAM,
@@ -611,6 +640,7 @@ def _create_feature_plot_specifications(
                 target_feature_label=target_feature_specification.label,
                 histogram_bin_count=histogram_bin_count,
                 frequency_axis_scale=frequency_axis_scale,
+                numerical_axis_scale=numerical_axis_scale,
             ),
         )
 
@@ -885,6 +915,7 @@ def _get_target_category_order(
 def _calculate_histogram_bin_edges(
     numerical_values: Sequence[float],
     histogram_bin_count: int,
+    numerical_axis_scale: NumericalAxisScale,
 ) -> list[float]:
     """Calculate common histogram bin edges for comparable distributions."""
 
@@ -902,14 +933,90 @@ def _calculate_histogram_bin_edges(
             maximum_value + 0.5,
         ]
 
+    numerical_array = np.asarray(
+        numerical_values,
+        dtype=float,
+    )
+
+    match numerical_axis_scale:
+        case NumericalAxisScale.LINEAR:
+            transformed_values = numerical_array
+            inverse_transform = lambda values: values
+
+        case NumericalAxisScale.CUBE_ROOT:
+            transformed_values = np.cbrt(
+                numerical_array,
+            )
+            inverse_transform = lambda values: np.power(
+                values,
+                3,
+            )
+
+        case NumericalAxisScale.SQRT:
+            if minimum_value < 0:
+                raise ValueError(
+                    "Square-root numerical axes require non-negative feature values.",
+                )
+
+            transformed_values = np.sqrt(
+                numerical_array,
+            )
+            inverse_transform = lambda values: np.power(
+                values,
+                2,
+            )
+
+        case _:
+            raise ValueError(
+                f"Unsupported numerical axis scale '{numerical_axis_scale}'.",
+            )
+
+    transformed_bin_edges = np.linspace(
+        transformed_values.min(),
+        transformed_values.max(),
+        histogram_bin_count + 1,
+    )
+
     return [
         float(bin_edge)
-        for bin_edge in np.linspace(
-            minimum_value,
-            maximum_value,
-            histogram_bin_count + 1,
+        for bin_edge in inverse_transform(
+            transformed_bin_edges,
         )
     ]
+
+
+def _configure_numerical_axis(
+    axes: Axes,
+    numerical_axis_scale: NumericalAxisScale,
+) -> None:
+    """Configure the X axis for a numerical visualization."""
+
+    match numerical_axis_scale:
+        case NumericalAxisScale.LINEAR:
+            axes.set_xscale("linear")
+
+        case NumericalAxisScale.SQRT:
+            axes.set_xscale(
+                "function",
+                functions=(
+                    np.sqrt,
+                    lambda value: np.power(value, 2),
+                ),
+            )
+
+        case NumericalAxisScale.CUBE_ROOT:
+            axes.set_xscale(
+                "function",
+                functions=(
+                    np.cbrt,
+                    lambda value: np.power(value, 3),
+                ),
+            )
+
+        case _:
+            raise ValueError(
+                f"Unsupported numerical axis scale '{numerical_axis_scale}'.",
+            )
 
 
 # ----------------------------------------
@@ -1133,6 +1240,7 @@ def _render_numerical_aggregate_histogram(
     data_frame: pd.DataFrame,
     feature_specification: FeatureSpec,
     histogram_bin_count: int,
+    numerical_axis_scale: NumericalAxisScale,
     frequency_axis_scale: FrequencyAxisScale,
 ) -> Figure:
     """Render an aggregate histogram for a numerical feature."""
@@ -1144,6 +1252,7 @@ def _render_numerical_aggregate_histogram(
     histogram_bin_edges = _calculate_histogram_bin_edges(
         numerical_values=numerical_values,
         histogram_bin_count=histogram_bin_count,
+        numerical_axis_scale=numerical_axis_scale,
     )
 
     figure, axes = plt.subplots(
@@ -1173,6 +1282,11 @@ def _render_numerical_aggregate_histogram(
         feature_specification.name,
     )
 
+    _configure_numerical_axis(
+        axes=axes,
+        numerical_axis_scale=numerical_axis_scale,
+    )
+
     _configure_frequency_axis(
         axes=axes,
         frequency_axis_scale=frequency_axis_scale,
@@ -1196,6 +1310,7 @@ def _render_numerical_stratified_histogram(
     feature_specification: FeatureSpec,
     target_feature_specification: FeatureSpec,
     histogram_bin_count: int,
+    numerical_axis_scale: NumericalAxisScale,
     frequency_axis_scale: FrequencyAxisScale,
 ) -> Figure:
     """Render a target-stratified histogram for a numerical feature."""
@@ -1221,6 +1336,7 @@ def _render_numerical_stratified_histogram(
     histogram_bin_edges = _calculate_histogram_bin_edges(
         numerical_values=numerical_values,
         histogram_bin_count=histogram_bin_count,
+        numerical_axis_scale=numerical_axis_scale,
     )
 
     target_category_colors = get_discrete_colors(
@@ -1269,6 +1385,11 @@ def _render_numerical_stratified_histogram(
     )
     axes.set_xlabel(
         feature_specification.name,
+    )
+
+    _configure_numerical_axis(
+        axes=axes,
+        numerical_axis_scale=numerical_axis_scale,
     )
 
     _configure_frequency_axis(

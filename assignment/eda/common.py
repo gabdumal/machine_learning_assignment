@@ -31,6 +31,15 @@ class FrequencyAxisScale(StrEnum):
     LOG1P = "log1p"
 
 
+class NumericalAxisScale(StrEnum):
+    """Scales supported for numerical feature axes."""
+
+    LINEAR = "linear"
+    SQRT = "sqrt"
+    CUBE_ROOT = "cube_root"
+    LOG1P = "log1p"
+
+
 _FREQUENCY_PLOT_TYPES = frozenset(
     {
         FeaturePlotType.HISTOGRAM,
@@ -70,6 +79,7 @@ class FeaturePlotSpecification:
     target_feature_label: str | None = None
     histogram_bin_count: int | None = None
     frequency_axis_scale: FrequencyAxisScale = FrequencyAxisScale.LINEAR
+    numerical_axis_scale: NumericalAxisScale = NumericalAxisScale.LINEAR
 
     def __post_init__(self) -> None:
         """Validate and normalize the plot specification."""
@@ -78,16 +88,30 @@ class FeaturePlotSpecification:
         frequency_axis_scale = FrequencyAxisScale(
             self.frequency_axis_scale,
         )
+        numerical_axis_scale = NumericalAxisScale(
+            self.numerical_axis_scale,
+        )
 
-        object.__setattr__(self, "plot_type", plot_type)
+        object.__setattr__(
+            self,
+            "plot_type",
+            plot_type,
+        )
         object.__setattr__(
             self,
             "frequency_axis_scale",
             frequency_axis_scale,
         )
+        object.__setattr__(
+            self,
+            "numerical_axis_scale",
+            numerical_axis_scale,
+        )
 
         if not self.feature_label:
-            raise ValueError("Feature label must not be empty.")
+            raise ValueError(
+                "Feature label must not be empty.",
+            )
 
         requires_target_feature = plot_type in _TARGET_PLOT_TYPES
 
@@ -132,6 +156,18 @@ class FeaturePlotSpecification:
                 f"Plot type '{plot_type.value}' does not have a "
                 "frequency Y axis and cannot use the "
                 f"'{frequency_axis_scale.value}' frequency scale.",
+            )
+
+        uses_numerical_axis = plot_type in _HISTOGRAM_PLOT_TYPES
+
+        if (
+            not uses_numerical_axis
+            and numerical_axis_scale is not NumericalAxisScale.LINEAR
+        ):
+            raise ValueError(
+                f"Plot type '{plot_type.value}' does not have a "
+                "numerical X axis and cannot use the "
+                f"'{numerical_axis_scale.value}' numerical scale.",
             )
 
 
