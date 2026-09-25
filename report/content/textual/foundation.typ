@@ -55,41 +55,128 @@
         ],
 
         [
-          @oliveira:2024:age_estimation_machine_learning
+          #get_term("genis")
+          #cite(<silva:2025:genis_network_intrusion>)
         ],
         [
-          10.035
+          2.806.168
         ],
         [
-          ID da imagem; idade; sexo; radiografia panorâmica (299x299 pixels).
+          125
         ],
         [
+          13
         ],
         [
+          Distribuição
         ],
         [
+          Observações
         ],
 
         [
-          @lee:2022:age_group_classification
+          #get_term("rosids")
+          #cite(<degirmenci:2023:rosids23_network_intrusion>)
         ],
         [
-          471
+          Instâncias
         ],
         [
-          ID do paciente; idade; sexo; 18 características extraídas.
+          Atributos
         ],
         [
+          Alvo/classes
         ],
         [
+          Distribuição
         ],
         [
+          Observações
+        ],
+
+        [
+          #get_term("westermo")
+          #cite(<strandberg:2023:westermo_network_traffic>)
+        ],
+        [
+          Instâncias
+        ],
+        [
+          Atributos
+        ],
+        [
+          Alvo/classes
+        ],
+        [
+          Distribuição
+        ],
+        [
+          Observações
         ],
       ),
     ),
   ),
 )
 
+=== #get_term("genis", capitalize: true)
+
+A base de dados #get_term("genis") (GECAD
+Network Intrusion Scenarios) foi desenvolvida pelo #foreign_text[Research Group on Intelligent Engineering and Computing for Advanced Innovation and Development] da Universidade Técnica de Porto @silva:2025:genis_network_intrusion.
+Ela coleta as atividades de diferentes tipos de fluxos de ataques de rede realizados em simulação na plataforma Airbus CyberRange.
+
+A simulação registrou 37.681.001 pacotes de rede organizados nos respectivos passos de ataque.
+Eles formam 2.806.168 fluxos de rede, que estão classificados em granularidades hierárquicas, e separados por intervalos de tempo de 5, 10, 30 e 60 segundos.
+
+Um fluxo é rotulado como benigno (0) ou como malicioso (1).
+Estes últimos são categorizados como de força bruta, de DOS ou de RECON.
+Aos fluxos ainda são atribuídas sub-categorias, conforme a tabela @tabela:classes_genis.
+
+#describe_figure(
+  source: [#cite_prose(<silva:2025:genis_network_intrusion>).],
+  [#figure(
+    caption: [Classes de fluxos de rede na base de dados #get_term("genis")],
+    format_table(
+      table(
+        columns: (1fr, 1fr, 1fr),
+        align: start + top,
+
+        [
+          Rótulo
+        ],
+        [
+          Categoria
+        ],
+        [
+          Sub-categoria
+        ],
+
+        table.cell(rowspan: 3)[0],
+        table.cell(rowspan: 3)[benign],
+        [benign-admin],
+        [benign-background],
+        [benign-user],
+
+        table.cell(rowspan: 10)[1],
+
+        table.cell(rowspan: 3)[bruteforce],
+        [bruteforce-ftp],
+        [bruteforce-smb],
+        [bruteforce-ssh],
+
+        table.cell(rowspan: 5)[dos],
+        [dos-hulk],
+        [dos-icmp],
+        [dos-pushack],
+        [dos-slowloris],
+        [dos-udp],
+
+        table.cell(rowspan: 2)[recon],
+        [recon-dns],
+        [recon-nmap],
+      ),
+    ),
+  )<tabela:classes_genis>],
+)
 
 == Métodos e trabalhos relacionados
 
