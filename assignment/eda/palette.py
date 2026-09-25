@@ -5,7 +5,7 @@ from collections.abc import Sequence
 from matplotlib import colormaps
 from matplotlib.colors import Colormap
 
-# ColorBrewer Set2 with the first two colors inverted.
+# ColorBrewer based on Set2.
 #
 # Index 0 is intentionally reserved for:
 #   - aggregate data;

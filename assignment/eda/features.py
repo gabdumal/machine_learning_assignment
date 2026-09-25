@@ -1,6 +1,6 @@
 """Feature-level exploratory data analysis."""
 
-from collections.abc import Callable, Sequence
+from collections.abc import Sequence
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -20,7 +20,6 @@ from eda.common import (
     NumericalFeatureStatistics,
 )
 from eda.palette import (
-    CONTINUOUS_PALETTE,
     get_aggregate_color,
     get_discrete_colors,
 )
@@ -951,35 +950,6 @@ def _get_nice_frequency_tick_step(
     return nice_step * magnitude
 
 
-def _get_frequency_tick_values(
-    maximum_frequency: float,
-    *,
-    target_tick_count: int = 8,
-) -> tuple[float, ...]:
-    """Return nice major tick values in the original frequency space."""
-
-    if maximum_frequency < 0:
-        raise ValueError(
-            "Maximum frequency must not be negative.",
-        )
-
-    if maximum_frequency == 0:
-        return (0.0,)
-
-    tick_step = _get_nice_frequency_tick_step(
-        maximum_frequency,
-        target_tick_count=target_tick_count,
-    )
-
-    tick_values = np.arange(
-        0.0,
-        maximum_frequency + tick_step,
-        tick_step,
-    )
-
-    return tuple(float(tick) for tick in tick_values if tick <= maximum_frequency)
-
-
 def _format_frequency_tick(value: float) -> str:
     """Format a frequency tick using readable units."""
 
@@ -999,20 +969,91 @@ def _format_frequency_tick(value: float) -> str:
     return f"{value:g}"
 
 
+def _get_linear_frequency_tick_values(
+    maximum_frequency: float,
+    *,
+    target_tick_count: int = 8,
+) -> tuple[float, ...]:
+    """Return nice linearly spaced frequency tick values."""
+
+    if maximum_frequency < 0:
+        raise ValueError(
+            "Maximum frequency must not be negative.",
+        )
+
+    if maximum_frequency == 0:
+        return (0.0,)
+
+    tick_step = _get_nice_frequency_tick_step(
+        maximum_frequency=maximum_frequency,
+        target_tick_count=target_tick_count,
+    )
+
+    tick_values = np.arange(
+        0.0,
+        maximum_frequency + tick_step,
+        tick_step,
+    )
+
+    return tuple(float(tick) for tick in tick_values if tick <= maximum_frequency)
+
+
+def _get_logarithmic_frequency_tick_values(
+    maximum_frequency: float,
+) -> tuple[float, ...]:
+    """Return logarithmically spaced frequency ticks plus the maximum."""
+
+    if maximum_frequency < 0:
+        raise ValueError(
+            "Maximum frequency must not be negative.",
+        )
+
+    if maximum_frequency == 0:
+        return (0.0,)
+
+    maximum_exponent = int(
+        np.floor(np.log10(maximum_frequency)),
+    )
+
+    minimum_exponent = 1
+
+    if maximum_exponent < minimum_exponent:
+        minimum_exponent = 0
+
+    logarithmic_ticks = tuple(
+        float(10**exponent)
+        for exponent in range(
+            minimum_exponent,
+            maximum_exponent + 1,
+        )
+    )
+
+    # Add the exact maximum so the highest bar has a corresponding tick.
+    if maximum_frequency not in logarithmic_ticks:
+        logarithmic_ticks += (maximum_frequency,)
+
+    return (0.0, *logarithmic_ticks)
+
+
 def _configure_frequency_ticks(
     axes: Axes,
     *,
+    frequency_axis_scale: FrequencyAxisScale,
     maximum_frequency: float,
 ) -> None:
-    """Configure major frequency ticks in raw frequency units.
+    """Configure major frequency ticks in raw frequency units."""
 
-    The locator receives the original frequency values. Matplotlib's
-    configured axis scale is responsible for transforming their positions.
-    """
-
-    frequency_tick_values = _get_frequency_tick_values(
-        maximum_frequency=maximum_frequency,
-    )
+    if frequency_axis_scale in {
+        FrequencyAxisScale.CUBE_ROOT,
+        FrequencyAxisScale.LOG1P,
+    }:
+        frequency_tick_values = _get_logarithmic_frequency_tick_values(
+            maximum_frequency=maximum_frequency,
+        )
+    else:
+        frequency_tick_values = _get_linear_frequency_tick_values(
+            maximum_frequency=maximum_frequency,
+        )
 
     tick_labels = tuple(
         _format_frequency_tick(value) for value in frequency_tick_values
@@ -1076,6 +1117,7 @@ def _configure_frequency_axis(
 
     _configure_frequency_ticks(
         axes=axes,
+        frequency_axis_scale=frequency_axis_scale,
         maximum_frequency=maximum_frequency,
     )
 
@@ -1111,8 +1153,8 @@ def _render_numerical_aggregate_histogram(
     frequencies, _, _ = axes.hist(
         numerical_values,
         bins=histogram_bin_edges,
-        color=CONTINUOUS_PALETTE(0.70),
-        edgecolor="white",
+        color=get_aggregate_color(),
+        edgecolor="black",
     )
 
     histogram_frequencies = np.asarray(
@@ -1139,7 +1181,9 @@ def _render_numerical_aggregate_histogram(
 
     axes.grid(
         axis="y",
-        alpha=0.20,
+        linestyle="--",
+        linewidth=0.8,
+        alpha=0.4,
     )
 
     figure.tight_layout()
@@ -1205,7 +1249,7 @@ def _render_numerical_stratified_histogram(
             bins=histogram_bin_edges,
             color=target_category_color,
             alpha=0.55,
-            edgecolor="white",
+            edgecolor="black",
             label=target_category_value,
         )
 
@@ -1239,7 +1283,9 @@ def _render_numerical_stratified_histogram(
 
     axes.grid(
         axis="y",
-        alpha=0.20,
+        linestyle="--",
+        linewidth=0.8,
+        alpha=0.4,
     )
 
     figure.tight_layout()
@@ -1330,7 +1376,9 @@ def _render_numerical_boxplots(
 
     axes.grid(
         axis="y",
-        alpha=0.20,
+        linestyle="--",
+        linewidth=0.8,
+        alpha=0.4,
     )
 
     figure.tight_layout()
@@ -1381,6 +1429,7 @@ def _render_categorical_aggregate_bar_chart(
         category_values,
         category_counts,
         color=get_aggregate_color(),
+        edgecolor="black",
     )
 
     axes.set_title(
@@ -1403,7 +1452,9 @@ def _render_categorical_aggregate_bar_chart(
 
     axes.grid(
         axis="y",
-        alpha=0.20,
+        linestyle="--",
+        linewidth=0.8,
+        alpha=0.4,
     )
 
     figure.tight_layout()
@@ -1495,6 +1546,7 @@ def _render_categorical_stratified_bar_chart(
             ),
             width=bar_width,
             color=target_category_color,
+            edgecolor="black",
             label=target_category_value,
         )
 
@@ -1526,7 +1578,9 @@ def _render_categorical_stratified_bar_chart(
 
     axes.grid(
         axis="y",
-        alpha=0.20,
+        linestyle="--",
+        linewidth=0.8,
+        alpha=0.4,
     )
 
     figure.tight_layout()
