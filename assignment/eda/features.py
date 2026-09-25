@@ -1,12 +1,14 @@
 """Feature-level exploratory data analysis."""
 
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
+from typing import Literal
 
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from IPython.display import HTML, display
 from matplotlib.axes import Axes
+from matplotlib.axis import Axis
 from matplotlib.figure import Figure
 from matplotlib.ticker import FixedFormatter, FixedLocator
 
@@ -38,6 +40,14 @@ DEFAULT_HISTOGRAM_BIN_COUNT = 30
 DEFAULT_FIGURE_SIZE = (10.0, 6.0)
 DEFAULT_BOXPLOT_FIGURE_SIZE = (12.0, 7.0)
 
+MINIMUM_INTERIOR_TICK_COUNT = 5
+MINIMUM_TICK_SPACING_FACTOR = 0.6
+
+_DISTRIBUTION_TICK_QUANTILES = (
+    0.25,
+    0.50,
+    0.75,
+)
 
 _FREQUENCY_PLOT_TYPES = frozenset(
     {
@@ -56,12 +66,25 @@ _NUMERICAL_PLOT_TYPES = frozenset(
     }
 )
 
+_HISTOGRAM_PLOT_TYPES = frozenset(
+    {
+        FeaturePlotType.HISTOGRAM,
+        FeaturePlotType.STRATIFIED_HISTOGRAM,
+    }
+)
+
 _CATEGORICAL_PLOT_TYPES = frozenset(
     {
         FeaturePlotType.BAR_CHART,
         FeaturePlotType.STRATIFIED_BAR_CHART,
     }
 )
+
+AxisTransform = Callable[[np.ndarray], np.ndarray]
+AxisTransformPair = tuple[AxisTransform, AxisTransform]
+AxisScale = FrequencyAxisScale | NumericalAxisScale
+HorizontalAlignment = Literal["left", "center", "right"]
+
 
 # ----------------------------------------
 # Public API
@@ -80,7 +103,7 @@ def inspect_feature(
     """Inspect one feature without rendering visualizations.
 
     The returned ``FeatureInspection`` contains the feature metadata,
-    descriptive statistics, and specifications for the visualizations
+    descriptive statistics, and specifications for visualizations
     appropriate for the feature type.
 
     Args:
@@ -126,7 +149,6 @@ def inspect_feature(
     normalized_frequency_axis_scale = FrequencyAxisScale(
         frequency_axis_scale,
     )
-
     normalized_numerical_axis_scale = NumericalAxisScale(
         numerical_axis_scale,
     )
@@ -243,8 +265,8 @@ def render_feature_plot(
                 histogram_bin_count=_require_histogram_bin_count(
                     plot_specification,
                 ),
-                numerical_axis_scale=(plot_specification.numerical_axis_scale),
-                frequency_axis_scale=(plot_specification.frequency_axis_scale),
+                numerical_axis_scale=plot_specification.numerical_axis_scale,
+                frequency_axis_scale=plot_specification.frequency_axis_scale,
             )
 
         case FeaturePlotType.BOXPLOT:
@@ -270,15 +292,15 @@ def render_feature_plot(
                 histogram_bin_count=_require_histogram_bin_count(
                     plot_specification,
                 ),
-                numerical_axis_scale=(plot_specification.numerical_axis_scale),
-                frequency_axis_scale=(plot_specification.frequency_axis_scale),
+                numerical_axis_scale=plot_specification.numerical_axis_scale,
+                frequency_axis_scale=plot_specification.frequency_axis_scale,
             )
 
         case FeaturePlotType.BAR_CHART:
             return _render_categorical_aggregate_bar_chart(
                 data_frame=data_frame,
                 feature_specification=feature_specification,
-                frequency_axis_scale=(plot_specification.frequency_axis_scale),
+                frequency_axis_scale=plot_specification.frequency_axis_scale,
             )
 
         case FeaturePlotType.STRATIFIED_BAR_CHART:
@@ -290,7 +312,7 @@ def render_feature_plot(
                         target_specification,
                     )
                 ),
-                frequency_axis_scale=(plot_specification.frequency_axis_scale),
+                frequency_axis_scale=plot_specification.frequency_axis_scale,
             )
 
         case _:
@@ -493,6 +515,16 @@ def _validate_plot_feature(
             f"Frequency axis scale "
             f"'{plot_specification.frequency_axis_scale.value}' "
             "can only be used with frequency-based plots.",
+        )
+
+    if (
+        plot_specification.numerical_axis_scale is not NumericalAxisScale.LINEAR
+        and plot_specification.plot_type not in _HISTOGRAM_PLOT_TYPES
+    ):
+        raise ValueError(
+            f"Numerical axis scale "
+            f"'{plot_specification.numerical_axis_scale.value}' "
+            "can only be used with histogram plots.",
         )
 
 
@@ -908,6 +940,613 @@ def _get_target_category_order(
 
 
 # ----------------------------------------
+# Axis transformations
+# ----------------------------------------
+
+
+def _get_axis_functions(
+    axis_scale: AxisScale,
+) -> AxisTransformPair | None:
+    """Return the forward and inverse functions for an axis scale."""
+
+    match axis_scale:
+        case FrequencyAxisScale.LINEAR | NumericalAxisScale.LINEAR:
+            return None
+
+        case FrequencyAxisScale.SQRT | NumericalAxisScale.SQRT:
+            return (
+                np.sqrt,
+                lambda values: np.power(values, 2),
+            )
+
+        case FrequencyAxisScale.CUBE_ROOT | NumericalAxisScale.CUBE_ROOT:
+            return (
+                np.cbrt,
+                lambda values: np.power(values, 3),
+            )
+
+        case FrequencyAxisScale.LOG1P | NumericalAxisScale.LOG1P:
+            return (
+                np.log1p,
+                np.expm1,
+            )
+
+        case _:
+            raise ValueError(
+                f"Unsupported axis scale '{axis_scale}'.",
+            )
+
+
+def _validate_axis_domain(
+    minimum_value: float,
+    axis_scale: AxisScale,
+) -> None:
+    """Validate that an axis scale is defined on the data domain."""
+
+    match axis_scale:
+        case FrequencyAxisScale.LINEAR | NumericalAxisScale.LINEAR:
+            return
+
+        case FrequencyAxisScale.SQRT | NumericalAxisScale.SQRT:
+            if minimum_value < 0:
+                raise ValueError(
+                    "Square-root axes require non-negative values.",
+                )
+
+        case FrequencyAxisScale.LOG1P | NumericalAxisScale.LOG1P:
+            if minimum_value <= -1:
+                raise ValueError(
+                    "Log1p axes require values greater than -1.",
+                )
+
+        case FrequencyAxisScale.CUBE_ROOT | NumericalAxisScale.CUBE_ROOT:
+            return
+
+        case _:
+            raise ValueError(
+                f"Unsupported axis scale '{axis_scale}'.",
+            )
+
+
+def _get_nice_tick_step(
+    minimum_value: float,
+    maximum_value: float,
+    *,
+    target_tick_count: int,
+    minimum_interior_tick_count: int,
+) -> float:
+    """Calculate a readable linear tick interval."""
+
+    if minimum_value > maximum_value:
+        raise ValueError(
+            "Minimum value must not exceed maximum value.",
+        )
+
+    if target_tick_count < 2:
+        raise ValueError(
+            "Target tick count must be at least two.",
+        )
+
+    if minimum_interior_tick_count < 0:
+        raise ValueError(
+            "Minimum interior tick count must not be negative.",
+        )
+
+    value_range = maximum_value - minimum_value
+
+    if value_range <= 0:
+        return 1.0
+
+    rough_step = value_range / (target_tick_count - 1)
+    exponent = np.floor(np.log10(rough_step))
+    magnitude = 10.0**exponent
+    target_interior_tick_count = target_tick_count - 2
+
+    candidate_steps = tuple(
+        multiplier * magnitude
+        for multiplier in (
+            1.0,
+            1.25,
+            1.5,
+            2.0,
+            2.5,
+            5.0,
+            10.0,
+        )
+    )
+
+    candidates: list[tuple[int, float]] = []
+
+    for candidate_step in candidate_steps:
+        first_tick = (
+            np.ceil(
+                minimum_value / candidate_step,
+            )
+            * candidate_step
+        )
+        last_tick = (
+            np.floor(
+                maximum_value / candidate_step,
+            )
+            * candidate_step
+        )
+
+        if last_tick < first_tick:
+            interior_tick_count = 0
+        else:
+            tick_range = np.arange(
+                first_tick,
+                last_tick + candidate_step * 0.5,
+                candidate_step,
+            )
+
+            interior_tick_count = int(
+                np.count_nonzero(
+                    (tick_range > minimum_value) & (tick_range < maximum_value),
+                ),
+            )
+
+        if interior_tick_count >= minimum_interior_tick_count:
+            candidates.append(
+                (
+                    abs(interior_tick_count - target_interior_tick_count),
+                    candidate_step,
+                ),
+            )
+
+    if candidates:
+        return min(
+            candidates,
+            key=lambda candidate: (
+                candidate[0],
+                candidate[1],
+            ),
+        )[1]
+
+    return candidate_steps[-1]
+
+
+def _get_linear_tick_values(
+    minimum_value: float,
+    maximum_value: float,
+    *,
+    target_tick_count: int = MINIMUM_INTERIOR_TICK_COUNT + 3,
+    minimum_interior_tick_count: int = MINIMUM_INTERIOR_TICK_COUNT,
+) -> tuple[float, ...]:
+    """Return readable linear ticks with exact data-range endpoints."""
+
+    if minimum_value > maximum_value:
+        raise ValueError(
+            "Minimum value must not exceed maximum value.",
+        )
+
+    if minimum_value == maximum_value:
+        return (float(minimum_value),)
+
+    tick_step = _get_nice_tick_step(
+        minimum_value=minimum_value,
+        maximum_value=maximum_value,
+        target_tick_count=target_tick_count,
+        minimum_interior_tick_count=minimum_interior_tick_count,
+    )
+
+    first_tick = (
+        np.ceil(
+            minimum_value / tick_step,
+        )
+        * tick_step
+    )
+
+    last_tick = (
+        np.floor(
+            maximum_value / tick_step,
+        )
+        * tick_step
+    )
+
+    ticks = np.arange(
+        first_tick,
+        last_tick + tick_step * 0.5,
+        tick_step,
+    )
+
+    interior_tick_values = [
+        float(tick) for tick in ticks if minimum_value < tick < maximum_value
+    ]
+
+    if len(interior_tick_values) < minimum_interior_tick_count:
+        fallback_tick_values = np.linspace(
+            minimum_value,
+            maximum_value,
+            minimum_interior_tick_count + 2,
+        )[1:-1]
+
+        interior_tick_values.extend(float(tick) for tick in fallback_tick_values)
+
+    interior_tick_values = sorted(
+        {
+            float(tick)
+            for tick in interior_tick_values
+            if minimum_value < tick < maximum_value
+        },
+    )
+
+    return (
+        float(minimum_value),
+        *interior_tick_values,
+        float(maximum_value),
+    )
+
+
+def _get_decade_tick_values(
+    minimum_value: float,
+    maximum_value: float,
+) -> tuple[float, ...]:
+    """Return decade-spaced positive ticks inside a range."""
+
+    if maximum_value <= 0 or minimum_value >= maximum_value:
+        return ()
+
+    if minimum_value <= 0:
+        first_exponent = 1
+    else:
+        first_exponent = max(
+            1,
+            int(np.ceil(np.log10(minimum_value))),
+        )
+
+    last_exponent = int(
+        np.floor(np.log10(maximum_value)),
+    )
+
+    if first_exponent > last_exponent:
+        return ()
+
+    return tuple(
+        float(10**exponent)
+        for exponent in range(
+            first_exponent,
+            last_exponent + 1,
+        )
+        if minimum_value < 10**exponent < maximum_value
+    )
+
+
+def _get_quantile_tick_values(
+    numerical_values: np.ndarray,
+    transform: AxisTransform,
+) -> list[float]:
+    """Return distinct interior empirical-quantile ticks in transformed space."""
+
+    quantile_values = np.asarray(
+        np.quantile(
+            numerical_values,
+            _DISTRIBUTION_TICK_QUANTILES,
+        ),
+        dtype=float,
+    )
+
+    transformed_quantiles = transform(
+        quantile_values,
+    )
+
+    return sorted(
+        {float(value) for value in transformed_quantiles if np.isfinite(value)}
+    )
+
+
+def _select_additional_tick_values(
+    candidate_values: Sequence[float],
+    existing_values: Sequence[float],
+    *,
+    required_count: int,
+    minimum_spacing: float,
+    boundary_values: Sequence[float] = (),
+) -> list[float]:
+    """Select additional tick positions without visual crowding."""
+
+    if required_count < 0:
+        raise ValueError(
+            "Required tick count must not be negative.",
+        )
+
+    if minimum_spacing < 0:
+        raise ValueError(
+            "Minimum tick spacing must not be negative.",
+        )
+
+    selected_values: list[float] = []
+
+    for value in existing_values:
+        candidate = float(value)
+
+        if not np.isfinite(candidate):
+            continue
+
+        if any(
+            abs(candidate - selected) < minimum_spacing for selected in selected_values
+        ):
+            continue
+
+        if any(
+            abs(candidate - boundary) < minimum_spacing for boundary in boundary_values
+        ):
+            continue
+
+        selected_values.append(candidate)
+
+    selected_values.sort()
+
+    remaining_values = sorted(
+        {
+            float(value)
+            for value in candidate_values
+            if np.isfinite(value) and float(value) not in selected_values
+        },
+    )
+
+    while remaining_values and len(selected_values) < required_count:
+        eligible_values = [
+            candidate
+            for candidate in remaining_values
+            if (
+                all(
+                    abs(candidate - selected) >= minimum_spacing
+                    for selected in selected_values
+                )
+                and all(
+                    abs(candidate - boundary) >= minimum_spacing
+                    for boundary in boundary_values
+                )
+            )
+        ]
+
+        if not eligible_values:
+            break
+
+        selected_value = max(
+            eligible_values,
+            key=lambda candidate: (
+                min(
+                    (
+                        abs(candidate - selected)
+                        for selected in (
+                            *selected_values,
+                            *boundary_values,
+                        )
+                    ),
+                    default=float("inf"),
+                ),
+                -candidate,
+            ),
+        )
+
+        selected_values.append(selected_value)
+        selected_values.sort()
+        remaining_values.remove(selected_value)
+
+    return selected_values
+
+
+def _get_adaptive_nonlinear_tick_values(
+    numerical_values: np.ndarray,
+    *,
+    minimum_value: float,
+    maximum_value: float,
+    transform: AxisTransform,
+    inverse_transform: AxisTransform,
+    minimum_interior_tick_count: int,
+) -> tuple[float, ...]:
+    """Return readable ticks for a nonlinear numeric axis."""
+
+    transformed_minimum = float(
+        transform(
+            np.asarray([minimum_value], dtype=float),
+        )[0],
+    )
+    transformed_maximum = float(
+        transform(
+            np.asarray([maximum_value], dtype=float),
+        )[0],
+    )
+
+    transformed_range = transformed_maximum - transformed_minimum
+
+    if transformed_range <= 0:
+        return (
+            float(minimum_value),
+            float(maximum_value),
+        )
+
+    ideal_spacing = transformed_range / (minimum_interior_tick_count + 1)
+
+    decade_raw_ticks = (
+        _get_decade_tick_values(
+            minimum_value=minimum_value,
+            maximum_value=maximum_value,
+        )
+        if minimum_value >= 0
+        else ()
+    )
+
+    decade_transformed_ticks = (
+        tuple(
+            float(value)
+            for value in transform(
+                np.asarray(
+                    decade_raw_ticks,
+                    dtype=float,
+                ),
+            )
+        )
+        if decade_raw_ticks
+        else ()
+    )
+
+    quantile_transformed_ticks = tuple(
+        value
+        for value in _get_quantile_tick_values(
+            numerical_values=numerical_values,
+            transform=transform,
+        )
+        if transformed_minimum < value < transformed_maximum
+    )
+
+    fallback_ticks = tuple(
+        float(value)
+        for value in np.linspace(
+            transformed_minimum,
+            transformed_maximum,
+            (minimum_interior_tick_count + 2) * 4,
+        )[1:-1]
+    )
+
+    boundary_values = (
+        transformed_minimum,
+        transformed_maximum,
+    )
+
+    # Prefer decade landmarks, then empirical quantiles, then transformed
+    # uniform positions. All three pools are filtered by the same minimum
+    # spacing so labels cannot bunch together near zero.
+    for spacing_factor in (
+        MINIMUM_TICK_SPACING_FACTOR,
+        0.45,
+        0.30,
+        0.15,
+        0.0,
+    ):
+        current_spacing = ideal_spacing * spacing_factor
+
+        selected_transformed_ticks = _select_additional_tick_values(
+            candidate_values=quantile_transformed_ticks,
+            existing_values=decade_transformed_ticks,
+            required_count=minimum_interior_tick_count,
+            minimum_spacing=current_spacing,
+            boundary_values=boundary_values,
+        )
+
+        if len(selected_transformed_ticks) < minimum_interior_tick_count:
+            selected_transformed_ticks = _select_additional_tick_values(
+                candidate_values=fallback_ticks,
+                existing_values=selected_transformed_ticks,
+                required_count=minimum_interior_tick_count,
+                minimum_spacing=current_spacing,
+                boundary_values=boundary_values,
+            )
+
+        if len(selected_transformed_ticks) >= minimum_interior_tick_count:
+            break
+
+    selected_transformed_ticks = sorted(
+        {
+            float(value)
+            for value in selected_transformed_ticks
+            if transformed_minimum < value < transformed_maximum
+        },
+    )
+
+    raw_tick_values = inverse_transform(
+        np.asarray(
+            (
+                transformed_minimum,
+                *selected_transformed_ticks,
+                transformed_maximum,
+            ),
+            dtype=float,
+        ),
+    )
+
+    return tuple(float(value) for value in raw_tick_values)
+
+
+def _get_axis_tick_values(
+    values: Sequence[float],
+    axis_scale: AxisScale,
+    *,
+    minimum_value: float | None = None,
+    maximum_value: float | None = None,
+    minimum_interior_tick_count: int = MINIMUM_INTERIOR_TICK_COUNT,
+) -> tuple[float, ...]:
+    """Generate reusable, data-aware ticks for any numeric axis.
+
+    Tick values are always returned in the original data space. The axis
+    transformation is applied later by Matplotlib.
+
+    Linear axes use human-friendly regular intervals. Positive nonlinear
+    axes prefer decade landmarks such as 10, 100, 1k, and 10k. When the
+    range is too small to provide enough landmarks, empirical quantiles
+    and evenly spaced transformed coordinates are used as fallback.
+    """
+
+    numerical_values = np.asarray(
+        values,
+        dtype=float,
+    )
+
+    if numerical_values.size == 0:
+        raise ValueError(
+            "Cannot generate ticks from an empty collection.",
+        )
+
+    if not np.isfinite(numerical_values).all():
+        raise ValueError(
+            "Axis values must be finite.",
+        )
+
+    if minimum_interior_tick_count < 0:
+        raise ValueError(
+            "Minimum interior tick count must not be negative.",
+        )
+
+    observed_minimum = float(
+        numerical_values.min(),
+    )
+    observed_maximum = float(
+        numerical_values.max(),
+    )
+
+    axis_minimum = observed_minimum if minimum_value is None else float(minimum_value)
+    axis_maximum = observed_maximum if maximum_value is None else float(maximum_value)
+
+    if axis_minimum > axis_maximum:
+        raise ValueError(
+            "Minimum value must not exceed maximum value.",
+        )
+
+    _validate_axis_domain(
+        minimum_value=axis_minimum,
+        axis_scale=axis_scale,
+    )
+
+    if axis_minimum == axis_maximum:
+        return (axis_minimum,)
+
+    axis_functions = _get_axis_functions(
+        axis_scale,
+    )
+
+    if axis_functions is None:
+        return _get_linear_tick_values(
+            minimum_value=axis_minimum,
+            maximum_value=axis_maximum,
+            target_tick_count=(minimum_interior_tick_count + 3),
+            minimum_interior_tick_count=minimum_interior_tick_count,
+        )
+
+    transform, inverse_transform = axis_functions
+
+    return _get_adaptive_nonlinear_tick_values(
+        numerical_values=numerical_values,
+        minimum_value=axis_minimum,
+        maximum_value=axis_maximum,
+        transform=transform,
+        inverse_transform=inverse_transform,
+        minimum_interior_tick_count=minimum_interior_tick_count,
+    )
+
+
+# ----------------------------------------
 # Histogram utilities
 # ----------------------------------------
 
@@ -917,65 +1556,79 @@ def _calculate_histogram_bin_edges(
     histogram_bin_count: int,
     numerical_axis_scale: NumericalAxisScale,
 ) -> list[float]:
-    """Calculate common histogram bin edges for comparable distributions."""
+    """Calculate common histogram bin edges in the selected X-axis space."""
 
     if histogram_bin_count <= 0:
         raise ValueError(
             "Histogram bin count must be greater than zero.",
         )
 
-    minimum_value = min(numerical_values)
-    maximum_value = max(numerical_values)
-
-    if minimum_value == maximum_value:
-        return [
-            minimum_value - 0.5,
-            maximum_value + 0.5,
-        ]
-
     numerical_array = np.asarray(
         numerical_values,
         dtype=float,
     )
 
-    match numerical_axis_scale:
-        case NumericalAxisScale.LINEAR:
-            transformed_values = numerical_array
-            inverse_transform = lambda values: values
+    if numerical_array.size == 0:
+        raise ValueError(
+            "Cannot calculate histogram bins for an empty feature.",
+        )
 
-        case NumericalAxisScale.CUBE_ROOT:
-            transformed_values = np.cbrt(
-                numerical_array,
-            )
-            inverse_transform = lambda values: np.power(
-                values,
-                3,
-            )
+    if not np.isfinite(numerical_array).all():
+        raise ValueError(
+            "Histogram values must be finite.",
+        )
 
-        case NumericalAxisScale.SQRT:
-            if minimum_value < 0:
-                raise ValueError(
-                    "Square-root numerical axes require non-negative feature values.",
-                )
-
-            transformed_values = np.sqrt(
-                numerical_array,
-            )
-            inverse_transform = lambda values: np.power(
-                values,
-                2,
-            )
-
-        case _:
-            raise ValueError(
-                f"Unsupported numerical axis scale '{numerical_axis_scale}'.",
-            )
-
-    transformed_bin_edges = np.linspace(
-        transformed_values.min(),
-        transformed_values.max(),
-        histogram_bin_count + 1,
+    axis_functions = _get_axis_functions(
+        numerical_axis_scale,
     )
+
+    minimum_value = float(
+        numerical_array.min(),
+    )
+    maximum_value = float(
+        numerical_array.max(),
+    )
+
+    _validate_axis_domain(
+        minimum_value=minimum_value,
+        axis_scale=numerical_axis_scale,
+    )
+
+    if axis_functions is None:
+        transformed_values = numerical_array
+        inverse_transform: AxisTransform = lambda values: values
+    else:
+        transform, inverse_transform = axis_functions
+        transformed_values = transform(
+            numerical_array,
+        )
+
+    if minimum_value == maximum_value:
+        transformed_center = float(
+            transformed_values[0],
+        )
+
+        if numerical_axis_scale is NumericalAxisScale.LINEAR:
+            transformed_margin = 0.5
+        else:
+            transformed_margin = max(
+                0.5,
+                abs(transformed_center) * 0.05,
+            )
+
+        transformed_bin_edges = np.array(
+            (
+                transformed_center - transformed_margin,
+                transformed_center + transformed_margin,
+            ),
+            dtype=float,
+        )
+    else:
+        transformed_bin_edges = np.linspace(
+            transformed_values.min(),
+            transformed_values.max(),
+            histogram_bin_count + 1,
+        )
 
     return [
         float(bin_edge)
@@ -985,192 +1638,203 @@ def _calculate_histogram_bin_edges(
     ]
 
 
+# ----------------------------------------
+# Axis formatting
+# ----------------------------------------
+
+
+def _format_scale_name(
+    axis_scale: AxisScale,
+) -> str:
+    """Return a human-readable axis scale name."""
+
+    return axis_scale.value.replace(
+        "_",
+        " ",
+    )
+
+
+def _format_axis_tick(
+    value: float,
+) -> str:
+    """Format a numeric axis tick using compact, readable notation."""
+
+    if not np.isfinite(value):
+        return ""
+
+    if np.isclose(value, 0.0):
+        return "0"
+
+    sign = "-" if value < 0 else ""
+    absolute_value = abs(value)
+    suffix = ""
+
+    if absolute_value >= 1_000_000_000:
+        scaled_value = absolute_value / 1_000_000_000
+        suffix = "B"
+        formatted_value = f"{scaled_value:.4g}"
+    elif absolute_value >= 1_000_000:
+        scaled_value = absolute_value / 1_000_000
+        suffix = "M"
+        formatted_value = f"{scaled_value:.4g}"
+    elif absolute_value >= 1_000:
+        scaled_value = absolute_value / 1_000
+        suffix = "k"
+        formatted_value = f"{scaled_value:.4g}"
+    elif absolute_value >= 1:
+        suffix = ""
+        formatted_value = f"{absolute_value:.4g}"
+    elif absolute_value >= 1e-6:
+        decimal_places = min(
+            10,
+            max(
+                0,
+                int(-np.floor(np.log10(absolute_value))) + 3,
+            ),
+        )
+        formatted_value = f"{absolute_value:.{decimal_places}f}"
+    else:
+        suffix = ""
+        formatted_value = f"{absolute_value:.3g}"
+
+    if "." in formatted_value:
+        formatted_value = formatted_value.rstrip("0").rstrip(".")
+
+    return f"{sign}{formatted_value}{suffix}"
+
+
+def _format_axis_label(
+    name: str,
+    axis_scale: AxisScale,
+) -> str:
+    """Create an axis label that identifies the displayed scale."""
+
+    return f"{name} ({_format_scale_name(axis_scale)})"
+
+
+def _configure_x_tick_labels(
+    axes: Axes,
+    *,
+    label_rotation: float = 45.0,
+    horizontal_alignment: HorizontalAlignment = "right",
+) -> None:
+    """Configure the presentation of all X-axis tick labels."""
+
+    axes.tick_params(
+        axis="x",
+        labelrotation=label_rotation,
+    )
+
+    for tick_label in axes.get_xticklabels():
+        tick_label.set_horizontalalignment(
+            horizontal_alignment,
+        )
+
+
+def _configure_axis_ticks(
+    axis: Axis,
+    tick_values: Sequence[float],
+    *,
+    label_rotation: float = 0.0,
+    horizontal_alignment: HorizontalAlignment = "center",
+) -> None:
+    """Configure fixed numeric ticks and their label presentation."""
+
+    labels = tuple(
+        _format_axis_tick(
+            float(tick_value),
+        )
+        for tick_value in tick_values
+    )
+
+    axis.set_major_locator(
+        FixedLocator(tick_values),
+    )
+    axis.set_major_formatter(
+        FixedFormatter(labels),
+    )
+
+    if label_rotation != 0.0 or horizontal_alignment != "center":
+        for tick_label in axis.get_ticklabels():
+            tick_label.set_rotation(label_rotation)
+            tick_label.set_horizontalalignment(
+                horizontal_alignment,
+            )
+
+
+def _configure_axis_grid(
+    axes: Axes,
+) -> None:
+    """Configure the shared horizontal grid styling."""
+
+    axes.grid(
+        axis="y",
+        linestyle="--",
+        linewidth=0.8,
+        alpha=0.4,
+    )
+
+
 def _configure_numerical_axis(
     axes: Axes,
     numerical_axis_scale: NumericalAxisScale,
+    *,
+    feature_name: str,
+    numerical_values: Sequence[float],
 ) -> None:
-    """Configure the X axis for a numerical visualization."""
+    """Configure a numerical X axis, including data-aware ticks and label."""
 
-    match numerical_axis_scale:
-        case NumericalAxisScale.LINEAR:
-            axes.set_xscale("linear")
+    numerical_array = np.asarray(
+        numerical_values,
+        dtype=float,
+    )
 
-        case NumericalAxisScale.SQRT:
-            axes.set_xscale(
-                "function",
-                functions=(
-                    np.sqrt,
-                    lambda value: np.power(value, 2),
-                ),
-            )
+    minimum_value = float(
+        numerical_array.min(),
+    )
+    maximum_value = float(
+        numerical_array.max(),
+    )
 
-        case NumericalAxisScale.CUBE_ROOT:
-            axes.set_xscale(
-                "function",
-                functions=(
-                    np.cbrt,
-                    lambda value: np.power(value, 3),
-                ),
-            )
+    _validate_axis_domain(
+        minimum_value=minimum_value,
+        axis_scale=numerical_axis_scale,
+    )
 
-        case _:
-            raise ValueError(
-                f"Unsupported numerical axis scale '{numerical_axis_scale}'.",
-            )
+    axis_functions = _get_axis_functions(
+        numerical_axis_scale,
+    )
 
-
-# ----------------------------------------
-# Axis configuration
-# ----------------------------------------
-
-
-def _get_nice_frequency_tick_step(
-    maximum_frequency: float,
-    *,
-    target_tick_count: int = 8,
-) -> float:
-    """Calculate a human-friendly frequency tick interval."""
-
-    if maximum_frequency <= 0:
-        return 1.0
-
-    if target_tick_count < 2:
-        raise ValueError(
-            "Target tick count must be at least two.",
-        )
-
-    rough_step = maximum_frequency / (target_tick_count - 1)
-
-    exponent = np.floor(np.log10(rough_step))
-    magnitude = 10.0**exponent
-    normalized_step = rough_step / magnitude
-
-    if normalized_step <= 1.0:
-        nice_step = 1.0
-    elif normalized_step <= 2.0:
-        nice_step = 2.0
-    elif normalized_step <= 5.0:
-        nice_step = 5.0
+    if axis_functions is None:
+        axes.set_xscale("linear")
     else:
-        nice_step = 10.0
-
-    return nice_step * magnitude
-
-
-def _format_frequency_tick(value: float) -> str:
-    """Format a frequency tick using readable units."""
-
-    if value >= 1_000_000:
-        scaled_value = value / 1_000_000
-        formatted_value = f"{scaled_value:.1f}".rstrip("0").rstrip(".")
-        return f"{formatted_value}M"
-
-    if value >= 1_000:
-        scaled_value = value / 1_000
-        formatted_value = f"{scaled_value:.1f}".rstrip("0").rstrip(".")
-        return f"{formatted_value}k"
-
-    if value.is_integer():
-        return str(int(value))
-
-    return f"{value:g}"
-
-
-def _get_linear_frequency_tick_values(
-    maximum_frequency: float,
-    *,
-    target_tick_count: int = 8,
-) -> tuple[float, ...]:
-    """Return nice linearly spaced frequency tick values."""
-
-    if maximum_frequency < 0:
-        raise ValueError(
-            "Maximum frequency must not be negative.",
+        axes.set_xscale(
+            "function",
+            functions=axis_functions,
         )
 
-    if maximum_frequency == 0:
-        return (0.0,)
+    numerical_values_sequence = tuple(float(value) for value in numerical_array)
 
-    tick_step = _get_nice_frequency_tick_step(
-        maximum_frequency=maximum_frequency,
-        target_tick_count=target_tick_count,
+    tick_values = _get_axis_tick_values(
+        values=numerical_values_sequence,
+        axis_scale=numerical_axis_scale,
+        minimum_value=minimum_value,
+        maximum_value=maximum_value,
     )
 
-    tick_values = np.arange(
-        0.0,
-        maximum_frequency + tick_step,
-        tick_step,
+    _configure_axis_ticks(
+        axis=axes.xaxis,
+        tick_values=tick_values,
+    )
+    _configure_x_tick_labels(
+        axes,
     )
 
-    return tuple(float(tick) for tick in tick_values if tick <= maximum_frequency)
-
-
-def _get_logarithmic_frequency_tick_values(
-    maximum_frequency: float,
-) -> tuple[float, ...]:
-    """Return logarithmically spaced frequency ticks plus the maximum."""
-
-    if maximum_frequency < 0:
-        raise ValueError(
-            "Maximum frequency must not be negative.",
-        )
-
-    if maximum_frequency == 0:
-        return (0.0,)
-
-    maximum_exponent = int(
-        np.floor(np.log10(maximum_frequency)),
-    )
-
-    minimum_exponent = 1
-
-    if maximum_exponent < minimum_exponent:
-        minimum_exponent = 0
-
-    logarithmic_ticks = tuple(
-        float(10**exponent)
-        for exponent in range(
-            minimum_exponent,
-            maximum_exponent + 1,
-        )
-    )
-
-    # Add the exact maximum so the highest bar has a corresponding tick.
-    if maximum_frequency not in logarithmic_ticks:
-        logarithmic_ticks += (maximum_frequency,)
-
-    return (0.0, *logarithmic_ticks)
-
-
-def _configure_frequency_ticks(
-    axes: Axes,
-    *,
-    frequency_axis_scale: FrequencyAxisScale,
-    maximum_frequency: float,
-) -> None:
-    """Configure major frequency ticks in raw frequency units."""
-
-    if frequency_axis_scale in {
-        FrequencyAxisScale.CUBE_ROOT,
-        FrequencyAxisScale.LOG1P,
-    }:
-        frequency_tick_values = _get_logarithmic_frequency_tick_values(
-            maximum_frequency=maximum_frequency,
-        )
-    else:
-        frequency_tick_values = _get_linear_frequency_tick_values(
-            maximum_frequency=maximum_frequency,
-        )
-
-    tick_labels = tuple(
-        _format_frequency_tick(value) for value in frequency_tick_values
-    )
-
-    axes.yaxis.set_major_locator(
-        FixedLocator(frequency_tick_values),
-    )
-    axes.yaxis.set_major_formatter(
-        FixedFormatter(tick_labels),
+    axes.set_xlabel(
+        _format_axis_label(
+            name=feature_name,
+            axis_scale=numerical_axis_scale,
+        ),
     )
 
 
@@ -1178,57 +1842,68 @@ def _configure_frequency_axis(
     axes: Axes,
     frequency_axis_scale: FrequencyAxisScale,
     *,
-    maximum_frequency: float,
+    frequency_values: Sequence[float],
 ) -> None:
-    """Configure the Y axis for a frequency-based visualization."""
+    """Configure a frequency Y axis, including data-aware ticks and label."""
 
-    match frequency_axis_scale:
-        case FrequencyAxisScale.LINEAR:
-            axes.set_yscale("linear")
-            axes.set_ylabel("Frequency")
-
-        case FrequencyAxisScale.SQRT:
-            axes.set_yscale(
-                "function",
-                functions=(
-                    np.sqrt,
-                    lambda value: np.power(value, 2),
-                ),
-            )
-            axes.set_ylabel("Frequency (sqrt)")
-
-        case FrequencyAxisScale.CUBE_ROOT:
-            axes.set_yscale(
-                "function",
-                functions=(
-                    np.cbrt,
-                    lambda value: np.power(value, 3),
-                ),
-            )
-            axes.set_ylabel("Frequency (cube root)")
-
-        case FrequencyAxisScale.LOG1P:
-            axes.set_yscale(
-                "function",
-                functions=(
-                    np.log1p,
-                    np.expm1,
-                ),
-            )
-            axes.set_ylabel("Frequency (log1p)")
-
-        case _:
-            raise ValueError(
-                f"Unsupported frequency axis scale '{frequency_axis_scale}'.",
-            )
-
-    _configure_frequency_ticks(
-        axes=axes,
-        frequency_axis_scale=frequency_axis_scale,
-        maximum_frequency=maximum_frequency,
+    frequencies = np.asarray(
+        frequency_values,
+        dtype=float,
     )
 
-    axes.set_ylim(bottom=0)
+    if frequencies.size == 0:
+        raise ValueError(
+            "Cannot configure a frequency axis without frequency values.",
+        )
+
+    if not np.isfinite(frequencies).all():
+        raise ValueError(
+            "Frequency values must be finite.",
+        )
+
+    maximum_frequency = float(
+        frequencies.max(),
+    )
+
+    _validate_axis_domain(
+        minimum_value=0.0,
+        axis_scale=frequency_axis_scale,
+    )
+
+    axis_functions = _get_axis_functions(
+        frequency_axis_scale,
+    )
+
+    if axis_functions is None:
+        axes.set_yscale("linear")
+    else:
+        axes.set_yscale(
+            "function",
+            functions=axis_functions,
+        )
+
+    tick_values = _get_axis_tick_values(
+        values=frequency_values,
+        axis_scale=frequency_axis_scale,
+        minimum_value=0.0,
+        maximum_value=maximum_frequency,
+    )
+
+    _configure_axis_ticks(
+        axis=axes.yaxis,
+        tick_values=tick_values,
+    )
+
+    axes.set_ylabel(
+        _format_axis_label(
+            name="Frequency",
+            axis_scale=frequency_axis_scale,
+        ),
+    )
+
+    axes.set_ylim(
+        bottom=0,
+    )
 
 
 # ----------------------------------------
@@ -1266,39 +1941,26 @@ def _render_numerical_aggregate_histogram(
         edgecolor="black",
     )
 
-    histogram_frequencies = np.asarray(
-        frequencies,
-        dtype=float,
-    )
-
-    maximum_frequency = (
-        float(histogram_frequencies.max()) if histogram_frequencies.size > 0 else 0.0
-    )
-
     axes.set_title(
         f"Distribution of {feature_specification.name}",
-    )
-    axes.set_xlabel(
-        feature_specification.name,
     )
 
     _configure_numerical_axis(
         axes=axes,
         numerical_axis_scale=numerical_axis_scale,
+        feature_name=feature_specification.name,
+        numerical_values=numerical_values,
     )
+
+    frequency_values = tuple(float(frequency) for frequency in frequencies)
 
     _configure_frequency_axis(
         axes=axes,
         frequency_axis_scale=frequency_axis_scale,
-        maximum_frequency=maximum_frequency,
+        frequency_values=frequency_values,
     )
 
-    axes.grid(
-        axis="y",
-        linestyle="--",
-        linewidth=0.8,
-        alpha=0.4,
-    )
+    _configure_axis_grid(axes)
 
     figure.tight_layout()
 
@@ -1328,9 +1990,9 @@ def _render_numerical_stratified_histogram(
         data_frame[target_feature_specification.label],
     )
 
-    target_category_values = _get_feature_category_order(
-        feature_series=target_series.tolist(),
-        feature_specification=target_feature_specification,
+    target_category_values = _get_target_category_order(
+        target_series=target_series,
+        target_feature_specification=target_feature_specification,
     )
 
     histogram_bin_edges = _calculate_histogram_bin_edges(
@@ -1347,7 +2009,7 @@ def _render_numerical_stratified_histogram(
         figsize=DEFAULT_FIGURE_SIZE,
     )
 
-    maximum_frequency = 0.0
+    histogram_frequencies: list[float] = []
 
     for target_category_value, target_category_color in zip(
         target_category_values,
@@ -1369,45 +2031,36 @@ def _render_numerical_stratified_histogram(
             label=target_category_value,
         )
 
-        histogram_frequencies = np.asarray(
-            frequencies,
-            dtype=float,
-        )
-
-        if histogram_frequencies.size > 0:
-            maximum_frequency = max(
-                maximum_frequency,
-                float(histogram_frequencies.max()),
+        histogram_frequencies.extend(
+            float(frequency)
+            for frequency in np.asarray(
+                frequencies,
+                dtype=float,
             )
+        )
 
     axes.set_title(
         f"{feature_specification.name} by {target_feature_specification.name}",
-    )
-    axes.set_xlabel(
-        feature_specification.name,
     )
 
     _configure_numerical_axis(
         axes=axes,
         numerical_axis_scale=numerical_axis_scale,
+        feature_name=feature_specification.name,
+        numerical_values=numerical_values,
     )
 
     _configure_frequency_axis(
         axes=axes,
         frequency_axis_scale=frequency_axis_scale,
-        maximum_frequency=maximum_frequency,
+        frequency_values=histogram_frequencies,
     )
 
     axes.legend(
         title=target_feature_specification.name,
     )
 
-    axes.grid(
-        axis="y",
-        linestyle="--",
-        linewidth=0.8,
-        alpha=0.4,
-    )
+    _configure_axis_grid(axes)
 
     figure.tight_layout()
 
@@ -1429,9 +2082,9 @@ def _render_numerical_boxplots(
         data_frame[target_feature_specification.label],
     )
 
-    target_category_values = _get_feature_category_order(
-        feature_series=target_series.tolist(),
-        feature_specification=target_feature_specification,
+    target_category_values = _get_target_category_order(
+        target_series=target_series,
+        target_feature_specification=target_feature_specification,
     )
 
     numerical_feature_series = pd.to_numeric(
@@ -1448,7 +2101,9 @@ def _render_numerical_boxplots(
 
         category_values = (
             numerical_feature_series.loc[target_category_mask]
-            .to_numpy(dtype=float)
+            .to_numpy(
+                dtype=float,
+            )
             .tolist()
         )
 
@@ -1495,12 +2150,10 @@ def _render_numerical_boxplots(
     axes.set_xlabel("Group")
     axes.set_ylabel(feature_specification.name)
 
-    axes.grid(
-        axis="y",
-        linestyle="--",
-        linewidth=0.8,
-        alpha=0.4,
+    _configure_x_tick_labels(
+        axes,
     )
+    _configure_axis_grid(axes)
 
     figure.tight_layout()
 
@@ -1530,16 +2183,8 @@ def _render_categorical_aggregate_bar_chart(
 
     value_counts = feature_series.value_counts()
 
-    category_counts = np.asarray(
-        [
-            int(value_counts.get(category_value, 0))
-            for category_value in category_values
-        ],
-        dtype=float,
-    )
-
-    maximum_frequency = (
-        float(np.max(category_counts)) if category_counts.size > 0 else 0.0
+    category_counts = tuple(
+        float(value_counts.get(category_value, 0)) for category_value in category_values
     )
 
     figure, axes = plt.subplots(
@@ -1563,20 +2208,14 @@ def _render_categorical_aggregate_bar_chart(
     _configure_frequency_axis(
         axes=axes,
         frequency_axis_scale=frequency_axis_scale,
-        maximum_frequency=maximum_frequency,
+        frequency_values=category_counts,
     )
 
-    axes.tick_params(
-        axis="x",
-        rotation=45,
+    _configure_x_tick_labels(
+        axes,
     )
 
-    axes.grid(
-        axis="y",
-        linestyle="--",
-        linewidth=0.8,
-        alpha=0.4,
-    )
+    _configure_axis_grid(axes)
 
     figure.tight_layout()
 
@@ -1604,9 +2243,9 @@ def _render_categorical_stratified_bar_chart(
         feature_specification=feature_specification,
     )
 
-    target_category_values = _get_feature_category_order(
-        feature_series=target_series.tolist(),
-        feature_specification=target_feature_specification,
+    target_category_values = _get_target_category_order(
+        target_series=target_series,
+        target_feature_specification=target_feature_specification,
     )
 
     target_category_count = len(target_category_values)
@@ -1623,12 +2262,6 @@ def _render_categorical_stratified_bar_chart(
         index=feature_category_values,
         columns=target_category_values,
         fill_value=0,
-    )
-
-    maximum_frequency = (
-        float(category_counts.to_numpy(dtype=float).max())
-        if not category_counts.empty
-        else 0.0
     )
 
     target_category_colors = get_discrete_colors(
@@ -1678,10 +2311,17 @@ def _render_categorical_stratified_bar_chart(
         feature_specification.name,
     )
 
+    frequency_values = tuple(
+        float(value)
+        for value in category_counts.to_numpy(
+            dtype=float,
+        ).ravel()
+    )
+
     _configure_frequency_axis(
         axes=axes,
         frequency_axis_scale=frequency_axis_scale,
-        maximum_frequency=maximum_frequency,
+        frequency_values=frequency_values,
     )
 
     axes.set_xticks(
@@ -1689,20 +2329,16 @@ def _render_categorical_stratified_bar_chart(
     )
     axes.set_xticklabels(
         feature_category_values,
-        rotation=45,
-        ha="right",
+    )
+    _configure_x_tick_labels(
+        axes,
     )
 
     axes.legend(
         title=target_feature_specification.name,
     )
 
-    axes.grid(
-        axis="y",
-        linestyle="--",
-        linewidth=0.8,
-        alpha=0.4,
-    )
+    _configure_axis_grid(axes)
 
     figure.tight_layout()
 
