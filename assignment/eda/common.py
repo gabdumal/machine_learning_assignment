@@ -24,6 +24,38 @@ class FeaturePlotType(StrEnum):
     STRATIFIED_BAR_CHART = "stratified_bar_chart"
 
 
+class FrequencyAxisScale(StrEnum):
+    LINEAR = "linear"
+    SQRT = "sqrt"
+    CUBE_ROOT = "cube_root"
+    LOG1P = "log1p"
+
+
+_FREQUENCY_PLOT_TYPES = frozenset(
+    {
+        FeaturePlotType.HISTOGRAM,
+        FeaturePlotType.STRATIFIED_HISTOGRAM,
+        FeaturePlotType.BAR_CHART,
+        FeaturePlotType.STRATIFIED_BAR_CHART,
+    }
+)
+
+_TARGET_PLOT_TYPES = frozenset(
+    {
+        FeaturePlotType.BOXPLOT,
+        FeaturePlotType.STRATIFIED_HISTOGRAM,
+        FeaturePlotType.STRATIFIED_BAR_CHART,
+    }
+)
+
+_HISTOGRAM_PLOT_TYPES = frozenset(
+    {
+        FeaturePlotType.HISTOGRAM,
+        FeaturePlotType.STRATIFIED_HISTOGRAM,
+    }
+)
+
+
 @dataclass(frozen=True, slots=True)
 class FeaturePlotSpecification:
     """Configuration describing one feature-level visualization.
@@ -37,51 +69,69 @@ class FeaturePlotSpecification:
     feature_label: str
     target_feature_label: str | None = None
     histogram_bin_count: int | None = None
+    frequency_axis_scale: FrequencyAxisScale = FrequencyAxisScale.LINEAR
 
     def __post_init__(self) -> None:
-        """Validate the invariants of the plot specification."""
+        """Validate and normalize the plot specification."""
 
-        requires_target_feature = self.plot_type in {
-            FeaturePlotType.BOXPLOT,
-            FeaturePlotType.STRATIFIED_HISTOGRAM,
-            FeaturePlotType.STRATIFIED_BAR_CHART,
-        }
+        plot_type = FeaturePlotType(self.plot_type)
+        frequency_axis_scale = FrequencyAxisScale(
+            self.frequency_axis_scale,
+        )
+
+        object.__setattr__(self, "plot_type", plot_type)
+        object.__setattr__(
+            self,
+            "frequency_axis_scale",
+            frequency_axis_scale,
+        )
+
+        if not self.feature_label:
+            raise ValueError("Feature label must not be empty.")
+
+        requires_target_feature = plot_type in _TARGET_PLOT_TYPES
 
         if requires_target_feature and self.target_feature_label is None:
             raise ValueError(
-                f"Plot type '{self.plot_type.value}' requires a target feature label."
+                f"Plot type '{plot_type.value}' requires a target feature label.",
             )
 
-        does_not_use_target = self.plot_type in {
-            FeaturePlotType.HISTOGRAM,
-            FeaturePlotType.BAR_CHART,
-        }
+        does_not_use_target = plot_type not in _TARGET_PLOT_TYPES
 
         if does_not_use_target and self.target_feature_label is not None:
             raise ValueError(
-                f"Plot type '{self.plot_type.value}' must not define a "
-                "target feature label."
+                f"Plot type '{plot_type.value}' must not define a "
+                "target feature label.",
             )
 
-        uses_histogram_bins = self.plot_type in {
-            FeaturePlotType.HISTOGRAM,
-            FeaturePlotType.STRATIFIED_HISTOGRAM,
-        }
+        uses_histogram_bins = plot_type in _HISTOGRAM_PLOT_TYPES
 
         if uses_histogram_bins:
             if self.histogram_bin_count is None:
                 raise ValueError(
-                    f"Plot type '{self.plot_type.value}' requires a "
-                    "histogram bin count."
+                    f"Plot type '{plot_type.value}' requires a histogram bin count.",
                 )
 
             if self.histogram_bin_count <= 0:
-                raise ValueError("Histogram bin count must be greater than zero.")
+                raise ValueError(
+                    "Histogram bin count must be greater than zero.",
+                )
 
-        if not uses_histogram_bins and self.histogram_bin_count is not None:
+        elif self.histogram_bin_count is not None:
             raise ValueError(
-                f"Plot type '{self.plot_type.value}' must not define a "
-                "histogram bin count."
+                f"Plot type '{plot_type.value}' must not define a histogram bin count.",
+            )
+
+        uses_frequency_axis = plot_type in _FREQUENCY_PLOT_TYPES
+
+        if (
+            not uses_frequency_axis
+            and frequency_axis_scale is not FrequencyAxisScale.LINEAR
+        ):
+            raise ValueError(
+                f"Plot type '{plot_type.value}' does not have a "
+                "frequency Y axis and cannot use the "
+                f"'{frequency_axis_scale.value}' frequency scale.",
             )
 
 

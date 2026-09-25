@@ -4,6 +4,8 @@ from collections.abc import Callable
 from enum import StrEnum
 
 import pandas as pd
+from definitions import seed
+from sklearn.model_selection import train_test_split
 
 from loading.genis import (
     SOURCE_GENIS_FEATURES,
@@ -18,12 +20,19 @@ from schema.common import (
     TransformedDatasetSchema,
     TransformedFeatureSpec,
 )
+
+from typing import Final
+
+import pandas as pd
 from transformation.common import transform_data_frame
+
+# ----------------------------------------
+# Transformation
+# ----------------------------------------
 
 SOURCE_GENIS_FEATURES_BY_LABEL: dict[str, SourceFeatureSpec] = {
     feature.label: feature for feature in SOURCE_GENIS_FEATURES
 }
-
 
 FeatureTransformer = Callable[
     [pd.DataFrame],
@@ -287,3 +296,22 @@ transformed_genis_df = transform_data_frame(
     source_dataset_schema=SOURCE_GENIS_SCHEMA,
     transformed_dataset_schema=TRANSFORMED_GENIS_SCHEMA,
 )
+
+
+# ----------------------------------------
+# Splitting
+# ----------------------------------------
+
+GENIS_TEST_SIZE = 0.20
+
+genis_df_for_train, genis_df_for_test = train_test_split(
+    transformed_genis_df,
+    test_size=GENIS_TEST_SIZE,
+    random_state=seed,
+    stratify=transformed_genis_df["category_label"],
+)
+
+
+# ----------------------------------------
+# Treating
+# ----------------------------------------

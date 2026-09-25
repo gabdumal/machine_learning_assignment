@@ -1,12 +1,14 @@
 """Feature-level exploratory data analysis."""
 
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from IPython.display import HTML, display
+from matplotlib.axes import Axes
 from matplotlib.figure import Figure
+from matplotlib.ticker import FixedFormatter, FixedLocator
 
 from eda.common import (
     CategoricalFeatureStatistics,
@@ -14,12 +16,13 @@ from eda.common import (
     FeatureMetadata,
     FeaturePlotSpecification,
     FeaturePlotType,
+    FrequencyAxisScale,
     NumericalFeatureStatistics,
 )
 from eda.palette import (
     CONTINUOUS_PALETTE,
     get_aggregate_color,
-    get_category_colors,
+    get_discrete_colors,
 )
 from schema.common import (
     FeatureRole,
@@ -27,9 +30,43 @@ from schema.common import (
     FeatureSpec,
 )
 
+# ----------------------------------------
+# Constants
+# ----------------------------------------
+
 DEFAULT_HISTOGRAM_BIN_COUNT = 30
 DEFAULT_FIGURE_SIZE = (10.0, 6.0)
 DEFAULT_BOXPLOT_FIGURE_SIZE = (12.0, 7.0)
+
+
+_FREQUENCY_PLOT_TYPES = frozenset(
+    {
+        FeaturePlotType.HISTOGRAM,
+        FeaturePlotType.STRATIFIED_HISTOGRAM,
+        FeaturePlotType.BAR_CHART,
+        FeaturePlotType.STRATIFIED_BAR_CHART,
+    }
+)
+
+_NUMERICAL_PLOT_TYPES = frozenset(
+    {
+        FeaturePlotType.HISTOGRAM,
+        FeaturePlotType.STRATIFIED_HISTOGRAM,
+        FeaturePlotType.BOXPLOT,
+    }
+)
+
+_CATEGORICAL_PLOT_TYPES = frozenset(
+    {
+        FeaturePlotType.BAR_CHART,
+        FeaturePlotType.STRATIFIED_BAR_CHART,
+    }
+)
+
+
+# ----------------------------------------
+# Public API
+# ----------------------------------------
 
 
 def inspect_feature(
@@ -38,6 +75,7 @@ def inspect_feature(
     target_feature_specification: FeatureSpec,
     *,
     histogram_bin_count: int = DEFAULT_HISTOGRAM_BIN_COUNT,
+    frequency_axis_scale: FrequencyAxisScale = FrequencyAxisScale.LINEAR,
 ) -> FeatureInspection:
     """Inspect one feature without rendering visualizations.
 
@@ -46,18 +84,29 @@ def inspect_feature(
     appropriate for the feature type.
 
     Args:
-        data_frame: DataFrame containing the feature and target columns.
-        feature_specification: Schema specification of the feature to inspect.
-        target_feature_specification: Schema specification of the target used
-            for stratified visualizations.
-        histogram_bin_count: Number of bins used for numerical histograms.
+        data_frame:
+            DataFrame containing the feature and target columns.
+
+        feature_specification:
+            Schema specification of the feature to inspect.
+
+        target_feature_specification:
+            Schema specification of the target used for stratified
+            visualizations.
+
+        histogram_bin_count:
+            Number of bins used for numerical histograms.
+
+        frequency_axis_scale:
+            Scale used for the Y axis of frequency-based plots.
 
     Returns:
         A complete, non-rendered feature inspection.
 
     Raises:
-        ValueError: If required columns are missing, the target is invalid,
-            or the histogram bin count is invalid.
+        ValueError:
+            If required columns are missing, the target is invalid,
+            or the histogram bin count or frequency axis scale is invalid.
     """
 
     _validate_feature_and_target_columns(
@@ -67,27 +116,28 @@ def inspect_feature(
     )
 
     if histogram_bin_count <= 0:
-        raise ValueError("Histogram bin count must be greater than zero.")
+        raise ValueError(
+            "Histogram bin count must be greater than zero.",
+        )
 
-    metadata_table = _create_feature_metadata_table(
-        feature_specification,
-    )
-
-    statistics_table = _create_feature_statistics_table(
-        data_frame=data_frame,
-        feature_specification=feature_specification,
-    )
-
-    plot_specifications = _create_feature_plot_specifications(
-        feature_specification=feature_specification,
-        target_feature_specification=target_feature_specification,
-        histogram_bin_count=histogram_bin_count,
+    normalized_frequency_axis_scale = FrequencyAxisScale(
+        frequency_axis_scale,
     )
 
     return FeatureInspection(
-        metadata_table=metadata_table,
-        statistics_table=statistics_table,
-        plots=plot_specifications,
+        metadata_table=_create_feature_metadata_table(
+            feature_specification,
+        ),
+        statistics_table=_create_feature_statistics_table(
+            data_frame=data_frame,
+            feature_specification=feature_specification,
+        ),
+        plots=_create_feature_plot_specifications(
+            feature_specification=feature_specification,
+            target_feature_specification=target_feature_specification,
+            histogram_bin_count=histogram_bin_count,
+            frequency_axis_scale=normalized_frequency_axis_scale,
+        ),
     )
 
 
@@ -98,15 +148,19 @@ def summarize_feature(
     """Summarize one feature without creating or rendering plots.
 
     Args:
-        data_frame: DataFrame containing the feature.
-        feature_specification: Schema specification of the feature.
+        data_frame:
+            DataFrame containing the feature.
+
+        feature_specification:
+            Schema specification of the feature.
 
     Returns:
         A tuple containing the metadata table and statistics table.
 
     Raises:
-        ValueError: If the feature is absent or has an unsupported semantic
-            type.
+        ValueError:
+            If the feature is absent, empty, invalid, or has an unsupported
+            semantic type.
     """
 
     _validate_feature_column(
@@ -114,16 +168,15 @@ def summarize_feature(
         feature_specification=feature_specification,
     )
 
-    metadata_table = _create_feature_metadata_table(
-        feature_specification,
+    return (
+        _create_feature_metadata_table(
+            feature_specification,
+        ),
+        _create_feature_statistics_table(
+            data_frame=data_frame,
+            feature_specification=feature_specification,
+        ),
     )
-
-    statistics_table = _create_feature_statistics_table(
-        data_frame=data_frame,
-        feature_specification=feature_specification,
-    )
-
-    return metadata_table, statistics_table
 
 
 def render_feature_plot(
@@ -136,20 +189,26 @@ def render_feature_plot(
     """Render one previously configured feature visualization.
 
     Args:
-        data_frame: DataFrame containing the feature and, when required, the
-            target.
-        feature_specification: Schema specification of the feature.
-        plot_specification: Plot configuration returned by
-            ``inspect_feature``.
-        target_feature_specification: Schema specification of the target.
-            Required for stratified plots.
+        data_frame:
+            DataFrame containing the feature and, when required, the target.
+
+        feature_specification:
+            Schema specification of the feature.
+
+        plot_specification:
+            Plot configuration returned by ``inspect_feature``.
+
+        target_feature_specification:
+            Schema specification of the target. Required for stratified
+            plots and boxplots.
 
     Returns:
         A rendered Matplotlib figure.
 
     Raises:
-        ValueError: If the plot specification is incompatible with the
-            supplied feature or target specification.
+        ValueError:
+            If the plot specification is incompatible with the supplied
+            feature or target specification.
     """
 
     _validate_plot_feature(
@@ -157,30 +216,15 @@ def render_feature_plot(
         plot_specification=plot_specification,
     )
 
-    if plot_specification.target_feature_label is not None:
-        if target_feature_specification is None:
-            raise ValueError(
-                f"Plot '{plot_specification.plot_type.value}' requires a "
-                "target feature specification."
-            )
-
-        if (
-            target_feature_specification.label
-            != plot_specification.target_feature_label
-        ):
-            raise ValueError(
-                "The target feature specification does not match the target "
-                "declared by the plot specification."
-            )
-
-        _validate_feature_column(
-            data_frame=data_frame,
-            feature_specification=target_feature_specification,
-        )
-
     _validate_feature_column(
         data_frame=data_frame,
         feature_specification=feature_specification,
+    )
+
+    target_specification = _resolve_target_feature_specification(
+        data_frame=data_frame,
+        plot_specification=plot_specification,
+        target_feature_specification=target_feature_specification,
     )
 
     match plot_specification.plot_type:
@@ -191,6 +235,7 @@ def render_feature_plot(
                 histogram_bin_count=_require_histogram_bin_count(
                     plot_specification,
                 ),
+                frequency_axis_scale=plot_specification.frequency_axis_scale,
             )
 
         case FeaturePlotType.BOXPLOT:
@@ -198,7 +243,7 @@ def render_feature_plot(
                 data_frame=data_frame,
                 feature_specification=feature_specification,
                 target_feature_specification=_require_target_feature_specification(
-                    target_feature_specification,
+                    target_specification,
                 ),
             )
 
@@ -207,17 +252,19 @@ def render_feature_plot(
                 data_frame=data_frame,
                 feature_specification=feature_specification,
                 target_feature_specification=_require_target_feature_specification(
-                    target_feature_specification,
+                    target_specification,
                 ),
                 histogram_bin_count=_require_histogram_bin_count(
                     plot_specification,
                 ),
+                frequency_axis_scale=plot_specification.frequency_axis_scale,
             )
 
         case FeaturePlotType.BAR_CHART:
             return _render_categorical_aggregate_bar_chart(
                 data_frame=data_frame,
                 feature_specification=feature_specification,
+                frequency_axis_scale=plot_specification.frequency_axis_scale,
             )
 
         case FeaturePlotType.STRATIFIED_BAR_CHART:
@@ -225,13 +272,15 @@ def render_feature_plot(
                 data_frame=data_frame,
                 feature_specification=feature_specification,
                 target_feature_specification=_require_target_feature_specification(
-                    target_feature_specification,
+                    target_specification,
                 ),
+                frequency_axis_scale=plot_specification.frequency_axis_scale,
             )
 
         case _:
             raise ValueError(
-                f"Unsupported feature plot type '{plot_specification.plot_type}'."
+                f"Unsupported feature plot type "
+                f"'{plot_specification.plot_type.value}'.",
             )
 
 
@@ -245,12 +294,18 @@ def render_feature_plots(
     """Render all plots configured by a feature inspection.
 
     Args:
-        data_frame: DataFrame containing the feature and, when required, the
-            target.
-        feature_specification: Schema specification of the inspected feature.
-        feature_inspection: Previously computed feature inspection.
-        target_feature_specification: Schema specification of the target.
-            Required when the inspection contains stratified plots.
+        data_frame:
+            DataFrame containing the feature and, when required, the target.
+
+        feature_specification:
+            Schema specification of the inspected feature.
+
+        feature_inspection:
+            Previously computed feature inspection.
+
+        target_feature_specification:
+            Schema specification of the target. Required when the inspection
+            contains plots that use a target.
 
     Returns:
         Rendered figures in the same order as the inspection specifications.
@@ -265,6 +320,62 @@ def render_feature_plots(
         )
         for plot_specification in feature_inspection.plots
     )
+
+
+def display_feature(
+    feature_specification: FeatureSpec,
+    target_feature_specification: FeatureSpec,
+    data_frame: pd.DataFrame,
+    *,
+    frequency_axis_scale: FrequencyAxisScale = FrequencyAxisScale.LINEAR,
+) -> None:
+    """Display feature metadata, statistics, and visualizations.
+
+    Args:
+        feature_specification:
+            Schema specification of the feature.
+
+        target_feature_specification:
+            Schema specification of the target used for stratified plots.
+
+        data_frame:
+            DataFrame containing the feature and target.
+
+        frequency_axis_scale:
+            Scale used for the Y axis of frequency-based plots.
+    """
+
+    display(
+        HTML(
+            f"<h2>{feature_specification.name}</h2>",
+        ),
+    )
+
+    feature_inspection = inspect_feature(
+        data_frame=data_frame,
+        feature_specification=feature_specification,
+        target_feature_specification=target_feature_specification,
+        frequency_axis_scale=frequency_axis_scale,
+    )
+
+    display(feature_inspection.metadata_table)
+    display(feature_inspection.statistics_table)
+
+    figures = render_feature_plots(
+        data_frame=data_frame,
+        feature_specification=feature_specification,
+        feature_inspection=feature_inspection,
+        target_feature_specification=target_feature_specification,
+    )
+
+    for figure in figures:
+        display(figure)
+        plt.close(figure)
+
+
+# ----------------------------------------
+# Validation
+# ----------------------------------------
 
 
 def _validate_feature_and_target_columns(
@@ -286,8 +397,8 @@ def _validate_feature_and_target_columns(
 
     if target_feature_specification.role is not FeatureRole.TARGET:
         raise ValueError(
-            f"Feature '{target_feature_specification.label}' must have the "
-            f"role '{FeatureRole.TARGET.value}'."
+            f"Feature '{target_feature_specification.label}' must have "
+            f"the role '{FeatureRole.TARGET.value}'.",
         )
 
     if target_feature_specification.semantic_type not in (
@@ -295,8 +406,8 @@ def _validate_feature_and_target_columns(
         FeatureSemanticType.BINARY,
     ):
         raise ValueError(
-            f"Target feature '{target_feature_specification.label}' must be "
-            "categorical for stratified feature visualization."
+            f"Target feature '{target_feature_specification.label}' must "
+            "be categorical for stratified feature visualization.",
         )
 
 
@@ -308,7 +419,8 @@ def _validate_feature_column(
 
     if feature_specification.label not in data_frame.columns:
         raise ValueError(
-            f"Feature '{feature_specification.label}' is not present in the supplied DataFrame."
+            f"Feature '{feature_specification.label}' is not present "
+            "in the supplied DataFrame.",
         )
 
 
@@ -321,37 +433,88 @@ def _validate_plot_feature(
     if plot_specification.feature_label != feature_specification.label:
         raise ValueError(
             f"Plot specification refers to feature "
-            f"'{plot_specification.feature_label}', but the supplied feature "
-            f"is '{feature_specification.label}'."
+            f"'{plot_specification.feature_label}', but the supplied "
+            f"feature is '{feature_specification.label}'.",
         )
 
-    numerical_plot_types = {
-        FeaturePlotType.HISTOGRAM,
-        FeaturePlotType.STRATIFIED_HISTOGRAM,
-        FeaturePlotType.BOXPLOT,
-    }
-
-    categorical_plot_types = {
-        FeaturePlotType.BAR_CHART,
-        FeaturePlotType.STRATIFIED_BAR_CHART,
-    }
-
     if (
-        plot_specification.plot_type in numerical_plot_types
+        plot_specification.plot_type in _NUMERICAL_PLOT_TYPES
         and feature_specification.semantic_type is not FeatureSemanticType.NUMERIC
     ):
         raise ValueError(
-            f"Plot type '{plot_specification.plot_type.value}' requires a numerical feature."
+            f"Plot type '{plot_specification.plot_type.value}' "
+            "requires a numerical feature.",
         )
 
     if (
-        plot_specification.plot_type in categorical_plot_types
+        plot_specification.plot_type in _CATEGORICAL_PLOT_TYPES
         and feature_specification.semantic_type
-        not in (FeatureSemanticType.CATEGORICAL, FeatureSemanticType.BINARY)
+        not in (
+            FeatureSemanticType.CATEGORICAL,
+            FeatureSemanticType.BINARY,
+        )
     ):
         raise ValueError(
-            f"Plot type '{plot_specification.plot_type.value}' requires a binary or categorical feature."
+            f"Plot type '{plot_specification.plot_type.value}' "
+            "requires a binary or categorical feature.",
         )
+
+    if (
+        plot_specification.frequency_axis_scale is not FrequencyAxisScale.LINEAR
+        and plot_specification.plot_type not in _FREQUENCY_PLOT_TYPES
+    ):
+        raise ValueError(
+            f"Frequency axis scale "
+            f"'{plot_specification.frequency_axis_scale.value}' "
+            "can only be used with frequency-based plots.",
+        )
+
+
+def _resolve_target_feature_specification(
+    data_frame: pd.DataFrame,
+    plot_specification: FeaturePlotSpecification,
+    target_feature_specification: FeatureSpec | None,
+) -> FeatureSpec | None:
+    """Resolve the target specification required by a plot.
+
+    A target specification supplied to the overall rendering API is allowed
+    to be present even when an individual plot does not use it. This is
+    important because ``render_feature_plots()`` receives the target once
+    and renders multiple plot specifications.
+    """
+
+    if plot_specification.target_feature_label is None:
+        return None
+
+    target_specification = _require_target_feature_specification(
+        target_feature_specification,
+    )
+
+    if target_specification.label != plot_specification.target_feature_label:
+        raise ValueError(
+            "The target feature specification does not match the "
+            "target declared by the plot specification.",
+        )
+
+    _validate_feature_column(
+        data_frame=data_frame,
+        feature_specification=target_specification,
+    )
+
+    return target_specification
+
+
+def _require_target_feature_specification(
+    target_feature_specification: FeatureSpec | None,
+) -> FeatureSpec:
+    """Return the required target feature specification."""
+
+    if target_feature_specification is None:
+        raise ValueError(
+            "A target feature specification is required.",
+        )
+
+    return target_feature_specification
 
 
 def _require_histogram_bin_count(
@@ -361,22 +524,16 @@ def _require_histogram_bin_count(
 
     if plot_specification.histogram_bin_count is None:
         raise ValueError(
-            f"Plot '{plot_specification.plot_type.value}' does not define "
-            "a histogram bin count."
+            f"Plot '{plot_specification.plot_type.value}' does not "
+            "define a histogram bin count.",
         )
 
     return plot_specification.histogram_bin_count
 
 
-def _require_target_feature_specification(
-    target_feature_specification: FeatureSpec | None,
-) -> FeatureSpec:
-    """Return the required target feature specification."""
-
-    if target_feature_specification is None:
-        raise ValueError("A target feature specification is required.")
-
-    return target_feature_specification
+# ----------------------------------------
+# Feature inspection construction
+# ----------------------------------------
 
 
 def _create_feature_metadata_table(
@@ -397,7 +554,7 @@ def _create_feature_metadata_table(
                 "role": feature_metadata.role.value,
                 "description": feature_metadata.description,
             },
-        ]
+        ],
     )
 
 
@@ -424,7 +581,7 @@ def _create_feature_statistics_table(
         case _:
             raise ValueError(
                 f"Feature '{feature_specification.label}' has unsupported "
-                f"semantic type '{feature_specification.semantic_type}'."
+                f"semantic type '{feature_specification.semantic_type}'.",
             )
 
 
@@ -432,6 +589,7 @@ def _create_feature_plot_specifications(
     feature_specification: FeatureSpec,
     target_feature_specification: FeatureSpec,
     histogram_bin_count: int,
+    frequency_axis_scale: FrequencyAxisScale,
 ) -> tuple[FeaturePlotSpecification, ...]:
     """Create plot configurations appropriate for a feature."""
 
@@ -446,12 +604,14 @@ def _create_feature_plot_specifications(
                 plot_type=FeaturePlotType.HISTOGRAM,
                 feature_label=feature_specification.label,
                 histogram_bin_count=histogram_bin_count,
+                frequency_axis_scale=frequency_axis_scale,
             ),
             FeaturePlotSpecification(
                 plot_type=FeaturePlotType.STRATIFIED_HISTOGRAM,
                 feature_label=feature_specification.label,
                 target_feature_label=target_feature_specification.label,
                 histogram_bin_count=histogram_bin_count,
+                frequency_axis_scale=frequency_axis_scale,
             ),
         )
 
@@ -463,17 +623,25 @@ def _create_feature_plot_specifications(
             FeaturePlotSpecification(
                 plot_type=FeaturePlotType.BAR_CHART,
                 feature_label=feature_specification.label,
+                frequency_axis_scale=frequency_axis_scale,
             ),
             FeaturePlotSpecification(
                 plot_type=FeaturePlotType.STRATIFIED_BAR_CHART,
                 feature_label=feature_specification.label,
                 target_feature_label=target_feature_specification.label,
+                frequency_axis_scale=frequency_axis_scale,
             ),
         )
 
     raise ValueError(
-        f"Feature '{feature_specification.label}' has unsupported semantic type '{feature_specification.semantic_type}'."
+        f"Feature '{feature_specification.label}' has unsupported "
+        f"semantic type '{feature_specification.semantic_type}'.",
     )
+
+
+# ----------------------------------------
+# Feature statistics
+# ----------------------------------------
 
 
 def _create_numerical_statistics_table(
@@ -483,7 +651,10 @@ def _create_numerical_statistics_table(
 
     numerical_values = _get_numerical_values(feature_series)
 
-    numerical_series = pd.Series(numerical_values, dtype="float64")
+    numerical_series = pd.Series(
+        numerical_values,
+        dtype="float64",
+    )
 
     numerical_statistics = NumericalFeatureStatistics(
         minimum=float(numerical_series.min()),
@@ -542,7 +713,7 @@ def _create_numerical_statistics_table(
                 "statistic": "percentile_95",
                 "value": numerical_statistics.percentile_95,
             },
-        ]
+        ],
     )
 
 
@@ -559,14 +730,18 @@ def _create_categorical_statistics_table(
         feature_specification=feature_specification,
     )
 
+    value_counts = pd.Series(
+        categorical_values,
+        dtype="string",
+    ).value_counts()
+
     total_observation_count = len(categorical_values)
 
     categorical_statistics: list[CategoricalFeatureStatistics] = []
 
     for category_value in category_values:
-        category_count = sum(
-            observed_category_value == category_value
-            for observed_category_value in categorical_values
+        category_count = int(
+            value_counts.get(category_value, 0),
         )
 
         category_frequency = (
@@ -580,19 +755,24 @@ def _create_categorical_statistics_table(
                 category=category_value,
                 count=category_count,
                 frequency=category_frequency,
-            )
+            ),
         )
 
     return pd.DataFrame(
         [
             {
-                "category": category_statistic.category,
-                "count": category_statistic.count,
-                "frequency": category_statistic.frequency,
+                "category": statistic.category,
+                "count": statistic.count,
+                "frequency": statistic.frequency,
             }
-            for category_statistic in categorical_statistics
-        ]
+            for statistic in categorical_statistics
+        ],
     )
+
+
+# ----------------------------------------
+# Value normalization and validation
+# ----------------------------------------
 
 
 def _get_numerical_values(
@@ -606,12 +786,45 @@ def _get_numerical_values(
     )
 
     if numerical_series.empty:
-        raise ValueError("Cannot analyze an empty numerical feature.")
+        raise ValueError(
+            "Cannot analyze an empty numerical feature.",
+        )
 
     if numerical_series.isna().any():
-        raise ValueError("Numerical feature contains missing values.")
+        raise ValueError(
+            "Numerical feature contains missing values.",
+        )
 
-    return [float(numerical_value) for numerical_value in numerical_series.tolist()]
+    numerical_values = numerical_series.to_numpy(
+        dtype=float,
+    )
+
+    if not np.isfinite(numerical_values).all():
+        raise ValueError(
+            "Numerical feature contains non-finite values.",
+        )
+
+    return numerical_values.tolist()
+
+
+def _get_validated_categorical_series(
+    feature_series: pd.Series,
+) -> pd.Series:
+    """Return a validated pandas string series."""
+
+    categorical_series = feature_series.astype("string")
+
+    if categorical_series.empty:
+        raise ValueError(
+            "Cannot analyze an empty categorical feature.",
+        )
+
+    if categorical_series.isna().any():
+        raise ValueError(
+            "Categorical feature contains missing values.",
+        )
+
+    return categorical_series
 
 
 def _get_categorical_values(
@@ -619,15 +832,12 @@ def _get_categorical_values(
 ) -> list[str]:
     """Return validated categorical values as Python strings."""
 
-    categorical_series = feature_series.astype("string")
-
-    if categorical_series.empty:
-        raise ValueError("Cannot analyze an empty categorical feature.")
-
-    if categorical_series.isna().any():
-        raise ValueError("Categorical feature contains missing values.")
-
-    return [str(category_value) for category_value in categorical_series.tolist()]
+    return [
+        str(category_value)
+        for category_value in _get_validated_categorical_series(
+            feature_series,
+        ).tolist()
+    ]
 
 
 def _get_feature_category_order(
@@ -649,7 +859,9 @@ def _get_feature_category_order(
             if category_value in observed_category_values
         )
 
-    return tuple(sorted(observed_category_values))
+    return tuple(
+        sorted(observed_category_values),
+    )
 
 
 def _get_target_category_order(
@@ -666,11 +878,21 @@ def _get_target_category_order(
     )
 
 
+# ----------------------------------------
+# Histogram utilities
+# ----------------------------------------
+
+
 def _calculate_histogram_bin_edges(
     numerical_values: Sequence[float],
     histogram_bin_count: int,
 ) -> list[float]:
     """Calculate common histogram bin edges for comparable distributions."""
+
+    if histogram_bin_count <= 0:
+        raise ValueError(
+            "Histogram bin count must be greater than zero.",
+        )
 
     minimum_value = min(numerical_values)
     maximum_value = max(numerical_values)
@@ -691,10 +913,185 @@ def _calculate_histogram_bin_edges(
     ]
 
 
+# ----------------------------------------
+# Axis configuration
+# ----------------------------------------
+
+
+def _get_nice_frequency_tick_step(
+    maximum_frequency: float,
+    *,
+    target_tick_count: int = 8,
+) -> float:
+    """Calculate a human-friendly frequency tick interval."""
+
+    if maximum_frequency <= 0:
+        return 1.0
+
+    if target_tick_count < 2:
+        raise ValueError(
+            "Target tick count must be at least two.",
+        )
+
+    rough_step = maximum_frequency / (target_tick_count - 1)
+
+    exponent = np.floor(np.log10(rough_step))
+    magnitude = 10.0**exponent
+    normalized_step = rough_step / magnitude
+
+    if normalized_step <= 1.0:
+        nice_step = 1.0
+    elif normalized_step <= 2.0:
+        nice_step = 2.0
+    elif normalized_step <= 5.0:
+        nice_step = 5.0
+    else:
+        nice_step = 10.0
+
+    return nice_step * magnitude
+
+
+def _get_frequency_tick_values(
+    maximum_frequency: float,
+    *,
+    target_tick_count: int = 8,
+) -> tuple[float, ...]:
+    """Return nice major tick values in the original frequency space."""
+
+    if maximum_frequency < 0:
+        raise ValueError(
+            "Maximum frequency must not be negative.",
+        )
+
+    if maximum_frequency == 0:
+        return (0.0,)
+
+    tick_step = _get_nice_frequency_tick_step(
+        maximum_frequency,
+        target_tick_count=target_tick_count,
+    )
+
+    tick_values = np.arange(
+        0.0,
+        maximum_frequency + tick_step,
+        tick_step,
+    )
+
+    return tuple(float(tick) for tick in tick_values if tick <= maximum_frequency)
+
+
+def _format_frequency_tick(value: float) -> str:
+    """Format a frequency tick using readable units."""
+
+    if value >= 1_000_000:
+        scaled_value = value / 1_000_000
+        formatted_value = f"{scaled_value:.1f}".rstrip("0").rstrip(".")
+        return f"{formatted_value}M"
+
+    if value >= 1_000:
+        scaled_value = value / 1_000
+        formatted_value = f"{scaled_value:.1f}".rstrip("0").rstrip(".")
+        return f"{formatted_value}k"
+
+    if value.is_integer():
+        return str(int(value))
+
+    return f"{value:g}"
+
+
+def _configure_frequency_ticks(
+    axes: Axes,
+    *,
+    maximum_frequency: float,
+) -> None:
+    """Configure major frequency ticks in raw frequency units.
+
+    The locator receives the original frequency values. Matplotlib's
+    configured axis scale is responsible for transforming their positions.
+    """
+
+    frequency_tick_values = _get_frequency_tick_values(
+        maximum_frequency=maximum_frequency,
+    )
+
+    tick_labels = tuple(
+        _format_frequency_tick(value) for value in frequency_tick_values
+    )
+
+    axes.yaxis.set_major_locator(
+        FixedLocator(frequency_tick_values),
+    )
+    axes.yaxis.set_major_formatter(
+        FixedFormatter(tick_labels),
+    )
+
+
+def _configure_frequency_axis(
+    axes: Axes,
+    frequency_axis_scale: FrequencyAxisScale,
+    *,
+    maximum_frequency: float,
+) -> None:
+    """Configure the Y axis for a frequency-based visualization."""
+
+    match frequency_axis_scale:
+        case FrequencyAxisScale.LINEAR:
+            axes.set_yscale("linear")
+            axes.set_ylabel("Frequency")
+
+        case FrequencyAxisScale.SQRT:
+            axes.set_yscale(
+                "function",
+                functions=(
+                    np.sqrt,
+                    lambda value: np.power(value, 2),
+                ),
+            )
+            axes.set_ylabel("Frequency (sqrt)")
+
+        case FrequencyAxisScale.CUBE_ROOT:
+            axes.set_yscale(
+                "function",
+                functions=(
+                    np.cbrt,
+                    lambda value: np.power(value, 3),
+                ),
+            )
+            axes.set_ylabel("Frequency (cube root)")
+
+        case FrequencyAxisScale.LOG1P:
+            axes.set_yscale(
+                "function",
+                functions=(
+                    np.log1p,
+                    np.expm1,
+                ),
+            )
+            axes.set_ylabel("Frequency (log1p)")
+
+        case _:
+            raise ValueError(
+                f"Unsupported frequency axis scale '{frequency_axis_scale}'.",
+            )
+
+    _configure_frequency_ticks(
+        axes=axes,
+        maximum_frequency=maximum_frequency,
+    )
+
+    axes.set_ylim(bottom=0)
+
+
+# ----------------------------------------
+# Numerical plots
+# ----------------------------------------
+
+
 def _render_numerical_aggregate_histogram(
     data_frame: pd.DataFrame,
     feature_specification: FeatureSpec,
     histogram_bin_count: int,
+    frequency_axis_scale: FrequencyAxisScale,
 ) -> Figure:
     """Render an aggregate histogram for a numerical feature."""
 
@@ -711,18 +1108,35 @@ def _render_numerical_aggregate_histogram(
         figsize=DEFAULT_FIGURE_SIZE,
     )
 
-    axes.hist(
+    frequencies, _, _ = axes.hist(
         numerical_values,
         bins=histogram_bin_edges,
         color=CONTINUOUS_PALETTE(0.70),
         edgecolor="white",
     )
 
+    histogram_frequencies = np.asarray(
+        frequencies,
+        dtype=float,
+    )
+
+    maximum_frequency = (
+        float(histogram_frequencies.max()) if histogram_frequencies.size > 0 else 0.0
+    )
+
     axes.set_title(
         f"Distribution of {feature_specification.name}",
     )
-    axes.set_xlabel(feature_specification.name)
-    axes.set_ylabel("Frequency")
+    axes.set_xlabel(
+        feature_specification.name,
+    )
+
+    _configure_frequency_axis(
+        axes=axes,
+        frequency_axis_scale=frequency_axis_scale,
+        maximum_frequency=maximum_frequency,
+    )
+
     axes.grid(
         axis="y",
         alpha=0.20,
@@ -738,16 +1152,26 @@ def _render_numerical_stratified_histogram(
     feature_specification: FeatureSpec,
     target_feature_specification: FeatureSpec,
     histogram_bin_count: int,
+    frequency_axis_scale: FrequencyAxisScale,
 ) -> Figure:
     """Render a target-stratified histogram for a numerical feature."""
 
-    numerical_values = _get_numerical_values(
+    feature_series = pd.to_numeric(
         data_frame[feature_specification.label],
+        errors="raise",
     )
 
-    target_category_values = _get_target_category_order(
-        target_series=data_frame[target_feature_specification.label],
-        target_feature_specification=target_feature_specification,
+    numerical_values = _get_numerical_values(
+        feature_series,
+    )
+
+    target_series = _get_validated_categorical_series(
+        data_frame[target_feature_specification.label],
+    )
+
+    target_category_values = _get_feature_category_order(
+        feature_series=target_series.tolist(),
+        feature_specification=target_feature_specification,
     )
 
     histogram_bin_edges = _calculate_histogram_bin_edges(
@@ -755,7 +1179,7 @@ def _render_numerical_stratified_histogram(
         histogram_bin_count=histogram_bin_count,
     )
 
-    target_category_colors = get_category_colors(
+    target_category_colors = get_discrete_colors(
         len(target_category_values),
     )
 
@@ -763,12 +1187,7 @@ def _render_numerical_stratified_histogram(
         figsize=DEFAULT_FIGURE_SIZE,
     )
 
-    target_series = data_frame[target_feature_specification.label].astype("string")
-
-    feature_series = pd.to_numeric(
-        data_frame[feature_specification.label],
-        errors="raise",
-    )
+    maximum_frequency = 0.0
 
     for target_category_value, target_category_color in zip(
         target_category_values,
@@ -777,12 +1196,11 @@ def _render_numerical_stratified_histogram(
     ):
         target_category_mask = target_series == target_category_value
 
-        category_values = [
-            float(feature_value)
-            for feature_value in feature_series.loc[target_category_mask].tolist()
-        ]
+        category_values = feature_series.loc[target_category_mask].to_numpy(
+            dtype=float,
+        )
 
-        axes.hist(
+        frequencies, _, _ = axes.hist(
             category_values,
             bins=histogram_bin_edges,
             color=target_category_color,
@@ -791,14 +1209,34 @@ def _render_numerical_stratified_histogram(
             label=target_category_value,
         )
 
+        histogram_frequencies = np.asarray(
+            frequencies,
+            dtype=float,
+        )
+
+        if histogram_frequencies.size > 0:
+            maximum_frequency = max(
+                maximum_frequency,
+                float(histogram_frequencies.max()),
+            )
+
     axes.set_title(
         f"{feature_specification.name} by {target_feature_specification.name}",
     )
-    axes.set_xlabel(feature_specification.name)
-    axes.set_ylabel("Frequency")
+    axes.set_xlabel(
+        feature_specification.name,
+    )
+
+    _configure_frequency_axis(
+        axes=axes,
+        frequency_axis_scale=frequency_axis_scale,
+        maximum_frequency=maximum_frequency,
+    )
+
     axes.legend(
         title=target_feature_specification.name,
     )
+
     axes.grid(
         axis="y",
         alpha=0.20,
@@ -820,12 +1258,14 @@ def _render_numerical_boxplots(
         data_frame[feature_specification.label],
     )
 
-    target_category_values = _get_target_category_order(
-        target_series=data_frame[target_feature_specification.label],
-        target_feature_specification=target_feature_specification,
+    target_series = _get_validated_categorical_series(
+        data_frame[target_feature_specification.label],
     )
 
-    target_series = data_frame[target_feature_specification.label].astype("string")
+    target_category_values = _get_feature_category_order(
+        feature_series=target_series.tolist(),
+        feature_specification=target_feature_specification,
+    )
 
     numerical_feature_series = pd.to_numeric(
         data_frame[feature_specification.label],
@@ -839,18 +1279,19 @@ def _render_numerical_boxplots(
     for target_category_value in target_category_values:
         target_category_mask = target_series == target_category_value
 
-        category_values = [
-            float(feature_value)
-            for feature_value in numerical_feature_series.loc[
-                target_category_mask
-            ].tolist()
-        ]
+        category_values = (
+            numerical_feature_series.loc[target_category_mask]
+            .to_numpy(dtype=float)
+            .tolist()
+        )
 
-        boxplot_values.append(category_values)
+        boxplot_values.append(
+            category_values,
+        )
 
-    boxplot_colors = (
-        get_aggregate_color(),
-        *get_category_colors(len(target_category_values)),
+    boxplot_colors = get_discrete_colors(
+        len(target_category_values),
+        include_aggregate=True,
     )
 
     boxplot_labels = (
@@ -874,14 +1315,19 @@ def _render_numerical_boxplots(
         boxplot_colors,
         strict=True,
     ):
-        boxplot_artist.set_facecolor(box_color)
-        boxplot_artist.set_alpha(0.75)
+        boxplot_artist.set_facecolor(
+            box_color,
+        )
+        boxplot_artist.set_alpha(
+            0.75,
+        )
 
     axes.set_title(
         f"{feature_specification.name} by {target_feature_specification.name}",
     )
     axes.set_xlabel("Group")
     axes.set_ylabel(feature_specification.name)
+
     axes.grid(
         axis="y",
         alpha=0.20,
@@ -892,24 +1338,40 @@ def _render_numerical_boxplots(
     return figure
 
 
+# ----------------------------------------
+# Categorical plots
+# ----------------------------------------
+
+
 def _render_categorical_aggregate_bar_chart(
     data_frame: pd.DataFrame,
     feature_specification: FeatureSpec,
+    frequency_axis_scale: FrequencyAxisScale,
 ) -> Figure:
-    """Render an aggregate frequency bar chart."""
+    """Render an aggregate categorical frequency bar chart."""
 
-    categorical_values = _get_categorical_values(
+    feature_series = _get_validated_categorical_series(
         data_frame[feature_specification.label],
     )
 
     category_values = _get_feature_category_order(
-        feature_series=categorical_values,
+        feature_series=feature_series.tolist(),
         feature_specification=feature_specification,
     )
 
-    category_counts = [
-        categorical_values.count(category_value) for category_value in category_values
-    ]
+    value_counts = feature_series.value_counts()
+
+    category_counts = np.asarray(
+        [
+            int(value_counts.get(category_value, 0))
+            for category_value in category_values
+        ],
+        dtype=float,
+    )
+
+    maximum_frequency = (
+        float(np.max(category_counts)) if category_counts.size > 0 else 0.0
+    )
 
     figure, axes = plt.subplots(
         figsize=DEFAULT_FIGURE_SIZE,
@@ -924,12 +1386,21 @@ def _render_categorical_aggregate_bar_chart(
     axes.set_title(
         f"Frequency of {feature_specification.name}",
     )
-    axes.set_xlabel(feature_specification.name)
-    axes.set_ylabel("Frequency")
+    axes.set_xlabel(
+        feature_specification.name,
+    )
+
+    _configure_frequency_axis(
+        axes=axes,
+        frequency_axis_scale=frequency_axis_scale,
+        maximum_frequency=maximum_frequency,
+    )
+
     axes.tick_params(
         axis="x",
         rotation=45,
     )
+
     axes.grid(
         axis="y",
         alpha=0.20,
@@ -944,39 +1415,60 @@ def _render_categorical_stratified_bar_chart(
     data_frame: pd.DataFrame,
     feature_specification: FeatureSpec,
     target_feature_specification: FeatureSpec,
+    frequency_axis_scale: FrequencyAxisScale,
 ) -> Figure:
     """Render a target-stratified categorical frequency bar chart."""
 
-    feature_values = _get_categorical_values(
+    feature_series = _get_validated_categorical_series(
         data_frame[feature_specification.label],
     )
 
-    target_series = data_frame[target_feature_specification.label].astype("string")
+    target_series = _get_validated_categorical_series(
+        data_frame[target_feature_specification.label],
+    )
 
     feature_category_values = _get_feature_category_order(
-        feature_series=feature_values,
+        feature_series=feature_series.tolist(),
         feature_specification=feature_specification,
     )
 
-    target_category_values = _get_target_category_order(
-        target_series=target_series,
-        target_feature_specification=target_feature_specification,
-    )
-
-    target_category_colors = get_category_colors(
-        len(target_category_values),
+    target_category_values = _get_feature_category_order(
+        feature_series=target_series.tolist(),
+        feature_specification=target_feature_specification,
     )
 
     target_category_count = len(target_category_values)
-    feature_category_count = len(feature_category_values)
 
     if target_category_count == 0:
         raise ValueError(
             "No target categories are available for plotting.",
         )
 
+    category_counts = pd.crosstab(
+        feature_series,
+        target_series,
+    ).reindex(
+        index=feature_category_values,
+        columns=target_category_values,
+        fill_value=0,
+    )
+
+    maximum_frequency = (
+        float(category_counts.to_numpy(dtype=float).max())
+        if not category_counts.empty
+        else 0.0
+    )
+
+    target_category_colors = get_discrete_colors(
+        target_category_count,
+    )
+
+    x_positions = np.arange(
+        len(feature_category_values),
+        dtype=float,
+    )
+
     bar_width = 0.8 / target_category_count
-    x_positions = list(range(feature_category_count))
 
     figure, axes = plt.subplots(
         figsize=DEFAULT_FIGURE_SIZE,
@@ -990,33 +1482,17 @@ def _render_categorical_stratified_bar_chart(
             target_category_values,
             target_category_colors,
             strict=True,
-        )
+        ),
     ):
-        target_category_mask = target_series == target_category_value
-
-        category_counts = [
-            sum(
-                1
-                for index in range(len(feature_values))
-                if (
-                    feature_values[index] == feature_category_value
-                    and bool(target_category_mask.iloc[index])
-                )
-            )
-            for feature_category_value in feature_category_values
-        ]
-
         horizontal_offset = (
             target_category_index - (target_category_count - 1) / 2
         ) * bar_width
 
-        bar_positions = [
-            float(x_position) + horizontal_offset for x_position in x_positions
-        ]
-
         axes.bar(
-            bar_positions,
-            category_counts,
+            x_positions + horizontal_offset,
+            category_counts[target_category_value].to_numpy(
+                dtype=float,
+            ),
             width=bar_width,
             color=target_category_color,
             label=target_category_value,
@@ -1025,17 +1501,29 @@ def _render_categorical_stratified_bar_chart(
     axes.set_title(
         f"{feature_specification.name} by {target_feature_specification.name}",
     )
-    axes.set_xlabel(feature_specification.name)
-    axes.set_ylabel("Frequency")
-    axes.set_xticks(x_positions)
+    axes.set_xlabel(
+        feature_specification.name,
+    )
+
+    _configure_frequency_axis(
+        axes=axes,
+        frequency_axis_scale=frequency_axis_scale,
+        maximum_frequency=maximum_frequency,
+    )
+
+    axes.set_xticks(
+        x_positions,
+    )
     axes.set_xticklabels(
         feature_category_values,
         rotation=45,
         ha="right",
     )
+
     axes.legend(
         title=target_feature_specification.name,
     )
+
     axes.grid(
         axis="y",
         alpha=0.20,
@@ -1044,27 +1532,3 @@ def _render_categorical_stratified_bar_chart(
     figure.tight_layout()
 
     return figure
-
-
-def display_feature(
-    feature_specification: FeatureSpec,
-    target_feature_specification: FeatureSpec,
-    data_frame: pd.DataFrame,
-):
-    display(HTML(f"<h2>{feature_specification.name}</h2>"))
-    feature_inspection = inspect_feature(
-        data_frame=data_frame,
-        feature_specification=feature_specification,
-        target_feature_specification=target_feature_specification,
-    )
-    display(feature_inspection.metadata_table)
-    display(feature_inspection.statistics_table)
-    figures = render_feature_plots(
-        data_frame=data_frame,
-        feature_specification=feature_specification,
-        feature_inspection=feature_inspection,
-        target_feature_specification=target_feature_specification,
-    )
-    for figure in figures:
-        display(figure)
-        plt.close(figure)
