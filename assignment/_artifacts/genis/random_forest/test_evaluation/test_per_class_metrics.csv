@@ -1,0 +1,13 @@
+seed,configuration_id,classifier,class,precision,recall,f1,support
+27,7eb62a443ff7,random_forest,benign,1,1,1,5430
+27,7eb62a443ff7,random_forest,bruteforce,1,1,1,3607
+27,7eb62a443ff7,random_forest,dos,1,1,1,59128
+27,7eb62a443ff7,random_forest,recon,1,1,1,5547
+32,7eb62a443ff7,random_forest,benign,1,1,1,5430
+32,7eb62a443ff7,random_forest,bruteforce,1,1,1,3607
+32,7eb62a443ff7,random_forest,dos,1,1,1,59128
+32,7eb62a443ff7,random_forest,recon,1,1,1,5547
+59,7eb62a443ff7,random_forest,benign,1,1,1,5430
+59,7eb62a443ff7,random_forest,bruteforce,1,1,1,3607
+59,7eb62a443ff7,random_forest,dos,1,1,1,59128
+59,7eb62a443ff7,random_forest,recon,1,1,1,5547

@@ -1,0 +1,4 @@
+dataset,classifier,seed,configuration_id,accuracy,precision,recall,macro_f1,roc_auc,pr_auc,mcc,balanced_accuracy
+GENIS,xgboost,27,17edbfb766e1,1,1,1,1,1,1,1,1
+GENIS,xgboost,32,17edbfb766e1,1,1,1,1,1,1,1,1
+GENIS,xgboost,59,17edbfb766e1,1,1,1,1,1,1,1,1

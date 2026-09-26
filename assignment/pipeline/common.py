@@ -2145,7 +2145,7 @@ def load_selected_configuration(
     )
 
     if not isinstance(selected_configuration, dict):
-        raise ValueError(
+        raise TypeError(
             "Experiment metadata does not contain a valid "
             "'selected_configuration' object.",
         )

@@ -15,6 +15,8 @@ separate report column.
 from enum import StrEnum
 from typing import Final
 
+REPORT_DISPLAY_DECIMALS: Final[int] = 12
+
 
 class MetricName(StrEnum):
     """Classification metrics used by the experiment reports."""
@@ -123,7 +125,7 @@ def format_mean_std(
     mean: float,
     std: float,
     *,
-    decimals: int = 5,
+    decimals: int = REPORT_DISPLAY_DECIMALS,
 ) -> str:
     """Format a scalar result using the report's mean ± std convention."""
     return f"{mean:.{decimals}f}{MEAN_STD_SEPARATOR}{std:.{decimals}f}"

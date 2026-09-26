@@ -1,0 +1,13 @@
+seed,configuration_id,classifier,class,precision,recall,f1,support
+27,17edbfb766e1,xgboost,benign,1,1,1,5430
+27,17edbfb766e1,xgboost,bruteforce,1,1,1,3607
+27,17edbfb766e1,xgboost,dos,1,1,1,59128
+27,17edbfb766e1,xgboost,recon,1,1,1,5547
+32,17edbfb766e1,xgboost,benign,1,1,1,5430
+32,17edbfb766e1,xgboost,bruteforce,1,1,1,3607
+32,17edbfb766e1,xgboost,dos,1,1,1,59128
+32,17edbfb766e1,xgboost,recon,1,1,1,5547
+59,17edbfb766e1,xgboost,benign,1,1,1,5430
+59,17edbfb766e1,xgboost,bruteforce,1,1,1,3607
+59,17edbfb766e1,xgboost,dos,1,1,1,59128
+59,17edbfb766e1,xgboost,recon,1,1,1,5547

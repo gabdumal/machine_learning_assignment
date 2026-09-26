@@ -1,0 +1,40 @@
+{
+  "classifier_name": "random_forest",
+  "configuration_ids": [
+    "7eb62a443ff7"
+  ],
+  "dataset_name": "GENIS",
+  "evaluation_type": "frozen_test_set",
+  "metrics": [
+    "accuracy",
+    "precision",
+    "recall",
+    "macro_f1",
+    "roc_auc",
+    "pr_auc",
+    "mcc",
+    "balanced_accuracy"
+  ],
+  "numeric_csv_float_format": "%.12g",
+  "seed_count": 3,
+  "seeds": [
+    27,
+    32,
+    59
+  ],
+  "summary": {
+    "accuracy": "1 \u00b1 0",
+    "balanced_accuracy": "1 \u00b1 0",
+    "classifier": "random_forest",
+    "dataset": "GENIS",
+    "macro_f1": "1 \u00b1 0",
+    "mcc": "1 \u00b1 0",
+    "pr_auc": "1 \u00b1 0",
+    "precision": "1 \u00b1 0",
+    "recall": "1 \u00b1 0",
+    "roc_auc": "1 \u00b1 0",
+    "seed_count": 3
+  },
+  "summary_float_format": ".12g",
+  "test_row_count": 73712
+}

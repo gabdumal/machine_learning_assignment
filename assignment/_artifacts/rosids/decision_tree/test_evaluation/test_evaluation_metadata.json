@@ -1,0 +1,40 @@
+{
+  "classifier_name": "decision_tree",
+  "configuration_ids": [
+    "34fdea955c76"
+  ],
+  "dataset_name": "ROSIDS",
+  "evaluation_type": "frozen_test_set",
+  "metrics": [
+    "accuracy",
+    "precision",
+    "recall",
+    "macro_f1",
+    "roc_auc",
+    "pr_auc",
+    "mcc",
+    "balanced_accuracy"
+  ],
+  "numeric_csv_float_format": "%.12g",
+  "seed_count": 3,
+  "seeds": [
+    27,
+    32,
+    59
+  ],
+  "summary": {
+    "accuracy": "0.973479167429 \u00b1 0.000182902293595",
+    "balanced_accuracy": "0.94620192293 \u00b1 0.000154223054528",
+    "classifier": "decision_tree",
+    "dataset": "ROSIDS",
+    "macro_f1": "0.946315938629 \u00b1 0.000255890723237",
+    "mcc": "0.961339496273 \u00b1 0.000262731401155",
+    "pr_auc": "0.944957539619 \u00b1 0.000403436894468",
+    "precision": "0.946500313889 \u00b1 0.000595631755899",
+    "recall": "0.94620192293 \u00b1 0.000154223054528",
+    "roc_auc": "0.984711562834 \u00b1 6.57706962302e-05",
+    "seed_count": 3
+  },
+  "summary_float_format": ".12g",
+  "test_row_count": 27337
+}

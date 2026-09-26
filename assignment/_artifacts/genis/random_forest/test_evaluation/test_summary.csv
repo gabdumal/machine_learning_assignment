@@ -1,0 +1,2 @@
+dataset,classifier,seed_count,accuracy,precision,recall,macro_f1,roc_auc,pr_auc,mcc,balanced_accuracy
+GENIS,random_forest,3,1 ± 0,1 ± 0,1 ± 0,1 ± 0,1 ± 0,1 ± 0,1 ± 0,1 ± 0

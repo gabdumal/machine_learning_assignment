@@ -1,0 +1,40 @@
+{
+  "classifier_name": "decision_tree",
+  "configuration_ids": [
+    "1cbc00d06004"
+  ],
+  "dataset_name": "GENIS",
+  "evaluation_type": "frozen_test_set",
+  "metrics": [
+    "accuracy",
+    "precision",
+    "recall",
+    "macro_f1",
+    "roc_auc",
+    "pr_auc",
+    "mcc",
+    "balanced_accuracy"
+  ],
+  "numeric_csv_float_format": "%.12g",
+  "seed_count": 3,
+  "seeds": [
+    27,
+    32,
+    59
+  ],
+  "summary": {
+    "accuracy": "0.99995477896 \u00b1 2.07228840847e-05",
+    "balanced_accuracy": "0.999885193402 \u00b1 3.64991994458e-05",
+    "classifier": "decision_tree",
+    "dataset": "GENIS",
+    "macro_f1": "0.999872841351 \u00b1 3.9417182883e-05",
+    "mcc": "0.999868197702 \u00b1 6.03972826214e-05",
+    "pr_auc": "0.999757049687 \u00b1 7.4265820124e-05",
+    "precision": "0.999860539654 \u00b1 4.81363530598e-05",
+    "recall": "0.999885193402 \u00b1 3.64991994458e-05",
+    "roc_auc": "0.999934247758 \u00b1 2.19806243805e-05",
+    "seed_count": 3
+  },
+  "summary_float_format": ".12g",
+  "test_row_count": 73712
+}

@@ -1,6 +1,4 @@
 {
-  "python.envFile": "${workspaceFolder}/.env",
-  "jupyter.notebookFileRoot": "${workspaceFolder}",
   "cSpell.words": [
     "genis",
     "rosids",
@@ -9,6 +7,14 @@
     "multiclass",
     "subflood"
   ],
+  "jupyter.notebookFileRoot": "${workspaceFolder}",
+  "python.envFile": "${workspaceFolder}/.env",
+  "search.exclude": {
+    "**/*.code-search": true,
+    "**/bower_components": true,
+    "**/node_modules": true,
+    "/_artifacts/**/*": true
+  },
   "workbench.editorAssociations": {
     "*.copilotmd": "vscode.markdown.preview.editor",
     "file:/**/*.csv": "jupyter-data-wrangler"

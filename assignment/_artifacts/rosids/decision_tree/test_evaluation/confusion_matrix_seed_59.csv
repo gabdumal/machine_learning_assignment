@@ -1,0 +1,6 @@
+actual,Benign,DoS,Subflood,UnauthPub,UnauthSub
+Benign,12192,3,65,134,109
+DoS,1,6198,0,0,1
+Subflood,143,0,5865,2,3
+UnauthPub,82,0,4,1447,30
+UnauthSub,138,0,3,12,905

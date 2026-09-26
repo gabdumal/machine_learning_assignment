@@ -238,7 +238,7 @@ def _validate_selected_configuration(
     selected_configuration: Mapping[str, Any],
 ) -> str:
     if not isinstance(selected_configuration, Mapping):
-        raise ValueError("selected_configuration must be a mapping.")
+        raise TypeError("selected_configuration must be a mapping.")
 
     if CONFIGURATION_ID_COLUMN not in selected_configuration:
         raise ValueError(
