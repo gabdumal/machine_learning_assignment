@@ -710,6 +710,16 @@ def _create_numerical_statistics_table(
 ) -> pd.DataFrame:
     """Create descriptive statistics for a numerical feature."""
 
+    numerical_series = pd.to_numeric(
+        feature_series,
+        errors="raise",
+    )
+
+    missing_value_count = int(numerical_series.isna().sum())
+
+    numerical_array = numerical_series.to_numpy(dtype=float)
+    infinite_value_count = int(np.isinf(numerical_array).sum())
+
     numerical_values = _get_numerical_values(feature_series)
 
     numerical_series = pd.Series(
@@ -731,6 +741,14 @@ def _create_numerical_statistics_table(
 
     return pd.DataFrame(
         [
+            {
+                "statistic": "missing_values",
+                "value": missing_value_count,
+            },
+            {
+                "statistic": "infinite_values",
+                "value": infinite_value_count,
+            },
             {
                 "statistic": "range",
                 "value": (
@@ -839,7 +857,12 @@ def _create_categorical_statistics_table(
 def _get_numerical_values(
     feature_series: pd.Series,
 ) -> list[float]:
-    """Return validated numerical feature values as Python floats."""
+    """Return finite numerical feature values as Python floats.
+
+    Missing and non-finite values are excluded because they cannot be
+    represented in numerical statistics or visualizations. Their counts are
+    reported separately by the numerical statistics table.
+    """
 
     numerical_series = pd.to_numeric(
         feature_series,
@@ -851,21 +874,17 @@ def _get_numerical_values(
             "Cannot analyze an empty numerical feature.",
         )
 
-    if numerical_series.isna().any():
-        raise ValueError(
-            "Numerical feature contains missing values.",
-        )
-
     numerical_values = numerical_series.to_numpy(
         dtype=float,
     )
+    finite_values = numerical_values[np.isfinite(numerical_values)]
 
-    if not np.isfinite(numerical_values).all():
+    if finite_values.size == 0:
         raise ValueError(
-            "Numerical feature contains non-finite values.",
+            "Numerical feature contains no finite values.",
         )
 
-    return numerical_values.tolist()
+    return finite_values.tolist()
 
 
 def _get_validated_categorical_series(
@@ -2021,6 +2040,7 @@ def _render_numerical_stratified_histogram(
         category_values = feature_series.loc[target_category_mask].to_numpy(
             dtype=float,
         )
+        category_values = category_values[np.isfinite(category_values)]
 
         frequencies, _, _ = axes.hist(
             category_values,
@@ -2095,31 +2115,33 @@ def _render_numerical_boxplots(
     boxplot_values: list[list[float]] = [
         feature_values,
     ]
+    boxplot_labels: list[str] = [
+        "Aggregate",
+    ]
 
     for target_category_value in target_category_values:
         target_category_mask = target_series == target_category_value
 
-        category_values = (
-            numerical_feature_series.loc[target_category_mask]
-            .to_numpy(
-                dtype=float,
-            )
-            .tolist()
+        category_values = numerical_feature_series.loc[target_category_mask].to_numpy(
+            dtype=float,
         )
+        category_values = category_values[np.isfinite(category_values)]
 
-        boxplot_values.append(
-            category_values,
-        )
+        if category_values.size == 0:
+            continue
+
+        boxplot_values.append(category_values.tolist())
+        boxplot_labels.append(target_category_value)
 
     boxplot_colors = get_discrete_colors(
-        len(target_category_values),
+        len(boxplot_labels) - 1,
         include_aggregate=True,
     )
 
-    boxplot_labels = (
+    boxplot_labels: list[str] = [
         "Aggregate",
         *target_category_values,
-    )
+    ]
 
     figure, axes = plt.subplots(
         figsize=DEFAULT_BOXPLOT_FIGURE_SIZE,

@@ -1,12 +1,11 @@
 """GENIS feature transformations and transformed dataset schema."""
 
-from collections.abc import Callable
 from enum import StrEnum
 
 import pandas as pd
-from definitions import seed
 from sklearn.model_selection import train_test_split
 
+from definitions import SEED, TEST_SIZE
 from loading.genis import (
     SOURCE_GENIS_FEATURES,
     SOURCE_GENIS_SCHEMA,
@@ -16,64 +15,17 @@ from schema.common import (
     FeatureDataType,
     FeatureRole,
     FeatureSemanticType,
-    SourceFeatureSpec,
     TransformedDatasetSchema,
     TransformedFeatureSpec,
 )
-
-from typing import Final
-
-import pandas as pd
-from transformation.common import transform_data_frame
+from transformation.transformation import (
+    to_transformed_feature_spec,
+    transform_data_frame,
+)
 
 # ----------------------------------------
 # Transformation
 # ----------------------------------------
-
-SOURCE_GENIS_FEATURES_BY_LABEL: dict[str, SourceFeatureSpec] = {
-    feature.label: feature for feature in SOURCE_GENIS_FEATURES
-}
-
-FeatureTransformer = Callable[
-    [pd.DataFrame],
-    pd.Series,
-]
-
-
-def create_identity_transformer(
-    source_feature_label: str,
-) -> FeatureTransformer:
-    """Create a transformer that copies one source feature unchanged."""
-
-    def transform(
-        source_data_frame: pd.DataFrame,
-    ) -> pd.Series:
-        """Return the source feature unchanged."""
-
-        return source_data_frame[source_feature_label].copy()
-
-    return transform
-
-
-def to_transformed_feature_spec(
-    source_feature_specification: SourceFeatureSpec,
-) -> TransformedFeatureSpec:
-    """Create an unchanged transformed feature from a source feature."""
-
-    return TransformedFeatureSpec(
-        label=source_feature_specification.label,
-        name=source_feature_specification.name,
-        data_type=source_feature_specification.data_type,
-        semantic_type=source_feature_specification.semantic_type,
-        role=source_feature_specification.role,
-        description=source_feature_specification.description,
-        category_enum=source_feature_specification.category_enum,
-        datetime_formats=source_feature_specification.datetime_formats,
-        source_feature_labels=(source_feature_specification.label,),
-        transformer=create_identity_transformer(
-            source_feature_specification.label,
-        ),
-    )
 
 
 class GenisPortCategory(StrEnum):
@@ -112,6 +64,7 @@ GENIS_EXCLUDED_FEATURE_LABELS: frozenset[str] = frozenset(
     }
 )
 
+
 source_port_categories: dict[
     int,
     GenisPortCategory,
@@ -121,6 +74,7 @@ source_port_categories: dict[
     138: GenisPortCategory.NETBIOS,
     5353: GenisPortCategory.MDNS,
 }
+
 
 destination_port_categories: dict[
     int,
@@ -214,7 +168,9 @@ def build_transformed_genis_features() -> tuple[TransformedFeatureSpec, ...]:
                     semantic_type=FeatureSemanticType.CATEGORICAL,
                     role=FeatureRole.PREDICTOR,
                     description=(
-                        "Semantic category assigned to the destination port based on explicit service ports and standardized port ranges."
+                        "Semantic category assigned to the destination port "
+                        "based on explicit service ports and standardized "
+                        "port ranges."
                     ),
                     category_enum=GenisPortCategory,
                     source_feature_labels=("destination_port",),
@@ -226,6 +182,7 @@ def build_transformed_genis_features() -> tuple[TransformedFeatureSpec, ...]:
                 ),
             )
             continue
+
         if source_feature_label == "source_port":
             transformed_genis_features.append(
                 TransformedFeatureSpec(
@@ -235,7 +192,9 @@ def build_transformed_genis_features() -> tuple[TransformedFeatureSpec, ...]:
                     semantic_type=FeatureSemanticType.CATEGORICAL,
                     role=FeatureRole.PREDICTOR,
                     description=(
-                        "Semantic category assigned to the source port based on explicit service ports and standardized port ranges."
+                        "Semantic category assigned to the source port "
+                        "based on explicit service ports and standardized "
+                        "port ranges."
                     ),
                     category_enum=GenisPortCategory,
                     source_feature_labels=("source_port",),
@@ -247,6 +206,7 @@ def build_transformed_genis_features() -> tuple[TransformedFeatureSpec, ...]:
                 ),
             )
             continue
+
         if source_feature_label == "protocol_ipv6_icmp":
             continue
 
@@ -259,7 +219,8 @@ def build_transformed_genis_features() -> tuple[TransformedFeatureSpec, ...]:
                     semantic_type=FeatureSemanticType.BINARY,
                     role=FeatureRole.PREDICTOR,
                     description=(
-                        "Binary indicator for ICMP traffic, merging IPv4 ICMP and IPv6 ICMP traffic."
+                        "Binary indicator for ICMP traffic, merging IPv4 "
+                        "ICMP and IPv6 ICMP traffic."
                     ),
                     source_feature_labels=(
                         "protocol_icmp",
@@ -302,16 +263,10 @@ transformed_genis_df = transform_data_frame(
 # Splitting
 # ----------------------------------------
 
-GENIS_TEST_SIZE = 0.20
 
 genis_df_for_train, genis_df_for_test = train_test_split(
     transformed_genis_df,
-    test_size=GENIS_TEST_SIZE,
-    random_state=seed,
+    test_size=TEST_SIZE,
+    random_state=SEED,
     stratify=transformed_genis_df["category_label"],
 )
-
-
-# ----------------------------------------
-# Treating
-# ----------------------------------------

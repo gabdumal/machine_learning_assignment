@@ -1,4 +1,4 @@
-seeds: tuple[int, ...] = (
+SEEDS: tuple[int, ...] = (
     27,
     32,
     59,
@@ -6,4 +6,6 @@ seeds: tuple[int, ...] = (
     93,
 )
 
-seed = seeds[0]
+SEED = SEEDS[0]
+
+TEST_SIZE = 0.20
