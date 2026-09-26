@@ -58,25 +58,18 @@ GENIS_CATEGORICAL_FEATURES: Final[tuple[str, ...]] = tuple(
 )
 
 
-GENIS_X_TRAIN: Final[pd.DataFrame] = genis_df_for_train.loc[
-    :,
-    GENIS_PREDICTOR_FEATURES,
+GENIS_X_TRAIN: Final[pd.DataFrame] = genis_df_for_train[
+    list(GENIS_PREDICTOR_FEATURES)
 ].copy()
 
-GENIS_Y_TRAIN: Final[pd.Series] = genis_df_for_train.loc[
-    :,
-    GENIS_TARGET_FEATURE,
+
+GENIS_Y_TRAIN: Final[pd.Series] = genis_df_for_train[GENIS_TARGET_FEATURE].copy()
+
+GENIS_X_TEST: Final[pd.DataFrame] = genis_df_for_test[
+    list(GENIS_PREDICTOR_FEATURES)
 ].copy()
 
-GENIS_X_TEST: Final[pd.DataFrame] = genis_df_for_test.loc[
-    :,
-    GENIS_PREDICTOR_FEATURES,
-].copy()
-
-GENIS_Y_TEST: Final[pd.Series] = genis_df_for_test.loc[
-    :,
-    GENIS_TARGET_FEATURE,
-].copy()
+GENIS_Y_TEST: Final[pd.Series] = genis_df_for_test[GENIS_TARGET_FEATURE].copy()
 
 
 # ----------------------------------------

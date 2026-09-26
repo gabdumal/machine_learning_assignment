@@ -33,7 +33,7 @@ ParameterGrid = dict[str, Sequence[Any]]
 
 ARTIFACT_ROOT: Final[Path] = Path(__file__).resolve().parent.parent / "_artifacts"
 
-CV_FOLDS: Final[int] = 2
+CV_FOLDS: Final[int] = 3
 
 CV_SEEDS: Final[tuple[int, ...]] = tuple(int(value) for value in SEEDS)
 
@@ -47,23 +47,23 @@ ARTIFACT_SCHEMA_VERSION: Final[int] = 1
 DECISION_TREE_PARAM_GRID: Final[ParameterGrid] = {
     "sampler": (
         "passthrough",
-        # RANDOM_OVER_SAMPLER,
+        RANDOM_OVER_SAMPLER,
     ),
     "classifier__criterion": (
-        # "gini",
+        "gini",
         "entropy",
     ),
     "classifier__max_depth": (
+        10,
+        20,
         None,
-        # 10,
-        # 20,
     ),
     "classifier__min_samples_split": (
-        # 2,
+        2,
         10,
     ),
     "classifier__min_samples_leaf": (
-        # 1,
+        1,
         5,
     ),
 }
@@ -79,8 +79,9 @@ RANDOM_FOREST_PARAM_GRID: Final[ParameterGrid] = {
         200,
     ),
     "classifier__max_depth": (
-        None,
+        10,
         20,
+        None,
     ),
     "classifier__min_samples_split": (
         2,
@@ -137,7 +138,6 @@ class ExperimentArtifactPaths:
     validation_seeds: Path
     validation_configurations: Path
 
-    selected_configuration: Path
     metadata: Path
 
     models_directory: Path
@@ -156,7 +156,6 @@ class ExperimentArtifactPaths:
             validation_folds=root / "validation_folds.csv",
             validation_seeds=root / "validation_seeds.csv",
             validation_configurations=root / "validation_configurations.csv",
-            selected_configuration=root / "selected_configuration.json",
             metadata=root / "metadata.json",
             models_directory=root / "models",
             predictions_directory=root / "test_predictions",
@@ -181,6 +180,10 @@ class ExperimentArtifactPaths:
             parents=True,
             exist_ok=True,
         )
+
+    def remove_validation_checkpoint(self) -> None:
+        """Remove the transient validation checkpoint after completion."""
+        self.validation_checkpoint.unlink(missing_ok=True)
 
 
 @dataclass(frozen=True, slots=True)
@@ -1685,6 +1688,8 @@ def run_classifier_experiment(
             )
 
         if existing_metadata.get("status") == "complete":
+            # Do not remove checkpoint.
+            # paths.remove_validation_checkpoint()
             selected_configuration = existing_metadata["selected_configuration"]
 
             return ExperimentResult(
@@ -1862,11 +1867,6 @@ def run_classifier_experiment(
         configurations,
     )
 
-    _atomic_write_json(
-        paths.selected_configuration,
-        selected_configuration,
-    )
-
     print(
         f"{dataset_name} / {classifier_name} — validation completed.",
     )
@@ -1897,6 +1897,9 @@ def run_classifier_experiment(
         test_row_count=len(test_features),
         selected_configuration=selected_configuration,
     )
+
+    # Do not remove checkpoint.
+    # paths.remove_validation_checkpoint()
 
     return ExperimentResult(
         artifact_paths=paths,
@@ -1951,18 +1954,22 @@ def load_validation_configuration_results(
 def load_selected_configuration(
     artifact_directory: Path,
 ) -> dict[str, Any]:
-    """Load the configuration selected using validation macro F1."""
-    paths = ExperimentArtifactPaths.from_root(
+    """Load the selected configuration recorded in experiment metadata."""
+    metadata = load_experiment_metadata(
         artifact_directory,
     )
 
-    return dict(
-        json.loads(
-            paths.selected_configuration.read_text(
-                encoding="utf-8",
-            ),
-        ),
+    selected_configuration = metadata.get(
+        "selected_configuration",
     )
+
+    if not isinstance(selected_configuration, dict):
+        raise ValueError(
+            "Experiment metadata does not contain a valid "
+            "'selected_configuration' object.",
+        )
+
+    return dict(selected_configuration)
 
 
 def load_experiment_metadata(

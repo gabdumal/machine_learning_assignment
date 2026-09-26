@@ -3,13 +3,12 @@
 from enum import StrEnum
 
 import pandas as pd
-from sklearn.model_selection import train_test_split
 
-from definitions import SEED, TEST_SIZE
 from loading.genis import (
     SOURCE_GENIS_FEATURES,
     SOURCE_GENIS_SCHEMA,
-    source_genis_df,
+    source_genis_df_for_test,
+    source_genis_df_for_train,
 )
 from schema.common import (
     FeatureDataType,
@@ -252,21 +251,22 @@ TRANSFORMED_GENIS_SCHEMA = TransformedDatasetSchema(
 )
 
 
-transformed_genis_df = transform_data_frame(
-    source_data_frame=source_genis_df,
+genis_df_for_train = transform_data_frame(
+    source_data_frame=source_genis_df_for_train,
     source_dataset_schema=SOURCE_GENIS_SCHEMA,
     transformed_dataset_schema=TRANSFORMED_GENIS_SCHEMA,
 )
 
+genis_df_for_test = transform_data_frame(
+    source_data_frame=source_genis_df_for_test,
+    source_dataset_schema=SOURCE_GENIS_SCHEMA,
+    transformed_dataset_schema=TRANSFORMED_GENIS_SCHEMA,
+)
 
-# ----------------------------------------
-# Splitting
-# ----------------------------------------
-
-
-genis_df_for_train, genis_df_for_test = train_test_split(
-    transformed_genis_df,
-    test_size=TEST_SIZE,
-    random_state=SEED,
-    stratify=transformed_genis_df["category_label"],
+merged_transformed_genis_df = pd.concat(
+    (
+        genis_df_for_train,
+        genis_df_for_test,
+    ),
+    ignore_index=True,
 )
