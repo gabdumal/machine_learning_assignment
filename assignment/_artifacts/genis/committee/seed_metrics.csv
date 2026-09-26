@@ -1,0 +1,13 @@
+dataset,strategy,seed,accuracy,precision,recall,macro_f1,roc_auc,pr_auc,mcc,balanced_accuracy
+GENIS,hard_voting,27,1,1,1,1,1,1,1,1
+GENIS,hard_voting,32,1,1,1,1,1,1,1,1
+GENIS,hard_voting,59,1,1,1,1,1,1,1,1
+GENIS,weighted_hard_voting,27,1,1,1,1,1,1,1,1
+GENIS,weighted_hard_voting,32,1,1,1,1,1,1,1,1
+GENIS,weighted_hard_voting,59,1,1,1,1,1,1,1,1
+GENIS,soft_voting,27,1,1,1,1,1,1,1,1
+GENIS,soft_voting,32,0.999986433688,0.999995771956,0.999953959484,0.999974863582,1,1,0.999960456318,0.999953959484
+GENIS,soft_voting,59,1,1,1,1,1,1,1,1
+GENIS,weighted_soft_voting,27,1,1,1,1,1,1,1,1
+GENIS,weighted_soft_voting,32,0.999986433688,0.999995771956,0.999953959484,0.999974863582,1,1,0.999960456318,0.999953959484
+GENIS,weighted_soft_voting,59,1,1,1,1,1,1,1,1

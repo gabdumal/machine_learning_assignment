@@ -1,0 +1,4 @@
+classifier,validation_macro_f1,weight
+decision_tree,0.942016010987,0.330851940316
+random_forest,0.951972185736,0.334348717118
+xgboost,0.953255226078,0.334799342566

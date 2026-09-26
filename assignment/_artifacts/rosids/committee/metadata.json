@@ -1,0 +1,67 @@
+{
+  "committee_strategy_selection_uses_test_labels": false,
+  "component_classifiers": [
+    "decision_tree",
+    "random_forest",
+    "xgboost"
+  ],
+  "dataset_name": "ROSIDS",
+  "evaluation_type": "frozen_test_set_committee",
+  "hard_vote_scores": "vote_count_divided_by_component_classifier_count",
+  "hard_voting_tie_break": "highest mean component predicted probability among tied classes; persisted class order resolves any remaining tie",
+  "metrics": [
+    "accuracy",
+    "precision",
+    "recall",
+    "macro_f1",
+    "roc_auc",
+    "pr_auc",
+    "mcc",
+    "balanced_accuracy"
+  ],
+  "numeric_csv_float_format": "%.12g",
+  "schema_version": 1,
+  "seeds": [
+    27,
+    32,
+    59
+  ],
+  "selected_configuration_ids": {
+    "decision_tree": "34fdea955c76",
+    "random_forest": "490871c4e714",
+    "xgboost": "17edbfb766e1"
+  },
+  "soft_vote_scores": "unweighted_mean_component_probabilities",
+  "status": "complete",
+  "strategies": [
+    "hard_voting",
+    "weighted_hard_voting",
+    "soft_voting",
+    "weighted_soft_voting"
+  ],
+  "summary_decimals": 5,
+  "test_labels_usage": "test_actual_class_is used only for final metric calculation",
+  "weight_metric": "macro_f1",
+  "weighted_hard_vote_scores": "validation_weighted_vote_sum",
+  "weighted_soft_vote_scores": "validation_weighted_mean_component_probabilities",
+  "weighting_rule": "validation_macro_f1_normalized_across_component_classifiers",
+  "weights": [
+    {
+      "classifier": "decision_tree",
+      "validation_macro_f1": 0.9420160109866668,
+      "weight": 0.33085194031642406
+    },
+    {
+      "classifier": "random_forest",
+      "validation_macro_f1": 0.9519721857356666,
+      "weight": 0.3343487171178988
+    },
+    {
+      "classifier": "xgboost",
+      "validation_macro_f1": 0.953255226078,
+      "weight": 0.33479934256567717
+    }
+  ],
+  "weights_source": "selected_configuration_validation_seed_results",
+  "weights_use_test_labels": false
+}
