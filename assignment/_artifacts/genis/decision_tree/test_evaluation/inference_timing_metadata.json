@@ -1,0 +1,24 @@
+{
+  "artifact_writing_included": false,
+  "classifier_name": "decision_tree",
+  "clock": "time.perf_counter",
+  "configuration_ids": [
+    "1cbc00d06004"
+  ],
+  "dataset_name": "GENIS",
+  "evaluation_type": "frozen_test_set",
+  "inference_time_definition": "prediction_time_seconds + probability_time_seconds",
+  "metric_calculation_included": false,
+  "model_loading_included": false,
+  "operation": "final_model_predict_and_predict_proba",
+  "schema_version": 1,
+  "scope": "Frozen-test prediction using a persisted final model; includes the complete model.predict and model.predict_proba calls on the full transformed test partition; excludes model loading, metric calculation, confusion-matrix construction, and artifact writing.",
+  "seed_count": 3,
+  "seeds": [
+    27,
+    32,
+    59
+  ],
+  "test_row_count": 73712,
+  "timing_file": "inference_timing.csv"
+}

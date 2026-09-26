@@ -7,6 +7,7 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from itertools import product
 from pathlib import Path
+from time import perf_counter
 from typing import Any, Final, Protocol, cast
 
 import joblib
@@ -56,6 +57,21 @@ DEFAULT_VALIDATION_WORKERS: Final[int] = 8
 RANDOM_OVER_SAMPLER: Final[str] = "random_over_sampler"
 
 ARTIFACT_SCHEMA_VERSION: Final[int] = 2
+
+# Timing artifacts are additive to the existing experiment schema. Keeping
+# their own schema version lets completed experiments collect timings without
+# invalidating the already-completed validation artifacts.
+TRAINING_TIMING_SCHEMA_VERSION: Final[int] = 1
+TRAINING_TIMING_FILE_NAME: Final[str] = "training_timing.csv"
+TRAINING_TIMING_METADATA_FILE_NAME: Final[str] = "training_timing_metadata.json"
+TRAINING_TIMING_OPERATION: Final[str] = "final_pipeline_fit"
+TRAINING_TIMING_CLOCK: Final[str] = "time.perf_counter"
+TRAINING_TIMING_SCOPE: Final[str] = (
+    "Complete final pipeline fit on the full training partition; includes "
+    "feature preprocessing and classifier fitting; excludes target-label "
+    "encoding, model serialization, prediction, probability prediction, "
+    "feature-importance extraction, and artifact writing."
+)
 
 
 DECISION_TREE_PARAM_GRID: Final[ParameterGrid] = {
@@ -159,6 +175,8 @@ class ExperimentArtifactPaths:
     models_directory: Path
     predictions_directory: Path
     feature_importances_directory: Path
+    training_timing: Path
+    training_timing_metadata: Path
 
     @classmethod
     def from_root(
@@ -176,6 +194,8 @@ class ExperimentArtifactPaths:
             models_directory=root / "models",
             predictions_directory=root / "test_predictions",
             feature_importances_directory=root / "feature_importances",
+            training_timing=root / TRAINING_TIMING_FILE_NAME,
+            training_timing_metadata=root / TRAINING_TIMING_METADATA_FILE_NAME,
         )
 
     def ensure_directories(self) -> None:
@@ -1579,8 +1599,330 @@ def _save_final_model_artifacts(
     )
 
 
+def _fit_final_pipeline_with_timing(
+    *,
+    final_pipeline: Pipeline,
+    train_features: pd.DataFrame,
+    encoded_train_target: np.ndarray,
+) -> float:
+    """Fit one final pipeline and return its wall-clock fit duration.
+
+    The measured interval covers the complete ``Pipeline.fit`` call, including
+    feature preprocessing and classifier fitting. It excludes target-label
+    encoding, model serialization, test prediction, probability prediction,
+    feature-importance extraction, and artifact writing.
+    """
+    start_time = perf_counter()
+
+    final_pipeline.fit(
+        train_features,
+        encoded_train_target,
+    )
+
+    return float(perf_counter() - start_time)
+
+
+def _build_training_timing_metadata(
+    *,
+    dataset_name: str,
+    classifier_name: str,
+    configuration_id: str,
+    seeds_to_use: Sequence[int],
+    training_row_count: int,
+) -> dict[str, object]:
+    """Build metadata describing the final-model training measurements."""
+    return {
+        "schema_version": TRAINING_TIMING_SCHEMA_VERSION,
+        "dataset_name": dataset_name,
+        "classifier_name": classifier_name,
+        "configuration_id": configuration_id,
+        "operation": TRAINING_TIMING_OPERATION,
+        "clock": TRAINING_TIMING_CLOCK,
+        "scope": TRAINING_TIMING_SCOPE,
+        "training_row_count": int(training_row_count),
+        "seed_count": len(tuple(seeds_to_use)),
+        "seeds": [int(seed) for seed in sorted(seeds_to_use)],
+        "timing_file": TRAINING_TIMING_FILE_NAME,
+    }
+
+
+def _validate_training_timing_frame(
+    *,
+    data_frame: pd.DataFrame,
+    dataset_name: str,
+    classifier_name: str,
+    configuration_id: str,
+    expected_seeds: Sequence[int],
+    training_row_count: int,
+) -> None:
+    """Validate a persisted or newly-created training-timing table."""
+    required_columns = (
+        "dataset",
+        "classifier",
+        "seed",
+        "configuration_id",
+        "training_time_seconds",
+        "training_row_count",
+    )
+
+    missing_columns = [
+        column for column in required_columns if column not in data_frame.columns
+    ]
+    if missing_columns:
+        raise ValueError(
+            "Training-timing artifact is missing required columns: "
+            f"{missing_columns!r}."
+        )
+
+    if data_frame.empty:
+        raise ValueError("Training-timing artifact is empty.")
+
+    if {str(value) for value in data_frame["dataset"]} != {dataset_name}:
+        raise ValueError("Training-timing artifact contains an unexpected dataset.")
+
+    if {str(value) for value in data_frame["classifier"]} != {classifier_name}:
+        raise ValueError("Training-timing artifact contains an unexpected classifier.")
+
+    if {str(value) for value in data_frame["configuration_id"]} != {
+        configuration_id,
+    }:
+        raise ValueError(
+            "Training-timing artifact contains an unexpected configuration ID."
+        )
+
+    seed_values = pd.to_numeric(
+        data_frame["seed"],
+        errors="raise",
+    ).astype(int)
+    if seed_values.duplicated().any():
+        raise ValueError("Training-timing artifact contains duplicate seed rows.")
+
+    expected_seed_set = {int(seed) for seed in expected_seeds}
+    actual_seed_set = {int(seed) for seed in seed_values}
+    if not actual_seed_set.issubset(expected_seed_set):
+        raise ValueError(
+            "Training-timing artifact contains seeds that are not part of the "
+            "experiment: "
+            f"{sorted(actual_seed_set - expected_seed_set)!r}."
+        )
+
+    training_times = pd.to_numeric(
+        data_frame["training_time_seconds"],
+        errors="raise",
+    ).to_numpy(dtype=float)
+    if not np.isfinite(training_times).all() or (training_times <= 0.0).any():
+        raise ValueError(
+            "Training-timing measurements must be finite and strictly positive."
+        )
+
+    row_counts = pd.to_numeric(
+        data_frame["training_row_count"],
+        errors="raise",
+    ).astype(int)
+    if {int(value) for value in row_counts} != {int(training_row_count)}:
+        raise ValueError(
+            "Training-timing artifact contains an unexpected training row count."
+        )
+
+
+def _measure_training_times_for_seeds(
+    *,
+    dataset_name: str,
+    classifier_name: str,
+    base_pipeline: Pipeline,
+    configuration: dict[str, Any],
+    configuration_id: str,
+    train_features: pd.DataFrame,
+    encoded_train_target: np.ndarray,
+    seeds_to_measure: Sequence[int],
+) -> pd.DataFrame:
+    """Measure final-pipeline training time for selected seeds only."""
+    rows: list[dict[str, object]] = []
+
+    for seed in seeds_to_measure:
+        final_pipeline = _resolve_final_pipeline(
+            base_pipeline=base_pipeline,
+            configuration=configuration,
+            seed=seed,
+        )
+
+        training_time_seconds = _fit_final_pipeline_with_timing(
+            final_pipeline=final_pipeline,
+            train_features=train_features,
+            encoded_train_target=encoded_train_target,
+        )
+
+        rows.append(
+            {
+                "dataset": dataset_name,
+                "classifier": classifier_name,
+                "seed": int(seed),
+                "configuration_id": configuration_id,
+                "training_time_seconds": training_time_seconds,
+                "training_row_count": len(train_features),
+            }
+        )
+
+        print(
+            f"Training timing completed: seed={seed}, "
+            f"elapsed={training_time_seconds:.6f}s",
+        )
+
+    return pd.DataFrame(rows)
+
+
+def _ensure_training_timing(
+    *,
+    dataset_name: str,
+    classifier_name: str,
+    base_pipeline: Pipeline,
+    initial_timing: pd.DataFrame | None = None,
+    configuration: dict[str, Any],
+    configuration_id: str,
+    train_features: pd.DataFrame,
+    train_target: pd.Series,
+    seeds_to_use: Sequence[int],
+    paths: ExperimentArtifactPaths,
+) -> pd.DataFrame:
+    """Create a complete final-training timing artifact without validation."""
+    normalized_seeds = tuple(int(seed) for seed in seeds_to_use)
+
+    target_encoder = _fit_target_encoder(
+        train_target,
+    )
+    encoded_train_target = _encode_target(
+        train_target,
+        target_encoder,
+    )
+
+    if paths.training_timing.exists():
+        timing_data = pd.read_csv(
+            paths.training_timing,
+        )
+        _validate_training_timing_frame(
+            data_frame=timing_data,
+            dataset_name=dataset_name,
+            classifier_name=classifier_name,
+            configuration_id=configuration_id,
+            expected_seeds=normalized_seeds,
+            training_row_count=len(train_features),
+        )
+    else:
+        timing_data = pd.DataFrame(
+            columns=(
+                "dataset",
+                "classifier",
+                "seed",
+                "configuration_id",
+                "training_time_seconds",
+                "training_row_count",
+            )
+        )
+
+    if initial_timing is not None and not initial_timing.empty:
+        _validate_training_timing_frame(
+            data_frame=initial_timing,
+            dataset_name=dataset_name,
+            classifier_name=classifier_name,
+            configuration_id=configuration_id,
+            expected_seeds=normalized_seeds,
+            training_row_count=len(train_features),
+        )
+
+        existing_seed_values = (
+            {int(seed) for seed in timing_data["seed"]}
+            if not timing_data.empty
+            else set()
+        )
+        initial_seed_values = {int(seed) for seed in initial_timing["seed"]}
+        overlapping_seeds = existing_seed_values & initial_seed_values
+        if overlapping_seeds:
+            raise ValueError(
+                "Training-timing measurements were supplied both by the "
+                "existing artifact and the current fit for seeds: "
+                f"{sorted(overlapping_seeds)!r}."
+            )
+
+        if timing_data.empty:
+            timing_data = initial_timing.copy()
+        else:
+            timing_data = pd.concat(
+                [timing_data, initial_timing],
+                ignore_index=True,
+            )
+
+    existing_seeds = (
+        {int(seed) for seed in timing_data["seed"]} if not timing_data.empty else set()
+    )
+    missing_seeds = tuple(
+        seed for seed in normalized_seeds if seed not in existing_seeds
+    )
+
+    if missing_seeds:
+        measured_timing = _measure_training_times_for_seeds(
+            dataset_name=dataset_name,
+            classifier_name=classifier_name,
+            base_pipeline=base_pipeline,
+            configuration=configuration,
+            configuration_id=configuration_id,
+            train_features=train_features,
+            encoded_train_target=encoded_train_target,
+            seeds_to_measure=missing_seeds,
+        )
+        if timing_data.empty:
+            timing_data = measured_timing
+        else:
+            timing_data = pd.concat(
+                [timing_data, measured_timing],
+                ignore_index=True,
+            )
+
+    timing_data = timing_data.sort_values(
+        "seed",
+        ignore_index=True,
+    )
+
+    _validate_training_timing_frame(
+        data_frame=timing_data,
+        dataset_name=dataset_name,
+        classifier_name=classifier_name,
+        configuration_id=configuration_id,
+        expected_seeds=normalized_seeds,
+        training_row_count=len(train_features),
+    )
+
+    missing_after_measurement = set(normalized_seeds) - {
+        int(seed) for seed in timing_data["seed"]
+    }
+    if missing_after_measurement:
+        raise RuntimeError(
+            "Training timing could not be collected for all required seeds: "
+            f"{sorted(missing_after_measurement)!r}."
+        )
+
+    _atomic_write_dataframe(
+        timing_data,
+        paths.training_timing,
+    )
+
+    _atomic_write_json(
+        paths.training_timing_metadata,
+        _build_training_timing_metadata(
+            dataset_name=dataset_name,
+            classifier_name=classifier_name,
+            configuration_id=configuration_id,
+            seeds_to_use=normalized_seeds,
+            training_row_count=len(train_features),
+        ),
+    )
+
+    return timing_data
+
+
 def _fit_final_models(
     *,
+    dataset_name: str,
+    classifier_name: str,
     base_pipeline: Pipeline,
     configuration: dict[str, Any],
     configuration_id: str,
@@ -1590,8 +1932,8 @@ def _fit_final_models(
     test_target: pd.Series,
     seeds_to_use: Sequence[int],
     paths: ExperimentArtifactPaths,
-) -> None:
-    """Fit the selected configuration on all training data for every seed."""
+) -> pd.DataFrame:
+    """Fit the selected configuration and record final-training duration per seed."""
     target_encoder = _fit_target_encoder(
         train_target,
     )
@@ -1607,6 +1949,8 @@ def _fit_final_models(
     )
 
     del encoded_test_target
+
+    timing_rows: list[dict[str, object]] = []
 
     for seed in seeds_to_use:
         model_path = paths.models_directory / f"seed_{seed}.joblib"
@@ -1630,9 +1974,21 @@ def _fit_final_models(
             seed=seed,
         )
 
-        final_pipeline.fit(
-            train_features,
-            encoded_train_target,
+        training_time_seconds = _fit_final_pipeline_with_timing(
+            final_pipeline=final_pipeline,
+            train_features=train_features,
+            encoded_train_target=encoded_train_target,
+        )
+
+        timing_rows.append(
+            {
+                "dataset": dataset_name,
+                "classifier": classifier_name,
+                "seed": int(seed),
+                "configuration_id": configuration_id,
+                "training_time_seconds": training_time_seconds,
+                "training_row_count": len(train_features),
+            }
         )
 
         fitted_model = FittedClassificationModel(
@@ -1651,8 +2007,21 @@ def _fit_final_models(
         )
 
         print(
-            f"Final model completed: seed={seed}",
+            f"Final model completed: seed={seed}; "
+            f"training_time={training_time_seconds:.6f}s",
         )
+
+    return pd.DataFrame(
+        timing_rows,
+        columns=(
+            "dataset",
+            "classifier",
+            "seed",
+            "configuration_id",
+            "training_time_seconds",
+            "training_row_count",
+        ),
+    )
 
 
 # ----------------------------------------
@@ -1732,6 +2101,20 @@ def _save_metadata(
         "training_row_count": train_row_count,
         "test_row_count": test_row_count,
         "selected_configuration": selected_configuration,
+        "training_timing": {
+            "file": TRAINING_TIMING_FILE_NAME,
+            "metadata_file": TRAINING_TIMING_METADATA_FILE_NAME,
+            "schema_version": TRAINING_TIMING_SCHEMA_VERSION,
+            "operation": TRAINING_TIMING_OPERATION,
+            "clock": TRAINING_TIMING_CLOCK,
+            "scope": (
+                "Complete final pipeline fit on the full training partition; "
+                "includes feature preprocessing and classifier fitting; "
+                "excludes target-label encoding, model serialization, "
+                "prediction, probability prediction, "
+                "feature-importance extraction, and artifact writing."
+            ),
+        },
     }
 
     _atomic_write_json(
@@ -1770,7 +2153,10 @@ def run_classifier_experiment(
 
     After validation, the selected configuration is fitted on all
     training data once for every fixed seed. Those final models, test
-    predictions, probabilities, and feature importances are persisted.
+    predictions, probabilities, feature importances, and final-training
+    timing measurements are persisted. If a completed experiment is resumed
+    without timing artifacts, only the missing timing measurements are
+    collected; validation and model selection are not rerun.
 
     The held-out test target is never used for hyperparameter selection.
     """
@@ -1871,8 +2257,32 @@ def run_classifier_experiment(
             )
 
         if existing_metadata.get("status") == "complete":
-            # paths.remove_validation_checkpoint()
             selected_configuration = existing_metadata["selected_configuration"]
+
+            _ensure_training_timing(
+                dataset_name=dataset_name,
+                classifier_name=classifier_name,
+                base_pipeline=base_pipeline,
+                configuration=selected_configuration["parameters"],
+                configuration_id=selected_configuration["configuration_id"],
+                train_features=train_features,
+                train_target=train_target,
+                seeds_to_use=seeds_to_use,
+                paths=paths,
+            )
+
+            existing_metadata["training_timing"] = {
+                "file": TRAINING_TIMING_FILE_NAME,
+                "metadata_file": TRAINING_TIMING_METADATA_FILE_NAME,
+                "schema_version": TRAINING_TIMING_SCHEMA_VERSION,
+                "operation": TRAINING_TIMING_OPERATION,
+                "clock": TRAINING_TIMING_CLOCK,
+                "scope": TRAINING_TIMING_SCOPE,
+            }
+            _atomic_write_json(
+                paths.metadata,
+                existing_metadata,
+            )
 
             return ExperimentResult(
                 artifact_paths=paths,
@@ -2053,7 +2463,9 @@ def run_classifier_experiment(
         f"{dataset_name} / {classifier_name} — validation completed.",
     )
 
-    _fit_final_models(
+    final_training_timing = _fit_final_models(
+        dataset_name=dataset_name,
+        classifier_name=classifier_name,
         base_pipeline=base_pipeline,
         configuration=selected_configuration["parameters"],
         configuration_id=selected_configuration["configuration_id"],
@@ -2061,6 +2473,19 @@ def run_classifier_experiment(
         train_target=train_target,
         test_features=test_features,
         test_target=test_target,
+        seeds_to_use=seeds_to_use,
+        paths=paths,
+    )
+
+    _ensure_training_timing(
+        dataset_name=dataset_name,
+        classifier_name=classifier_name,
+        base_pipeline=base_pipeline,
+        initial_timing=final_training_timing,
+        configuration=selected_configuration["parameters"],
+        configuration_id=selected_configuration["configuration_id"],
+        train_features=train_features,
+        train_target=train_target,
         seeds_to_use=seeds_to_use,
         paths=paths,
     )
@@ -2223,6 +2648,103 @@ def load_final_models(
             models.items(),
         ),
     )
+
+
+def load_training_timing(
+    artifact_directory: Path,
+) -> pd.DataFrame:
+    """Load persisted final-model training-time measurements."""
+    paths = ExperimentArtifactPaths.from_root(
+        artifact_directory,
+    )
+
+    if not paths.training_timing.exists():
+        raise FileNotFoundError(
+            "No persisted training-timing artifact was found in "
+            f"'{paths.training_timing}'."
+        )
+
+    timing_data = pd.read_csv(
+        paths.training_timing,
+    )
+
+    metadata = load_experiment_metadata(
+        artifact_directory,
+    )
+    selected_configuration = metadata.get("selected_configuration")
+    if not isinstance(selected_configuration, dict):
+        raise TypeError(
+            "Experiment metadata does not contain a valid "
+            "selected_configuration object."
+        )
+
+    configuration_id = selected_configuration.get("configuration_id")
+    if not isinstance(configuration_id, str):
+        raise TypeError(
+            "Selected configuration does not contain a valid configuration ID."
+        )
+
+    dataset_name = metadata.get("dataset_name")
+    classifier_name = metadata.get("classifier_name")
+    training_row_count = metadata.get("training_row_count")
+    seeds = metadata.get("cross_validation_seeds")
+
+    if not isinstance(dataset_name, str):
+        raise TypeError("Experiment metadata does not contain a valid dataset name.")
+    if not isinstance(classifier_name, str):
+        raise TypeError("Experiment metadata does not contain a valid classifier name.")
+    if not isinstance(training_row_count, int):
+        raise TypeError(
+            "Experiment metadata does not contain a valid training row count."
+        )
+    if not isinstance(seeds, (list, tuple)):
+        raise TypeError("Experiment metadata does not contain a valid seed sequence.")
+
+    _validate_training_timing_frame(
+        data_frame=timing_data,
+        dataset_name=dataset_name,
+        classifier_name=classifier_name,
+        configuration_id=configuration_id,
+        expected_seeds=tuple(int(seed) for seed in seeds),
+        training_row_count=training_row_count,
+    )
+
+    return timing_data.sort_values(
+        "seed",
+        ignore_index=True,
+    )
+
+
+def load_training_timing_metadata(
+    artifact_directory: Path,
+) -> dict[str, Any]:
+    """Load metadata describing final-model training-time measurements."""
+    paths = ExperimentArtifactPaths.from_root(
+        artifact_directory,
+    )
+
+    if not paths.training_timing_metadata.exists():
+        raise FileNotFoundError(
+            "No training-timing metadata artifact was found in "
+            f"'{paths.training_timing_metadata}'."
+        )
+
+    payload = json.loads(
+        paths.training_timing_metadata.read_text(
+            encoding="utf-8",
+        ),
+    )
+
+    if not isinstance(payload, dict):
+        raise TypeError("Training-timing metadata must contain a JSON object.")
+
+    if payload.get("schema_version") != TRAINING_TIMING_SCHEMA_VERSION:
+        raise ValueError(
+            "Unsupported training-timing metadata schema version: "
+            f"{payload.get('schema_version')!r}."
+        )
+
+    return dict(payload)
 
 
 def load_test_predictions(

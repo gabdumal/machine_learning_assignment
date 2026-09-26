@@ -36,5 +36,11 @@
     "seed_count": 3
   },
   "summary_float_format": ".12g",
-  "test_row_count": 73712
+  "test_row_count": 73712,
+  "timing_clock": "time.perf_counter",
+  "timing_file": "inference_timing.csv",
+  "timing_metadata_file": "inference_timing_metadata.json",
+  "timing_operation": "final_model_predict_and_predict_proba",
+  "timing_schema_version": 1,
+  "timing_scope": "Frozen-test prediction using a persisted final model; includes the complete model.predict and model.predict_proba calls on the full transformed test partition; excludes model loading, metric calculation, confusion-matrix construction, and artifact writing."
 }

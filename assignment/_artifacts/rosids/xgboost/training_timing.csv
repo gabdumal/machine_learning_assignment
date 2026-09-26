@@ -1,0 +1,4 @@
+dataset,classifier,seed,configuration_id,training_time_seconds,training_row_count
+ROSIDS,xgboost,27,17edbfb766e1,19.557034898,109344
+ROSIDS,xgboost,32,17edbfb766e1,19.004143803,109344
+ROSIDS,xgboost,59,17edbfb766e1,19.692038027,109344

@@ -1,0 +1,4 @@
+dataset,classifier,seed,configuration_id,test_row_count,prediction_time_seconds,probability_time_seconds,inference_time_seconds,inference_time_per_100_samples
+ROSIDS,random_forest,27,490871c4e714,27337,0.364265690994,0.362753027992,0.727018718986,0.00265946782378
+ROSIDS,random_forest,32,490871c4e714,27337,0.361194095996,0.358881973007,0.720076069003,0.00263407129167
+ROSIDS,random_forest,59,490871c4e714,27337,0.359955965003,0.358622651998,0.718578617001,0.00262859354355

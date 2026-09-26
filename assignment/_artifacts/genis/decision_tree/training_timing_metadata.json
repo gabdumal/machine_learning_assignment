@@ -1,0 +1,17 @@
+{
+  "classifier_name": "decision_tree",
+  "clock": "time.perf_counter",
+  "configuration_id": "1cbc00d06004",
+  "dataset_name": "GENIS",
+  "operation": "final_pipeline_fit",
+  "schema_version": 1,
+  "scope": "Complete final pipeline fit on the full training partition; includes feature preprocessing and classifier fitting; excludes target-label encoding, model serialization, prediction, probability prediction, feature-importance extraction, and artifact writing.",
+  "seed_count": 3,
+  "seeds": [
+    27,
+    32,
+    59
+  ],
+  "timing_file": "training_timing.csv",
+  "training_row_count": 294844
+}

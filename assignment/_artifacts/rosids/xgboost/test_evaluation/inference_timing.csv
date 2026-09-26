@@ -1,0 +1,4 @@
+dataset,classifier,seed,configuration_id,test_row_count,prediction_time_seconds,probability_time_seconds,inference_time_seconds,inference_time_per_100_samples
+ROSIDS,xgboost,27,17edbfb766e1,27337,0.318378095995,0.316552693999,0.634930789995,0.00232260595528
+ROSIDS,xgboost,32,17edbfb766e1,27337,0.318753187006,0.314526581002,0.633279768008,0.00231656644112
+ROSIDS,xgboost,59,17edbfb766e1,27337,0.316672664005,0.314274820004,0.630947484009,0.00230803483926

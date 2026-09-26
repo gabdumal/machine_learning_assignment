@@ -2,7 +2,8 @@
 
 This module does not train or tune models. It loads the seed-specific final
 models already persisted by the validation phase, evaluates them on the
-existing transformed test partitions, and persists test-evaluation results.
+existing transformed test partitions, measures frozen-test inference time, and persists
+test-evaluation results.
 
 Run from the project root, for example:
 
@@ -15,6 +16,7 @@ import argparse
 import json
 from collections.abc import Sequence
 from pathlib import Path
+from time import perf_counter
 from typing import Final
 
 import numpy as np
@@ -79,6 +81,35 @@ TEST_SUMMARY_FLOAT_FORMAT: Final[str] = ".12g"
 # the probability distribution without rejecting valid model output solely
 # because of single-precision rounding.
 PROBABILITY_SUM_ATOL: Final[float] = 1e-6
+
+# Inference timing is measured with ``time.perf_counter`` around the two
+# prediction operations required by this evaluation: ``predict`` for the
+# discrete class output and ``predict_proba`` for ROC-AUC/PR-AUC. Model
+# loading, metric calculation, confusion-matrix construction, and artifact
+# writing are excluded from the measured interval.
+INFERENCE_TIMING_SCHEMA_VERSION: Final[int] = 1
+INFERENCE_TIMING_FILE_NAME: Final[str] = "inference_timing.csv"
+INFERENCE_TIMING_METADATA_FILE_NAME: Final[str] = "inference_timing_metadata.json"
+INFERENCE_TIMING_OPERATION: Final[str] = "final_model_predict_and_predict_proba"
+INFERENCE_TIMING_CLOCK: Final[str] = "time.perf_counter"
+INFERENCE_TIMING_SCOPE: Final[str] = (
+    "Frozen-test prediction using a persisted final model; includes the complete "
+    "model.predict and model.predict_proba calls on the full transformed test "
+    "partition; excludes model loading, metric calculation, confusion-matrix "
+    "construction, and artifact writing."
+)
+
+INFERENCE_TIMING_COLUMNS: Final[tuple[str, ...]] = (
+    "dataset",
+    "classifier",
+    "seed",
+    "configuration_id",
+    "test_row_count",
+    "prediction_time_seconds",
+    "probability_time_seconds",
+    "inference_time_seconds",
+    "inference_time_per_100_samples",
+)
 
 DATASET_CONFIGURATIONS: Final[dict[str, tuple[str, pd.DataFrame, pd.Series]]] = {
     "genis": (
@@ -195,7 +226,7 @@ def _calculate_test_metrics(
     encoded_target: np.ndarray,
     probabilities: np.ndarray,
 ) -> dict[str, float]:
-    """Calculate all scalar metrics used during validation."""
+    """Calculate all scalar metrics used by the final evaluation."""
     metrics = {
         "accuracy": accuracy_score(
             actual_labels,
@@ -465,21 +496,47 @@ def _evaluate_seed(
     classifier_name: str,
     test_features: pd.DataFrame,
     test_target: pd.Series,
-) -> tuple[dict[str, float], pd.DataFrame, np.ndarray]:
-    """Evaluate one already-fitted seed-specific model."""
+) -> tuple[dict[str, float], pd.DataFrame, np.ndarray, dict[str, object]]:
+    """Evaluate one already-fitted seed-specific model and time inference."""
     actual_labels = np.asarray(
         test_target.astype(str),
         dtype=object,
     )
 
+    prediction_start = perf_counter()
+    raw_predictions = model.predict(
+        test_features,
+    )
+    prediction_time_seconds = float(
+        perf_counter() - prediction_start,
+    )
     predicted_labels = np.asarray(
-        model.predict(test_features).astype(str),
+        raw_predictions,
         dtype=object,
+    ).astype(str)
+
+    probability_start = perf_counter()
+    raw_probabilities = model.predict_proba(
+        test_features,
+    )
+    probability_time_seconds = float(
+        perf_counter() - probability_start,
+    )
+    probabilities = np.asarray(
+        raw_probabilities,
+        dtype=float,
     )
 
-    probabilities = np.asarray(
-        model.predict_proba(test_features),
-        dtype=float,
+    inference_time_seconds = float(
+        prediction_time_seconds + probability_time_seconds,
+    )
+
+    test_row_count = len(test_features)
+    if test_row_count < 1:
+        raise ValueError("The frozen test partition must contain at least one row.")
+
+    inference_time_per_100_samples = float(
+        inference_time_seconds / test_row_count * 100.0,
     )
 
     if len(predicted_labels) != len(actual_labels):
@@ -537,7 +594,12 @@ def _evaluate_seed(
     )
 
     expected_class_indices = set(range(len(model.classes)))
-    present_class_indices = set(np.unique(encoded_target))
+    present_class_indices = set(
+        np.asarray(
+            encoded_target,
+            dtype=np.int64,
+        ).tolist(),
+    )
 
     if present_class_indices != expected_class_indices:
         raise ValueError(
@@ -562,7 +624,19 @@ def _evaluate_seed(
         classifier_name=classifier_name,
     )
 
-    return metrics, per_class, predicted_labels
+    timing = {
+        "dataset": None,
+        "classifier": classifier_name,
+        "seed": int(model.seed),
+        "configuration_id": model.configuration_id,
+        "test_row_count": test_row_count,
+        "prediction_time_seconds": prediction_time_seconds,
+        "probability_time_seconds": probability_time_seconds,
+        "inference_time_seconds": inference_time_seconds,
+        "inference_time_per_100_samples": inference_time_per_100_samples,
+    }
+
+    return metrics, per_class, predicted_labels, timing
 
 
 # ----------------------------------------
@@ -643,6 +717,165 @@ def _build_summary_row(
     return row
 
 
+def _validate_inference_timing_frame(
+    *,
+    timing_data: pd.DataFrame,
+    dataset_name: str,
+    classifier_name: str,
+    expected_configuration_ids: Sequence[str],
+    expected_seeds: Sequence[int],
+    test_row_count: int,
+) -> None:
+    """Validate persisted frozen-test inference timings."""
+    missing_columns = [
+        column
+        for column in INFERENCE_TIMING_COLUMNS
+        if column not in timing_data.columns
+    ]
+    if missing_columns:
+        raise ValueError(
+            "Inference-timing artifact is missing required columns: "
+            f"{missing_columns!r}.",
+        )
+
+    if timing_data.empty:
+        raise ValueError("Inference-timing artifact is empty.")
+
+    if {str(value) for value in timing_data["dataset"]} != {dataset_name}:
+        raise ValueError(
+            "Inference-timing artifact contains an unexpected dataset.",
+        )
+
+    if {str(value) for value in timing_data["classifier"]} != {classifier_name}:
+        raise ValueError(
+            "Inference-timing artifact contains an unexpected classifier.",
+        )
+
+    configuration_ids = {str(value) for value in timing_data["configuration_id"]}
+    if configuration_ids != {str(value) for value in expected_configuration_ids}:
+        raise ValueError(
+            "Inference-timing artifact contains unexpected configuration IDs.",
+        )
+
+    seed_values = pd.to_numeric(
+        timing_data["seed"],
+        errors="raise",
+    ).astype(int)
+    if seed_values.duplicated().any():
+        raise ValueError(
+            "Inference-timing artifact contains duplicate seed rows.",
+        )
+
+    expected_seed_set = {int(seed) for seed in expected_seeds}
+    actual_seed_set = {int(seed) for seed in seed_values}
+    if actual_seed_set != expected_seed_set:
+        raise ValueError(
+            "Inference-timing artifact seeds do not match the experiment: "
+            f"expected {sorted(expected_seed_set)!r}, "
+            f"found {sorted(actual_seed_set)!r}.",
+        )
+
+    row_counts = pd.to_numeric(
+        timing_data["test_row_count"],
+        errors="raise",
+    ).astype(int)
+    if {int(value) for value in row_counts} != {int(test_row_count)}:
+        raise ValueError(
+            "Inference-timing artifact contains an unexpected test row count.",
+        )
+
+    for column in (
+        "prediction_time_seconds",
+        "probability_time_seconds",
+        "inference_time_seconds",
+        "inference_time_per_100_samples",
+    ):
+        values = pd.to_numeric(
+            timing_data[column],
+            errors="raise",
+        ).to_numpy(dtype=float)
+
+        if not np.isfinite(values).all() or (values <= 0.0).any():
+            raise ValueError(
+                f"Inference-timing column {column!r} contains non-positive "
+                "or non-finite measurements.",
+            )
+
+    prediction_times = pd.to_numeric(
+        timing_data["prediction_time_seconds"],
+        errors="raise",
+    ).to_numpy(dtype=float)
+    probability_times = pd.to_numeric(
+        timing_data["probability_time_seconds"],
+        errors="raise",
+    ).to_numpy(dtype=float)
+    total_times = pd.to_numeric(
+        timing_data["inference_time_seconds"],
+        errors="raise",
+    ).to_numpy(dtype=float)
+
+    if not np.allclose(
+        prediction_times + probability_times,
+        total_times,
+        rtol=1e-10,
+        atol=1e-12,
+    ):
+        raise ValueError(
+            "Inference-timing total does not equal prediction plus "
+            "probability-prediction time within tolerance.",
+        )
+
+    expected_per_100 = total_times / float(test_row_count) * 100.0
+    persisted_per_100 = pd.to_numeric(
+        timing_data["inference_time_per_100_samples"],
+        errors="raise",
+    ).to_numpy(dtype=float)
+
+    if not np.allclose(
+        expected_per_100,
+        persisted_per_100,
+        rtol=1e-10,
+        atol=1e-12,
+    ):
+        raise ValueError(
+            "Persisted inference time per 100 samples is inconsistent with "
+            "the total inference time and test row count.",
+        )
+
+
+def _build_inference_timing_metadata(
+    *,
+    dataset_name: str,
+    classifier_name: str,
+    configuration_ids: Sequence[str],
+    expected_seeds: Sequence[int],
+    test_row_count: int,
+) -> dict[str, object]:
+    """Build metadata describing frozen-test inference measurements."""
+    return {
+        "schema_version": INFERENCE_TIMING_SCHEMA_VERSION,
+        "dataset_name": dataset_name,
+        "classifier_name": classifier_name,
+        "evaluation_type": "frozen_test_set",
+        "configuration_ids": [
+            str(configuration_id) for configuration_id in sorted(configuration_ids)
+        ],
+        "operation": INFERENCE_TIMING_OPERATION,
+        "clock": INFERENCE_TIMING_CLOCK,
+        "scope": INFERENCE_TIMING_SCOPE,
+        "test_row_count": int(test_row_count),
+        "seed_count": len(tuple(expected_seeds)),
+        "seeds": [int(seed) for seed in sorted(expected_seeds)],
+        "timing_file": INFERENCE_TIMING_FILE_NAME,
+        "metric_calculation_included": False,
+        "model_loading_included": False,
+        "artifact_writing_included": False,
+        "inference_time_definition": (
+            "prediction_time_seconds + probability_time_seconds"
+        ),
+    }
+
+
 def _persist_test_artifacts(
     *,
     artifact_directory: Path,
@@ -650,6 +883,7 @@ def _persist_test_artifacts(
     classifier_name: str,
     seed_results: pd.DataFrame,
     per_class_results: pd.DataFrame,
+    inference_timing: pd.DataFrame,
     test_row_count: int,
     confusion_matrices: dict[
         int,
@@ -672,6 +906,11 @@ def _persist_test_artifacts(
     _write_dataframe_csv(
         per_class_results,
         evaluation_directory / "test_per_class_metrics.csv",
+    )
+
+    _write_dataframe_csv(
+        inference_timing[list(INFERENCE_TIMING_COLUMNS)],
+        evaluation_directory / INFERENCE_TIMING_FILE_NAME,
     )
 
     # This file intentionally stores presentation strings (mean ± std), not
@@ -708,8 +947,30 @@ def _persist_test_artifacts(
         "metrics": TEST_METRIC_COLUMNS,
         "numeric_csv_float_format": TEST_FLOAT_FORMAT,
         "summary_float_format": TEST_SUMMARY_FLOAT_FORMAT,
+        "timing_file": INFERENCE_TIMING_FILE_NAME,
+        "timing_metadata_file": INFERENCE_TIMING_METADATA_FILE_NAME,
+        "timing_schema_version": INFERENCE_TIMING_SCHEMA_VERSION,
+        "timing_operation": INFERENCE_TIMING_OPERATION,
+        "timing_clock": INFERENCE_TIMING_CLOCK,
+        "timing_scope": INFERENCE_TIMING_SCOPE,
         "summary": summary_row,
     }
+
+    _write_json(
+        evaluation_directory / INFERENCE_TIMING_METADATA_FILE_NAME,
+        _build_inference_timing_metadata(
+            dataset_name=dataset_name,
+            classifier_name=classifier_name,
+            configuration_ids=tuple(
+                str(configuration_id)
+                for configuration_id in seed_results["configuration_id"].unique()
+            ),
+            expected_seeds=tuple(
+                int(seed) for seed in sorted(seed_results["seed"].unique())
+            ),
+            test_row_count=test_row_count,
+        ),
+    )
 
     _write_json(
         evaluation_directory / "test_evaluation_metadata.json",
@@ -827,6 +1088,7 @@ def run_classifier_test(
 
     seed_rows: list[dict[str, object]] = []
     per_class_frames: list[pd.DataFrame] = []
+    inference_timing_rows: list[dict[str, object]] = []
     confusion_matrices: dict[
         int,
         tuple[pd.DataFrame, pd.DataFrame],
@@ -838,12 +1100,20 @@ def run_classifier_test(
             f"test evaluation for seed {seed}",
         )
 
-        metrics, per_class, predictions = _evaluate_seed(
+        (
+            metrics,
+            per_class,
+            predictions,
+            timing,
+        ) = _evaluate_seed(
             model=model,
             classifier_name=normalized_classifier_name,
             test_features=test_features,
             test_target=test_target,
         )
+
+        timing["dataset"] = dataset_name
+        inference_timing_rows.append(timing)
 
         seed_rows.append(
             {
@@ -917,6 +1187,27 @@ def run_classifier_test(
         ignore_index=True,
     )
 
+    inference_timing = pd.DataFrame(
+        inference_timing_rows,
+    ).sort_values(
+        "seed",
+        ignore_index=True,
+    )
+
+    _validate_inference_timing_frame(
+        timing_data=inference_timing,
+        dataset_name=dataset_name,
+        classifier_name=normalized_classifier_name,
+        expected_configuration_ids=tuple(
+            str(configuration_id)
+            for configuration_id in seed_results["configuration_id"].unique()
+        ),
+        expected_seeds=tuple(
+            int(seed) for seed in sorted(seed_results["seed"].unique())
+        ),
+        test_row_count=len(test_features),
+    )
+
     summary_row = _build_summary_row(
         dataset_name=dataset_name,
         classifier_name=normalized_classifier_name,
@@ -929,6 +1220,7 @@ def run_classifier_test(
         classifier_name=normalized_classifier_name,
         seed_results=seed_results,
         per_class_results=per_class_results,
+        inference_timing=inference_timing,
         test_row_count=len(test_features),
         confusion_matrices=confusion_matrices,
         summary_row=summary_row,
@@ -982,6 +1274,42 @@ def run_all_tests() -> pd.DataFrame:
     )
 
     return result
+
+
+def load_inference_timing(
+    artifact_directory: Path,
+) -> pd.DataFrame:
+    """Load persisted frozen-test inference timing measurements."""
+    evaluation_directory = artifact_directory / "test_evaluation"
+    timing_path = evaluation_directory / INFERENCE_TIMING_FILE_NAME
+
+    if not timing_path.is_file():
+        raise FileNotFoundError(
+            f"Inference-timing artifact does not exist: '{timing_path}'.",
+        )
+
+    return pd.read_csv(
+        timing_path,
+    )
+
+
+def load_inference_timing_metadata(
+    artifact_directory: Path,
+) -> dict[str, object]:
+    """Load metadata describing persisted inference timing measurements."""
+    evaluation_directory = artifact_directory / "test_evaluation"
+    metadata_path = evaluation_directory / INFERENCE_TIMING_METADATA_FILE_NAME
+
+    if not metadata_path.is_file():
+        raise FileNotFoundError(
+            f"Inference-timing metadata does not exist: '{metadata_path}'.",
+        )
+
+    return json.loads(
+        metadata_path.read_text(
+            encoding="utf-8",
+        ),
+    )
 
 
 # ----------------------------------------

@@ -1,0 +1,4 @@
+dataset,classifier,seed,configuration_id,training_time_seconds,training_row_count
+GENIS,random_forest,27,7eb62a443ff7,132.939183318,294844
+GENIS,random_forest,32,7eb62a443ff7,131.517781708,294844
+GENIS,random_forest,59,7eb62a443ff7,141.885242563,294844

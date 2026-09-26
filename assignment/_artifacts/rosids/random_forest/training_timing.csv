@@ -1,0 +1,4 @@
+dataset,classifier,seed,configuration_id,training_time_seconds,training_row_count
+ROSIDS,random_forest,27,490871c4e714,24.107621144,109344
+ROSIDS,random_forest,32,490871c4e714,24.160554237,109344
+ROSIDS,random_forest,59,490871c4e714,24.522053874,109344

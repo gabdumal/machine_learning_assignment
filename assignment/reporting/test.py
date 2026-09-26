@@ -13,8 +13,12 @@ experiment as::
     test_evaluation/test_per_class_metrics.csv
     test_evaluation/test_summary.csv
     test_evaluation/test_evaluation_metadata.json
+    test_evaluation/inference_timing.csv
+    test_evaluation/inference_timing_metadata.json
     test_evaluation/confusion_matrix_seed_<seed>.csv
     test_evaluation/confusion_matrix_normalized_seed_<seed>.csv
+    training_timing.csv
+    training_timing_metadata.json
     feature_importances/seed_<seed>.csv
 
 Validation artifacts are optionally loaded for the selected configuration so
@@ -38,12 +42,21 @@ from matplotlib.colors import Normalize
 from matplotlib.figure import Figure
 from matplotlib.ticker import FixedFormatter, FixedLocator
 
+import pipeline.test as pipeline_test
 from eda.features import _configure_axis_grid
 from eda.palette import (
     CONTINUOUS_PALETTE,
     get_discrete_colors,
 )
-from pipeline.common import load_feature_importances
+from pipeline.common import (
+    TRAINING_TIMING_CLOCK,
+    TRAINING_TIMING_OPERATION,
+    TRAINING_TIMING_SCHEMA_VERSION,
+    TRAINING_TIMING_SCOPE,
+    load_feature_importances,
+    load_training_timing,
+    load_training_timing_metadata,
+)
 from reporting.common import REPORT_DISPLAY_DECIMALS, format_mean_std
 
 # ----------------------------------------
@@ -129,6 +142,32 @@ IMPORTANCE_COLUMN: Final[str] = "importance"
 
 DEFAULT_FEATURE_IMPORTANCE_TOP_N: Final[int] = 15
 
+# Timing artifacts are persisted separately from predictive metrics. Training
+# timing lives at the dataset/classifier experiment root, while frozen-test
+# inference timing lives beneath ``test_evaluation``.
+TRAINING_TIMING_FILE_NAME: Final[str] = "training_timing.csv"
+TRAINING_TIMING_METADATA_FILE_NAME: Final[str] = "training_timing_metadata.json"
+INFERENCE_TIMING_FILE_NAME: Final[str] = cast(
+    str,
+    pipeline_test.INFERENCE_TIMING_FILE_NAME,
+)
+INFERENCE_TIMING_METADATA_FILE_NAME: Final[str] = cast(
+    str,
+    pipeline_test.INFERENCE_TIMING_METADATA_FILE_NAME,
+)
+TRAINING_TIMING_COLUMNS: Final[tuple[str, ...]] = (
+    DATASET_COLUMN,
+    CLASSIFIER_COLUMN,
+    SEED_COLUMN,
+    CONFIGURATION_ID_COLUMN,
+    "training_time_seconds",
+    "training_row_count",
+)
+INFERENCE_TIMING_COLUMNS: Final[tuple[str, ...]] = cast(
+    tuple[str, ...],
+    pipeline_test.INFERENCE_TIMING_COLUMNS,
+)
+
 # ----------------------------------------
 # Data structures
 # ----------------------------------------
@@ -145,6 +184,10 @@ class TestExperimentArtifacts:
     seed_metrics: pd.DataFrame
     per_class_metrics: pd.DataFrame
     summary: pd.DataFrame
+    training_timing: pd.DataFrame
+    inference_timing: pd.DataFrame
+    training_timing_metadata: dict[str, object]
+    inference_timing_metadata: dict[str, object]
     confusion_matrices: dict[int, pd.DataFrame]
     normalized_confusion_matrices: dict[int, pd.DataFrame]
 
@@ -157,6 +200,7 @@ class TestStatistics:
     seed_metrics_table: pd.DataFrame
     per_class_metrics_table: pd.DataFrame
     selected_configuration_table: pd.DataFrame
+    timing_table: pd.DataFrame
     validation_vs_test_table: pd.DataFrame | None
 
 
@@ -215,6 +259,7 @@ def load_test_experiment_artifacts(
 
     metadata = dict(test_metadata)
     metadata["selected_configuration"] = selected_configuration
+    metadata["training_row_count"] = experiment_metadata.get("training_row_count")
 
     seed_metrics = _load_csv(
         evaluation_directory / TEST_SEED_METRICS_FILE_NAME,
@@ -236,9 +281,67 @@ def load_test_experiment_artifacts(
         evaluation_directory / TEST_SUMMARY_FILE_NAME,
     )
 
+    training_timing = load_training_timing(
+        experiment_directory,
+    )
+    training_timing_metadata = load_training_timing_metadata(
+        experiment_directory,
+    )
+    inference_timing = pipeline_test.load_inference_timing(
+        experiment_directory,
+    )
+    inference_timing_metadata = pipeline_test.load_inference_timing_metadata(
+        experiment_directory,
+    )
+
     _validate_test_seed_metrics(seed_metrics)
     _validate_per_class_metrics(per_class_metrics)
     _validate_summary(summary)
+
+    _validate_training_timing_metadata(
+        metadata=training_timing_metadata,
+        dataset_name=dataset_name,
+        classifier_name=normalized_classifier,
+        configuration_id=str(selected_configuration["configuration_id"]),
+        expected_seeds=tuple(
+            int(seed)
+            for seed in pd.to_numeric(
+                seed_metrics[SEED_COLUMN],
+                errors="raise",
+            )
+        ),
+        training_row_count=_get_required_experiment_training_row_count(
+            experiment_metadata,
+        ),
+    )
+    _validate_inference_timing_metadata(
+        metadata=inference_timing_metadata,
+        dataset_name=dataset_name,
+        classifier_name=normalized_classifier,
+        expected_configuration_ids=(str(selected_configuration["configuration_id"]),),
+        expected_seeds=tuple(
+            int(seed)
+            for seed in pd.to_numeric(
+                seed_metrics[SEED_COLUMN],
+                errors="raise",
+            )
+        ),
+        test_row_count=_get_required_test_row_count(test_metadata),
+    )
+    _validate_inference_timing_frame(
+        timing_data=inference_timing,
+        dataset_name=dataset_name,
+        classifier_name=normalized_classifier,
+        expected_configuration_ids=(str(selected_configuration["configuration_id"]),),
+        expected_seeds=tuple(
+            int(seed)
+            for seed in pd.to_numeric(
+                seed_metrics[SEED_COLUMN],
+                errors="raise",
+            )
+        ),
+        test_row_count=_get_required_test_row_count(test_metadata),
+    )
 
     confusion_matrices = _load_confusion_matrices(
         evaluation_directory,
@@ -281,6 +384,10 @@ def load_test_experiment_artifacts(
         seed_metrics=seed_metrics,
         per_class_metrics=per_class_metrics,
         summary=summary,
+        training_timing=training_timing,
+        inference_timing=inference_timing,
+        training_timing_metadata=training_timing_metadata,
+        inference_timing_metadata=inference_timing_metadata,
         confusion_matrices=confusion_matrices,
         normalized_confusion_matrices=normalized_confusion_matrices,
     )
@@ -952,6 +1059,10 @@ def compile_test_statistics(
     selected_configuration_table = _prepare_selected_configuration_table(
         artifacts.metadata,
     )
+    timing_table = _prepare_timing_table(
+        training_timing=artifacts.training_timing,
+        inference_timing=artifacts.inference_timing,
+    )
 
     validation_vs_test_table: pd.DataFrame | None = None
 
@@ -965,6 +1076,7 @@ def compile_test_statistics(
         seed_metrics_table=seed_metrics_table,
         per_class_metrics_table=per_class_metrics_table,
         selected_configuration_table=selected_configuration_table,
+        timing_table=timing_table,
         validation_vs_test_table=validation_vs_test_table,
     )
 
@@ -1009,6 +1121,26 @@ def compile_all_test_summary_table(
     return pd.DataFrame(rows)
 
 
+def compile_all_test_timing_table(
+    *,
+    artifacts_directory: Path = DEFAULT_ARTIFACTS_DIRECTORY,
+) -> pd.DataFrame:
+    """Build one combined timing table for every experiment."""
+    rows: list[dict[str, object]] = []
+
+    for artifacts in load_all_test_experiment_artifacts(
+        artifacts_directory=artifacts_directory,
+    ):
+        statistics = compile_test_statistics(
+            artifacts=artifacts,
+            include_validation_comparison=False,
+        )
+        for record in statistics.timing_table.to_dict(orient="records"):
+            rows.append({str(key): value for key, value in record.items()})
+
+    return pd.DataFrame(rows)
+
+
 # ----------------------------------------
 # Public display functions
 # ----------------------------------------
@@ -1021,6 +1153,7 @@ def display_test_statistics(
     show_configuration: bool = True,
     show_seed_metrics: bool = True,
     show_per_class_metrics: bool = True,
+    show_timing: bool = True,
     show_validation_comparison: bool = True,
 ) -> None:
     """Display the main test-result tables in a notebook."""
@@ -1046,6 +1179,12 @@ def display_test_statistics(
         _display_section(
             title="Test per-class metrics",
             table=statistics.per_class_metrics_table,
+        )
+
+    if show_timing:
+        _display_section(
+            title="Computational timing",
+            table=statistics.timing_table,
         )
 
     if show_validation_comparison and statistics.validation_vs_test_table is not None:
@@ -2075,6 +2214,97 @@ def _prepare_per_class_metrics_table(
     return pd.DataFrame(rows).reset_index(drop=True)
 
 
+def _prepare_timing_table(
+    *,
+    training_timing: pd.DataFrame,
+    inference_timing: pd.DataFrame,
+) -> pd.DataFrame:
+    """Prepare mean ± std computational timing across persisted seeds."""
+    training = training_timing.copy()
+    inference = inference_timing.copy()
+
+    _validate_training_timing_columns(
+        training,
+    )
+    _validate_inference_timing_columns(
+        inference,
+    )
+
+    training[SEED_COLUMN] = pd.to_numeric(
+        training[SEED_COLUMN],
+        errors="raise",
+    ).astype(int)
+    inference[SEED_COLUMN] = pd.to_numeric(
+        inference[SEED_COLUMN],
+        errors="raise",
+    ).astype(int)
+
+    training_seeds = tuple(
+        sorted(int(seed) for seed in training[SEED_COLUMN].to_numpy(dtype=int))
+    )
+    inference_seeds = tuple(
+        sorted(int(seed) for seed in inference[SEED_COLUMN].to_numpy(dtype=int))
+    )
+
+    if training_seeds != inference_seeds:
+        raise ValueError(
+            "Training and inference timing artifacts do not use the same seeds.",
+        )
+
+    dataset_values = {str(value) for value in training[DATASET_COLUMN]}
+    classifier_values = {str(value) for value in training[CLASSIFIER_COLUMN]}
+
+    if len(dataset_values) != 1 or len(classifier_values) != 1:
+        raise ValueError(
+            "Timing artifacts must belong to exactly one dataset and classifier.",
+        )
+
+    def summarize(
+        frame: pd.DataFrame,
+        column: str,
+    ) -> str:
+        values = pd.to_numeric(
+            frame[column],
+            errors="raise",
+        ).to_numpy(dtype=float)
+        mean = _to_python_float(np.mean(values))
+        std = _to_python_float(np.std(values, ddof=1)) if len(values) > 1 else 0.0
+        return format_mean_std(
+            mean,
+            std,
+        )
+
+    row: dict[str, object] = {
+        "Dataset": next(iter(dataset_values)),
+        "Classifier": _classifier_display_name(
+            next(iter(classifier_values)),
+        ),
+        "Seeds": len(training_seeds),
+        "Training time (s)": summarize(
+            training,
+            "training_time_seconds",
+        ),
+        "Prediction time (s)": summarize(
+            inference,
+            "prediction_time_seconds",
+        ),
+        "Probability time (s)": summarize(
+            inference,
+            "probability_time_seconds",
+        ),
+        "Inference time (s)": summarize(
+            inference,
+            "inference_time_seconds",
+        ),
+        "Inference / 100 samples (s)": summarize(
+            inference,
+            "inference_time_per_100_samples",
+        ),
+    }
+
+    return pd.DataFrame([row])
+
+
 def _prepare_selected_configuration_table(
     metadata: Mapping[str, object],
 ) -> pd.DataFrame:
@@ -2230,6 +2460,309 @@ def _build_validation_vs_test_table(
 # ----------------------------------------
 # Artifact validation
 # ----------------------------------------
+
+
+def _get_required_experiment_training_row_count(
+    metadata: Mapping[str, object],
+) -> int:
+    """Return and validate the full-training row count from experiment metadata."""
+    value = metadata.get("training_row_count")
+    if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+        raise ValueError(
+            "Experiment metadata must contain a positive integer 'training_row_count'.",
+        )
+    return value
+
+
+def _get_required_test_row_count(
+    metadata: Mapping[str, object],
+) -> int:
+    """Return and validate the frozen-test row count from test metadata."""
+    value = metadata.get("test_row_count")
+    if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+        raise ValueError(
+            "Test metadata must contain a positive integer 'test_row_count'.",
+        )
+    return value
+
+
+def _validate_training_timing_columns(table: pd.DataFrame) -> None:
+    """Validate the structural columns of the training-timing artifact."""
+    _validate_required_columns(
+        table,
+        set(TRAINING_TIMING_COLUMNS),
+        table_name="training_timing",
+    )
+
+    if table.empty:
+        raise ValueError("training_timing is empty.")
+
+    for column in ("training_time_seconds",):
+        values = pd.to_numeric(
+            table[column],
+            errors="coerce",
+        ).to_numpy(dtype=float)
+        if not np.isfinite(values).all() or (values <= 0.0).any():
+            raise ValueError(
+                f"training_timing.{column} contains non-positive or non-finite values.",
+            )
+
+    row_counts = pd.to_numeric(
+        table["training_row_count"],
+        errors="coerce",
+    ).to_numpy(dtype=float)
+    if (
+        not np.isfinite(row_counts).all()
+        or (row_counts < 1.0).any()
+        or not np.allclose(
+            row_counts,
+            np.round(row_counts),
+            rtol=0.0,
+            atol=0.0,
+        )
+    ):
+        raise ValueError(
+            "training_timing.training_row_count must contain positive integer counts.",
+        )
+
+
+def _validate_inference_timing_columns(table: pd.DataFrame) -> None:
+    """Validate the structural and arithmetic invariants of inference timing."""
+    _validate_required_columns(
+        table,
+        set(INFERENCE_TIMING_COLUMNS),
+        table_name="inference_timing",
+    )
+
+    if table.empty:
+        raise ValueError("inference_timing is empty.")
+
+    for column in (
+        "prediction_time_seconds",
+        "probability_time_seconds",
+        "inference_time_seconds",
+        "inference_time_per_100_samples",
+    ):
+        values = pd.to_numeric(
+            table[column],
+            errors="coerce",
+        ).to_numpy(dtype=float)
+        if not np.isfinite(values).all() or (values <= 0.0).any():
+            raise ValueError(
+                f"inference_timing.{column} contains non-positive "
+                "or non-finite values.",
+            )
+
+    prediction_times = pd.to_numeric(
+        table["prediction_time_seconds"],
+        errors="raise",
+    ).to_numpy(dtype=float)
+    probability_times = pd.to_numeric(
+        table["probability_time_seconds"],
+        errors="raise",
+    ).to_numpy(dtype=float)
+    total_times = pd.to_numeric(
+        table["inference_time_seconds"],
+        errors="raise",
+    ).to_numpy(dtype=float)
+
+    if not np.allclose(
+        prediction_times + probability_times,
+        total_times,
+        rtol=1e-10,
+        atol=1e-12,
+    ):
+        raise ValueError(
+            "inference_timing total does not equal prediction plus probability time.",
+        )
+
+    row_counts = pd.to_numeric(
+        table["test_row_count"],
+        errors="raise",
+    ).to_numpy(dtype=float)
+    persisted_per_100 = pd.to_numeric(
+        table["inference_time_per_100_samples"],
+        errors="raise",
+    ).to_numpy(dtype=float)
+
+    if (
+        not np.isfinite(row_counts).all()
+        or (row_counts < 1.0).any()
+        or not np.allclose(
+            row_counts,
+            np.round(row_counts),
+            rtol=0.0,
+            atol=0.0,
+        )
+    ):
+        raise ValueError(
+            "inference_timing.test_row_count must contain positive integer counts.",
+        )
+
+    expected_per_100 = total_times / row_counts * 100.0
+    if not np.allclose(
+        expected_per_100,
+        persisted_per_100,
+        rtol=1e-10,
+        atol=1e-12,
+    ):
+        raise ValueError(
+            "inference_timing per-100-sample values are inconsistent "
+            "with total inference time.",
+        )
+
+
+def _validate_training_timing_metadata(
+    *,
+    metadata: Mapping[str, object],
+    dataset_name: str,
+    classifier_name: str,
+    configuration_id: str,
+    expected_seeds: Sequence[int],
+    training_row_count: int,
+) -> None:
+    """Validate provenance metadata for final-model training timing."""
+    expected_fields = {
+        "schema_version": TRAINING_TIMING_SCHEMA_VERSION,
+        "dataset_name": dataset_name,
+        "classifier_name": classifier_name,
+        "configuration_id": configuration_id,
+        "operation": TRAINING_TIMING_OPERATION,
+        "clock": TRAINING_TIMING_CLOCK,
+        "scope": TRAINING_TIMING_SCOPE,
+        "timing_file": TRAINING_TIMING_FILE_NAME,
+        "training_row_count": training_row_count,
+        "seed_count": len(tuple(expected_seeds)),
+    }
+
+    for key, expected_value in expected_fields.items():
+        if metadata.get(key) != expected_value:
+            raise ValueError(
+                f"Training-timing metadata field {key!r} does not match "
+                f"the expected experiment value {expected_value!r}.",
+            )
+
+    metadata_seeds = metadata.get("seeds")
+    if _parse_integer_sequence(
+        metadata_seeds,
+        field_name="training_timing.seeds",
+    ) != tuple(sorted(int(seed) for seed in expected_seeds)):
+        raise ValueError(
+            "Training-timing metadata seeds do not match the test experiment.",
+        )
+
+
+def _validate_inference_timing_metadata(
+    *,
+    metadata: Mapping[str, object],
+    dataset_name: str,
+    classifier_name: str,
+    expected_configuration_ids: Sequence[str],
+    expected_seeds: Sequence[int],
+    test_row_count: int,
+) -> None:
+    """Validate provenance metadata for frozen-test inference timing."""
+    expected_configuration_set = {str(value) for value in expected_configuration_ids}
+    expected_seed_tuple = tuple(sorted(int(seed) for seed in expected_seeds))
+
+    expected_fields = {
+        "schema_version": pipeline_test.INFERENCE_TIMING_SCHEMA_VERSION,
+        "dataset_name": dataset_name,
+        "classifier_name": classifier_name,
+        "evaluation_type": "frozen_test_set",
+        "operation": pipeline_test.INFERENCE_TIMING_OPERATION,
+        "clock": pipeline_test.INFERENCE_TIMING_CLOCK,
+        "scope": pipeline_test.INFERENCE_TIMING_SCOPE,
+        "timing_file": INFERENCE_TIMING_FILE_NAME,
+        "test_row_count": test_row_count,
+        "seed_count": len(expected_seed_tuple),
+        "metric_calculation_included": False,
+        "model_loading_included": False,
+        "artifact_writing_included": False,
+        "inference_time_definition": "prediction_time_seconds + probability_time_seconds",
+    }
+
+    for key, expected_value in expected_fields.items():
+        if metadata.get(key) != expected_value:
+            raise ValueError(
+                f"Inference-timing metadata field {key!r} does not match "
+                f"the expected experiment value {expected_value!r}.",
+            )
+
+    metadata_configuration_ids = _parse_string_set(
+        metadata.get("configuration_ids"),
+        field_name="inference_timing.configuration_ids",
+    )
+    if metadata_configuration_ids != expected_configuration_set:
+        raise ValueError(
+            "Inference-timing metadata configuration IDs do not match "
+            "the selected experiment configuration.",
+        )
+
+    metadata_seeds = _parse_integer_sequence(
+        metadata.get("seeds"),
+        field_name="inference_timing.seeds",
+    )
+    if metadata_seeds != expected_seed_tuple:
+        raise ValueError(
+            "Inference-timing metadata seeds do not match the test experiment.",
+        )
+
+
+def _validate_inference_timing_frame(
+    *,
+    timing_data: pd.DataFrame,
+    dataset_name: str,
+    classifier_name: str,
+    expected_configuration_ids: Sequence[str],
+    expected_seeds: Sequence[int],
+    test_row_count: int,
+) -> None:
+    """Validate the persisted frozen-test inference timings against the experiment."""
+    _validate_inference_timing_columns(
+        timing_data,
+    )
+
+    if set(str(value) for value in timing_data[DATASET_COLUMN]) != {dataset_name}:
+        raise ValueError(
+            "Inference-timing artifact contains an unexpected dataset.",
+        )
+
+    if set(str(value) for value in timing_data[CLASSIFIER_COLUMN]) != {classifier_name}:
+        raise ValueError(
+            "Inference-timing artifact contains an unexpected classifier.",
+        )
+
+    configuration_ids = {str(value) for value in timing_data[CONFIGURATION_ID_COLUMN]}
+    if configuration_ids != {str(value) for value in expected_configuration_ids}:
+        raise ValueError(
+            "Inference-timing artifact contains unexpected configuration IDs.",
+        )
+
+    seed_values = pd.to_numeric(
+        timing_data[SEED_COLUMN],
+        errors="raise",
+    ).astype(int)
+
+    if seed_values.duplicated().any():
+        raise ValueError(
+            "Inference-timing artifact contains duplicate seed rows.",
+        )
+
+    expected_seed_set = {int(seed) for seed in expected_seeds}
+    if set(int(seed) for seed in seed_values) != expected_seed_set:
+        raise ValueError(
+            "Inference-timing artifact seeds do not match the test experiment.",
+        )
+
+    test_row_counts = pd.to_numeric(
+        timing_data["test_row_count"],
+        errors="raise",
+    ).astype(int)
+    if set(int(value) for value in test_row_counts) != {int(test_row_count)}:
+        raise ValueError(
+            "Inference-timing artifact contains an unexpected test row count.",
+        )
 
 
 def _validate_test_seed_metrics(table: pd.DataFrame) -> None:
@@ -2878,6 +3411,7 @@ __all__ = [
     "TestStatistics",
     "compile_all_test_statistics",
     "compile_all_test_summary_table",
+    "compile_all_test_timing_table",
     "compile_dataset_feature_importances",
     "compile_test_statistics",
     "display_all_test_confusion_matrices",

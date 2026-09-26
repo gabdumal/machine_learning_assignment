@@ -1,0 +1,4 @@
+dataset,classifier,seed,configuration_id,test_row_count,prediction_time_seconds,probability_time_seconds,inference_time_seconds,inference_time_per_100_samples
+GENIS,decision_tree,27,1cbc00d06004,73712,0.247702847002,0.241766068997,0.489468915999,0.000664028809419
+GENIS,decision_tree,32,1cbc00d06004,73712,0.235802969997,0.23538084999,0.471183819987,0.00063922267743
+GENIS,decision_tree,59,1cbc00d06004,73712,0.23406892801,0.230225652995,0.464294581005,0.00062987652079

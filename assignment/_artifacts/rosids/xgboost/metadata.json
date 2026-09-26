@@ -129,6 +129,14 @@
   "status": "complete",
   "test_row_count": 27337,
   "training_row_count": 109344,
+  "training_timing": {
+    "clock": "time.perf_counter",
+    "file": "training_timing.csv",
+    "metadata_file": "training_timing_metadata.json",
+    "operation": "final_pipeline_fit",
+    "schema_version": 1,
+    "scope": "Complete final pipeline fit on the full training partition; includes feature preprocessing and classifier fitting; excludes target-label encoding, model serialization, prediction, probability prediction, feature-importance extraction, and artifact writing."
+  },
   "validation_metric": "macro_f1",
   "validation_metrics": [
     "accuracy",

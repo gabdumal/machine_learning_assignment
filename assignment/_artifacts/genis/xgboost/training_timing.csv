@@ -1,0 +1,4 @@
+dataset,classifier,seed,configuration_id,training_time_seconds,training_row_count
+GENIS,xgboost,27,17edbfb766e1,29.761195561,294844
+GENIS,xgboost,32,17edbfb766e1,29.395270315,294844
+GENIS,xgboost,59,17edbfb766e1,29.400340951,294844

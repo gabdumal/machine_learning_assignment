@@ -1,0 +1,4 @@
+dataset,classifier,seed,configuration_id,training_time_seconds,training_row_count
+GENIS,decision_tree,27,1cbc00d06004,11.842811495,294844
+GENIS,decision_tree,32,1cbc00d06004,11.574189031,294844
+GENIS,decision_tree,59,1cbc00d06004,11.557382548,294844

@@ -1,0 +1,4 @@
+dataset,classifier,seed,configuration_id,test_row_count,prediction_time_seconds,probability_time_seconds,inference_time_seconds,inference_time_per_100_samples
+GENIS,xgboost,27,17edbfb766e1,73712,0.561777826995,0.557999801997,1.11977762899,0.00151912528352
+GENIS,xgboost,32,17edbfb766e1,73712,0.557123331004,0.555681667989,1.11280499899,0.00150966599603
+GENIS,xgboost,59,17edbfb766e1,73712,0.558654793,0.554793787,1.11344858,0.00151053909811
