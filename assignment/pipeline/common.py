@@ -17,9 +17,23 @@ from imblearn.pipeline import Pipeline
 from sklearn.base import BaseEstimator, ClassifierMixin, clone
 from sklearn.compose import ColumnTransformer
 from sklearn.impute import SimpleImputer
-from sklearn.metrics import f1_score
+from sklearn.metrics import (
+    accuracy_score,
+    average_precision_score,
+    balanced_accuracy_score,
+    f1_score,
+    matthews_corrcoef,
+    precision_score,
+    recall_score,
+    roc_auc_score,
+)
 from sklearn.model_selection import StratifiedKFold
-from sklearn.preprocessing import FunctionTransformer, LabelEncoder, OneHotEncoder
+from sklearn.preprocessing import (
+    FunctionTransformer,
+    LabelEncoder,
+    OneHotEncoder,
+    label_binarize,
+)
 from xgboost import XGBClassifier
 
 from definitions import SEEDS
@@ -37,11 +51,11 @@ CV_FOLDS: Final[int] = 3
 
 CV_SEEDS: Final[tuple[int, ...]] = tuple(int(value) for value in SEEDS)
 
-DEFAULT_VALIDATION_WORKERS: Final[int] = 2
+DEFAULT_VALIDATION_WORKERS: Final[int] = 8
 
 RANDOM_OVER_SAMPLER: Final[str] = "random_over_sampler"
 
-ARTIFACT_SCHEMA_VERSION: Final[int] = 1
+ARTIFACT_SCHEMA_VERSION: Final[int] = 2
 
 
 DECISION_TREE_PARAM_GRID: Final[ParameterGrid] = {
@@ -60,6 +74,7 @@ DECISION_TREE_PARAM_GRID: Final[ParameterGrid] = {
     ),
     "classifier__min_samples_split": (
         2,
+        5,
         10,
     ),
     "classifier__min_samples_leaf": (
@@ -85,6 +100,7 @@ RANDOM_FOREST_PARAM_GRID: Final[ParameterGrid] = {
     ),
     "classifier__min_samples_split": (
         2,
+        5,
         10,
     ),
     "classifier__min_samples_leaf": (
@@ -677,6 +693,139 @@ class ClassifierEstimator(Protocol):
         """Predict class labels."""
         ...
 
+    def predict_proba(
+        self,
+        X: np.ndarray,
+    ) -> np.ndarray:
+        """Predict class probabilities."""
+        ...
+
+
+VALIDATION_METRIC_COLUMNS: Final[tuple[str, ...]] = (
+    "accuracy",
+    "precision",
+    "recall",
+    "macro_f1",
+    "roc_auc",
+    "pr_auc",
+    "mcc",
+    "balanced_accuracy",
+)
+
+
+def _calculate_roc_auc(
+    y_true: np.ndarray,
+    probabilities: np.ndarray,
+) -> float:
+    """Calculate macro ROC-AUC for binary or multiclass targets."""
+    class_count = probabilities.shape[1]
+
+    if class_count == 2:
+        return float(
+            roc_auc_score(
+                y_true,
+                probabilities[:, 1],
+            ),
+        )
+
+    return float(
+        roc_auc_score(
+            y_true,
+            probabilities,
+            multi_class="ovr",
+            average="macro",
+            labels=np.arange(class_count),
+        ),
+    )
+
+
+def _calculate_pr_auc(
+    y_true: np.ndarray,
+    probabilities: np.ndarray,
+) -> float:
+    """Calculate macro PR-AUC for binary or multiclass targets."""
+    class_count = probabilities.shape[1]
+
+    if class_count == 2:
+        return float(
+            average_precision_score(
+                y_true,
+                probabilities[:, 1],
+            ),
+        )
+
+    binary_targets = label_binarize(
+        y_true,
+        classes=np.arange(class_count),
+    )
+
+    return float(
+        average_precision_score(
+            binary_targets,
+            probabilities,
+            average="macro",
+        ),
+    )
+
+
+def _calculate_validation_metrics(
+    *,
+    y_true: np.ndarray,
+    predictions: np.ndarray,
+    probabilities: np.ndarray,
+) -> dict[str, float]:
+    """Calculate every scalar validation metric persisted by the engine."""
+    metrics = {
+        "accuracy": accuracy_score(
+            y_true,
+            predictions,
+        ),
+        "precision": precision_score(
+            y_true,
+            predictions,
+            average="macro",
+            zero_division=0,
+        ),
+        "recall": recall_score(
+            y_true,
+            predictions,
+            average="macro",
+            zero_division=0,
+        ),
+        "macro_f1": f1_score(
+            y_true,
+            predictions,
+            average="macro",
+            zero_division=0,
+        ),
+        "roc_auc": _calculate_roc_auc(
+            y_true,
+            probabilities,
+        ),
+        "pr_auc": _calculate_pr_auc(
+            y_true,
+            probabilities,
+        ),
+        "mcc": matthews_corrcoef(
+            y_true,
+            predictions,
+        ),
+        "balanced_accuracy": balanced_accuracy_score(
+            y_true,
+            predictions,
+        ),
+    }
+
+    result = {name: float(value) for name, value in metrics.items()}
+
+    missing_metrics = set(VALIDATION_METRIC_COLUMNS) - set(result)
+    if missing_metrics:
+        raise RuntimeError(
+            f"Validation metrics were not calculated: {sorted(missing_metrics)!r}."
+        )
+
+    return result
+
 
 def _fit_configuration_on_fold(
     *,
@@ -689,7 +838,7 @@ def _fit_configuration_on_fold(
     y_validation: np.ndarray,
     X_resampled: np.ndarray | None,
     y_resampled: np.ndarray | None,
-) -> float:
+) -> dict[str, float]:
     """Fit and score one configuration on one prepared fold."""
     classifier_estimator = cast(
         ClassifierEstimator,
@@ -732,13 +881,23 @@ def _fit_configuration_on_fold(
         dtype=np.int64,
     )
 
-    return float(
-        f1_score(
-            y_validation,
-            predictions,
-            average="macro",
-            zero_division=0,
+    probabilities = np.asarray(
+        classifier_estimator.predict_proba(
+            X_validation,
         ),
+        dtype=float,
+    )
+
+    if probabilities.ndim != 2 or probabilities.shape[0] != len(y_validation):
+        raise ValueError(
+            "Classifier probabilities must be a 2D array with one row "
+            "per validation observation."
+        )
+
+    return _calculate_validation_metrics(
+        y_true=y_validation,
+        predictions=predictions,
+        probabilities=probabilities,
     )
 
 
@@ -751,19 +910,19 @@ def _evaluate_fold(
     X_resampled: np.ndarray | None,
     y_resampled: np.ndarray | None,
     executor: ThreadPoolExecutor | None,
-) -> dict[str, float]:
+) -> dict[str, dict[str, float]]:
     """Evaluate every active configuration on one prepared fold."""
 
     def evaluate(
         identified_configuration: dict[str, Any],
-    ) -> tuple[str, float]:
+    ) -> tuple[str, dict[str, float]]:
         configuration_id = str(
             identified_configuration["configuration_id"],
         )
 
         configuration = identified_configuration["parameters"]
 
-        score = _fit_configuration_on_fold(
+        metrics = _fit_configuration_on_fold(
             configuration=configuration,
             classifier=classifier,
             seed=seed,
@@ -775,7 +934,7 @@ def _evaluate_fold(
             y_resampled=y_resampled,
         )
 
-        return configuration_id, score
+        return configuration_id, metrics
 
     if executor is None:
         results = tuple(
@@ -792,7 +951,7 @@ def _evaluate_fold(
             ),
         )
 
-    return {configuration_id: score for configuration_id, score in results}
+    return {configuration_id: metrics for configuration_id, metrics in results}
 
 
 # ----------------------------------------
@@ -846,16 +1005,28 @@ def _update_validation_checkpoint(
     *,
     checkpoint: dict[str, dict[str, dict[str, Any]]],
     seed: int,
-    seed_scores: dict[str, list[float]],
+    seed_metrics: dict[str, list[dict[str, float]]],
     configurations: Sequence[dict[str, Any]],
 ) -> None:
-    """Insert completed seed results into the checkpoint."""
+    """Insert completed seed results and all fold metrics into the checkpoint."""
     for identified_configuration in configurations:
         configuration_id = str(
             identified_configuration["configuration_id"],
         )
 
-        fold_scores = tuple(float(score) for score in seed_scores[configuration_id])
+        fold_metrics = tuple(
+            {name: float(value) for name, value in metrics.items()}
+            for metrics in seed_metrics[configuration_id]
+        )
+
+        mean_metrics = {
+            metric_name: float(
+                np.mean(
+                    [metrics[metric_name] for metrics in fold_metrics],
+                ),
+            )
+            for metric_name in VALIDATION_METRIC_COLUMNS
+        }
 
         checkpoint.setdefault(
             configuration_id,
@@ -863,12 +1034,8 @@ def _update_validation_checkpoint(
         )
 
         checkpoint[configuration_id][str(seed)] = {
-            "fold_scores": fold_scores,
-            "mean_macro_f1": float(
-                np.mean(
-                    fold_scores,
-                ),
-            ),
+            "fold_metrics": fold_metrics,
+            "mean_metrics": mean_metrics,
         }
 
 
@@ -882,7 +1049,7 @@ def _build_validation_fold_results(
     checkpoint: dict[str, dict[str, dict[str, Any]]],
     configuration_lookup: dict[str, dict[str, Any]],
 ) -> pd.DataFrame:
-    """Build one row per configuration, seed, and fold."""
+    """Build one row per configuration, seed, and fold with all metrics."""
     rows: list[dict[str, Any]] = []
 
     for configuration_id, seed_results in checkpoint.items():
@@ -891,8 +1058,8 @@ def _build_validation_fold_results(
         for seed_string, seed_result in seed_results.items():
             seed = int(seed_string)
 
-            for fold, macro_f1 in enumerate(
-                seed_result["fold_scores"],
+            for fold, metrics in enumerate(
+                seed_result["fold_metrics"],
                 start=1,
             ):
                 rows.append(
@@ -900,7 +1067,10 @@ def _build_validation_fold_results(
                         "configuration_id": configuration_id,
                         "seed": seed,
                         "fold": fold,
-                        "macro_f1": float(macro_f1),
+                        **{
+                            metric_name: float(metrics[metric_name])
+                            for metric_name in VALIDATION_METRIC_COLUMNS
+                        },
                         **parameters,
                     },
                 )
@@ -913,7 +1083,7 @@ def _build_validation_seed_results(
     checkpoint: dict[str, dict[str, dict[str, Any]]],
     configuration_lookup: dict[str, dict[str, Any]],
 ) -> pd.DataFrame:
-    """Build one row per configuration and seed."""
+    """Build one row per configuration and seed with fold means for all metrics."""
     rows: list[dict[str, Any]] = []
 
     for configuration_id, seed_results in checkpoint.items():
@@ -924,9 +1094,12 @@ def _build_validation_seed_results(
                 {
                     "configuration_id": configuration_id,
                     "seed": int(seed_string),
-                    "mean_macro_f1": float(
-                        seed_result["mean_macro_f1"],
-                    ),
+                    **{
+                        f"mean_{metric_name}": float(
+                            seed_result["mean_metrics"][metric_name],
+                        )
+                        for metric_name in VALIDATION_METRIC_COLUMNS
+                    },
                     **parameters,
                 },
             )
@@ -940,12 +1113,10 @@ def _build_validation_configuration_results(
     configuration_lookup: dict[str, dict[str, Any]],
     seeds_to_report: Sequence[int],
 ) -> pd.DataFrame:
-    """Build one row per configuration."""
+    """Build one row per configuration with mean/std across seed-level means."""
     rows: list[dict[str, Any]] = []
 
     for configuration_id, seed_results in checkpoint.items():
-        seed_scores: list[float] = []
-
         row: dict[str, Any] = {
             "configuration_id": configuration_id,
             **configuration_lookup[configuration_id],
@@ -962,28 +1133,27 @@ def _build_validation_configuration_results(
                     f"validation results for seed {seed}.",
                 )
 
-            mean_macro_f1 = float(
-                seed_result["mean_macro_f1"],
+            row[f"seed_{seed}_macro_f1"] = float(
+                seed_result["mean_metrics"]["macro_f1"],
             )
 
-            seed_scores.append(
-                mean_macro_f1,
+        for metric_name in VALIDATION_METRIC_COLUMNS:
+            seed_values = [
+                float(seed_results[str(seed)]["mean_metrics"][metric_name])
+                for seed in seeds_to_report
+            ]
+
+            row[f"{metric_name}_mean"] = float(
+                np.mean(seed_values),
             )
-
-            row[f"seed_{seed}_macro_f1"] = mean_macro_f1
-
-        row["macro_f1_mean"] = float(
-            np.mean(seed_scores),
-        )
-
-        row["macro_f1_std"] = float(
-            np.std(
-                seed_scores,
-                ddof=1,
+            row[f"{metric_name}_std"] = float(
+                np.std(
+                    seed_values,
+                    ddof=1,
+                )
+                if len(seed_values) > 1
+                else 0.0
             )
-            if len(seed_scores) > 1
-            else 0.0
-        )
 
         rows.append(row)
 
@@ -1051,11 +1221,22 @@ def select_best_configuration(
         dtype=float,
     )
 
+    selected_row = validation_results.iloc[best_position]
+
+    metrics = {
+        metric_name: {
+            "mean": float(selected_row[f"{metric_name}_mean"]),
+            "std": float(selected_row[f"{metric_name}_std"]),
+        }
+        for metric_name in VALIDATION_METRIC_COLUMNS
+    }
+
     return {
         "configuration_id": best_configuration_id,
         "parameters": dict(
             matching_configuration["parameters"],
         ),
+        "metrics": metrics,
         "macro_f1_mean": float(
             macro_f1_values[best_position],
         ),
@@ -1494,6 +1675,7 @@ def _build_experiment_signature(
     classifier = base_pipeline.named_steps["classifier"]
 
     payload = {
+        "artifact_schema_version": ARTIFACT_SCHEMA_VERSION,
         "dataset_name": dataset_name,
         "classifier_name": classifier_name,
         "classifier_parameters": classifier.get_params(
@@ -1541,6 +1723,7 @@ def _save_metadata(
         "classifier_name": classifier_name,
         "experiment_signature": experiment_signature,
         "validation_metric": "macro_f1",
+        "validation_metrics": VALIDATION_METRIC_COLUMNS,
         "cross_validation_folds": folds,
         "cross_validation_seeds": tuple(int(seed) for seed in seeds_to_use),
         "parameter_grid_size": parameter_grid_size,
@@ -1688,7 +1871,6 @@ def run_classifier_experiment(
             )
 
         if existing_metadata.get("status") == "complete":
-            # Do not remove checkpoint.
             # paths.remove_validation_checkpoint()
             selected_configuration = existing_metadata["selected_configuration"]
 
@@ -1743,7 +1925,7 @@ def run_classifier_experiment(
             if not active_configurations:
                 continue
 
-            fold_scores: dict[str, list[float]] = {
+            fold_metrics: dict[str, list[dict[str, float]]] = {
                 str(configuration["configuration_id"]): []
                 for configuration in active_configurations
             }
@@ -1804,15 +1986,15 @@ def run_classifier_experiment(
                     executor=executor,
                 )
 
-                for configuration_id, score in fold_results.items():
-                    fold_scores[configuration_id].append(
-                        float(score),
+                for configuration_id, metrics in fold_results.items():
+                    fold_metrics[configuration_id].append(
+                        metrics,
                     )
 
             _update_validation_checkpoint(
                 checkpoint=checkpoint,
                 seed=seed,
-                seed_scores=fold_scores,
+                seed_metrics=fold_metrics,
                 configurations=active_configurations,
             )
 
@@ -1898,7 +2080,6 @@ def run_classifier_experiment(
         selected_configuration=selected_configuration,
     )
 
-    # Do not remove checkpoint.
     # paths.remove_validation_checkpoint()
 
     return ExperimentResult(
