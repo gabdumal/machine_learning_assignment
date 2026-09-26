@@ -15,6 +15,7 @@ experiment as::
     test_evaluation/test_evaluation_metadata.json
     test_evaluation/confusion_matrix_seed_<seed>.csv
     test_evaluation/confusion_matrix_normalized_seed_<seed>.csv
+    feature_importances/seed_<seed>.csv
 
 Validation artifacts are optionally loaded for the selected configuration so
 that validation-versus-test comparisons can be displayed without rerunning
@@ -42,6 +43,7 @@ from eda.palette import (
     CONTINUOUS_PALETTE,
     get_discrete_colors,
 )
+from pipeline.common import load_feature_importances
 from reporting.common import REPORT_DISPLAY_DECIMALS, format_mean_std
 
 # ----------------------------------------
@@ -59,6 +61,7 @@ TEST_PER_CLASS_METRICS_FILE_NAME: Final[str] = "test_per_class_metrics.csv"
 TEST_SUMMARY_FILE_NAME: Final[str] = "test_summary.csv"
 TEST_METADATA_FILE_NAME: Final[str] = "test_evaluation_metadata.json"
 EXPERIMENT_METADATA_FILE_NAME: Final[str] = "metadata.json"
+FEATURE_IMPORTANCE_DIRECTORY_NAME: Final[str] = "feature_importances"
 
 VALIDATION_SEED_RESULTS_FILE_NAME: Final[str] = "validation_seeds.csv"
 
@@ -118,6 +121,13 @@ METRIC_DISPLAY_NAMES: Final[dict[str, str]] = {
 }
 
 REPORT_TEXT_LUMINANCE_THRESHOLD: Final[float] = 0.6
+
+FEATURE_IMPORTANCE_LEVEL_COLUMN: Final[str] = "importance_level"
+TRANSFORMED_FEATURE_COLUMN: Final[str] = "transformed_feature"
+ORIGINAL_FEATURE_COLUMN: Final[str] = "original_feature"
+IMPORTANCE_COLUMN: Final[str] = "importance"
+
+DEFAULT_FEATURE_IMPORTANCE_TOP_N: Final[int] = 15
 
 # ----------------------------------------
 # Data structures
@@ -294,6 +304,628 @@ def load_all_test_experiment_artifacts(
             )
 
     return tuple(artifacts)
+
+
+# ----------------------------------------
+# Feature-importance loading and aggregation
+# ----------------------------------------
+
+
+def _validate_feature_importance_artifact(
+    table: pd.DataFrame,
+    *,
+    classifier_name: str,
+) -> tuple[int, ...]:
+    """Validate one classifier's persisted feature-importance artifact."""
+    required_columns = {
+        SEED_COLUMN,
+        CONFIGURATION_ID_COLUMN,
+        FEATURE_IMPORTANCE_LEVEL_COLUMN,
+        TRANSFORMED_FEATURE_COLUMN,
+        ORIGINAL_FEATURE_COLUMN,
+        IMPORTANCE_COLUMN,
+    }
+
+    missing_columns = required_columns - set(table.columns)
+    if missing_columns:
+        raise ValueError(
+            f"Feature-importance data for classifier {classifier_name!r} "
+            f"is missing columns: {sorted(missing_columns)!r}.",
+        )
+
+    if table.empty:
+        raise ValueError(
+            f"Feature-importance data for classifier {classifier_name!r} is empty.",
+        )
+
+    frame = table.copy()
+
+    frame[SEED_COLUMN] = pd.to_numeric(
+        frame[SEED_COLUMN],
+        errors="raise",
+    ).astype(int)
+    frame[CONFIGURATION_ID_COLUMN] = frame[CONFIGURATION_ID_COLUMN].astype(str)
+    frame[FEATURE_IMPORTANCE_LEVEL_COLUMN] = frame[
+        FEATURE_IMPORTANCE_LEVEL_COLUMN
+    ].astype(str)
+    frame[ORIGINAL_FEATURE_COLUMN] = frame[ORIGINAL_FEATURE_COLUMN].astype("string")
+    frame[IMPORTANCE_COLUMN] = pd.to_numeric(
+        frame[IMPORTANCE_COLUMN],
+        errors="raise",
+    ).astype(float)
+
+    importance_values = frame[IMPORTANCE_COLUMN].to_numpy(dtype=float)
+    if not np.isfinite(importance_values).all():
+        raise ValueError(
+            f"Feature-importance data for classifier {classifier_name!r} "
+            "contains non-finite importance values.",
+        )
+
+    if (importance_values < 0.0).any():
+        raise ValueError(
+            f"Feature-importance data for classifier {classifier_name!r} "
+            "contains negative importance values.",
+        )
+
+    configuration_ids = set(frame[CONFIGURATION_ID_COLUMN])
+    if len(configuration_ids) != 1:
+        raise ValueError(
+            f"Feature-importance data for classifier {classifier_name!r} "
+            "must contain exactly one configuration ID.",
+        )
+
+    original_frame = frame[
+        frame[FEATURE_IMPORTANCE_LEVEL_COLUMN] == "original_feature"
+    ].copy()
+
+    if original_frame.empty:
+        raise ValueError(
+            f"Feature-importance data for classifier {classifier_name!r} "
+            "contains no original-feature rows.",
+        )
+
+    if original_frame[ORIGINAL_FEATURE_COLUMN].isna().any():
+        raise ValueError(
+            f"Feature-importance data for classifier {classifier_name!r} "
+            "contains missing original feature names.",
+        )
+
+    if original_frame[[SEED_COLUMN, ORIGINAL_FEATURE_COLUMN]].duplicated().any():
+        raise ValueError(
+            f"Feature-importance data for classifier {classifier_name!r} "
+            "contains duplicate seed/original-feature rows.",
+        )
+
+    seeds = tuple(
+        sorted(int(seed) for seed in original_frame[SEED_COLUMN].unique()),
+    )
+
+    if not seeds:
+        raise ValueError(
+            f"Feature-importance data for classifier {classifier_name!r} "
+            "contains no seeds.",
+        )
+
+    seed_counts = original_frame.groupby(ORIGINAL_FEATURE_COLUMN)[SEED_COLUMN].nunique()
+
+    if not (seed_counts == len(seeds)).all():
+        incomplete_features = sorted(
+            str(feature) for feature in seed_counts[seed_counts != len(seeds)].index
+        )
+        raise ValueError(
+            f"Feature-importance data for classifier {classifier_name!r} "
+            "does not contain every seed for every original feature: "
+            f"{incomplete_features!r}.",
+        )
+
+    return seeds
+
+
+def load_dataset_feature_importances(
+    *,
+    dataset_name: str,
+    artifacts_directory: Path = DEFAULT_ARTIFACTS_DIRECTORY,
+) -> dict[str, pd.DataFrame]:
+    """Load persisted feature importances for every classifier in one dataset."""
+    normalized_dataset = dataset_name.upper()
+
+    if normalized_dataset not in DATASET_ORDER:
+        raise ValueError(
+            f"Unknown dataset {dataset_name!r}. Available datasets: {DATASET_ORDER!r}.",
+        )
+
+    dataset_artifact_directory = (
+        artifacts_directory.expanduser().resolve() / normalized_dataset.lower()
+    )
+
+    result: dict[str, pd.DataFrame] = {}
+
+    for classifier_name in CLASSIFIER_ORDER:
+        experiment_directory = dataset_artifact_directory / classifier_name
+
+        feature_importance_directory = (
+            experiment_directory / FEATURE_IMPORTANCE_DIRECTORY_NAME
+        )
+
+        if not feature_importance_directory.is_dir():
+            raise FileNotFoundError(
+                "Feature-importance artifact directory does not exist: "
+                f"'{feature_importance_directory}'.",
+            )
+
+        frame = load_feature_importances(
+            experiment_directory,
+        )
+
+        _validate_feature_importance_artifact(
+            frame,
+            classifier_name=classifier_name,
+        )
+
+        result[classifier_name] = frame
+
+    return result
+
+
+def _aggregate_feature_importances(
+    frame: pd.DataFrame,
+    *,
+    classifier_name: str,
+) -> pd.DataFrame:
+    """Aggregate one classifier's original-feature importance over seeds."""
+    working_frame = frame[
+        frame[FEATURE_IMPORTANCE_LEVEL_COLUMN].astype(str) == "original_feature"
+    ].copy()
+
+    working_frame[ORIGINAL_FEATURE_COLUMN] = working_frame[
+        ORIGINAL_FEATURE_COLUMN
+    ].astype(str)
+
+    grouped = working_frame.groupby(
+        ORIGINAL_FEATURE_COLUMN,
+        as_index=False,
+    ).agg(
+        mean_importance=(IMPORTANCE_COLUMN, "mean"),
+        std_importance=(IMPORTANCE_COLUMN, "std"),
+        seed_count=(SEED_COLUMN, "nunique"),
+    )
+
+    grouped["std_importance"] = grouped["std_importance"].fillna(0.0)
+    grouped[CLASSIFIER_COLUMN] = classifier_name
+
+    return grouped[
+        [
+            CLASSIFIER_COLUMN,
+            ORIGINAL_FEATURE_COLUMN,
+            "mean_importance",
+            "std_importance",
+            "seed_count",
+        ]
+    ]
+
+
+def compile_dataset_feature_importances(
+    *,
+    dataset_name: str,
+    artifacts_directory: Path = DEFAULT_ARTIFACTS_DIRECTORY,
+) -> pd.DataFrame:
+    """Compile seed-aggregated feature importances for one dataset."""
+    feature_importance_frames = load_dataset_feature_importances(
+        dataset_name=dataset_name,
+        artifacts_directory=artifacts_directory,
+    )
+
+    aggregated_frames: list[pd.DataFrame] = []
+    reference_seeds: tuple[int, ...] | None = None
+    reference_features: set[str] | None = None
+
+    for classifier_name in CLASSIFIER_ORDER:
+        frame = feature_importance_frames[classifier_name]
+
+        seeds = _validate_feature_importance_artifact(
+            frame,
+            classifier_name=classifier_name,
+        )
+
+        if reference_seeds is None:
+            reference_seeds = seeds
+        elif seeds != reference_seeds:
+            raise ValueError(
+                "Feature-importance artifacts for the classifiers in dataset "
+                f"{dataset_name!r} do not use the same seeds: "
+                f"{classifier_name!r} has {seeds!r}, expected {reference_seeds!r}.",
+            )
+
+        aggregated_frame = _aggregate_feature_importances(
+            frame,
+            classifier_name=classifier_name,
+        )
+
+        feature_set = set(
+            aggregated_frame[ORIGINAL_FEATURE_COLUMN].astype(str),
+        )
+
+        if reference_features is None:
+            reference_features = feature_set
+        elif feature_set != reference_features:
+            missing_features = sorted(
+                reference_features - feature_set,
+            )
+            unexpected_features = sorted(
+                feature_set - reference_features,
+            )
+            raise ValueError(
+                "Feature-importance artifacts for the classifiers in dataset "
+                f"{dataset_name!r} do not contain the same original features "
+                f"for classifier {classifier_name!r}. Missing: "
+                f"{missing_features!r}; unexpected: {unexpected_features!r}."
+            )
+
+        aggregated_frames.append(
+            aggregated_frame,
+        )
+
+    result = pd.concat(
+        aggregated_frames,
+        ignore_index=True,
+    )
+
+    result = result.sort_values(
+        [CLASSIFIER_COLUMN, ORIGINAL_FEATURE_COLUMN],
+        key=lambda values: (
+            pd.Categorical(
+                values,
+                categories=list(CLASSIFIER_ORDER),
+                ordered=True,
+            )
+            if values.name == CLASSIFIER_COLUMN
+            else values
+        ),
+        ignore_index=True,
+    )
+
+    return result
+
+
+def _get_feature_importance_order(
+    feature_importances: pd.DataFrame,
+    *,
+    top_n: int | None,
+) -> list[str]:
+    """Return features ordered by their largest mean importance."""
+    required_columns = {
+        CLASSIFIER_COLUMN,
+        ORIGINAL_FEATURE_COLUMN,
+        "mean_importance",
+        "std_importance",
+    }
+
+    missing_columns = required_columns - set(feature_importances.columns)
+    if missing_columns:
+        raise ValueError(
+            f"Feature-importance data is missing columns: {sorted(missing_columns)!r}.",
+        )
+
+    if top_n is not None and top_n < 1:
+        raise ValueError("top_n must be at least 1 or None.")
+
+    frame = feature_importances.copy()
+
+    frame["mean_importance"] = pd.to_numeric(
+        frame["mean_importance"],
+        errors="raise",
+    ).astype(float)
+    frame["std_importance"] = pd.to_numeric(
+        frame["std_importance"],
+        errors="raise",
+    ).astype(float)
+
+    if not np.isfinite(
+        frame[["mean_importance", "std_importance"]].to_numpy(dtype=float)
+    ).all():
+        raise ValueError(
+            "Feature-importance means and standard deviations must be finite.",
+        )
+
+    if (frame["mean_importance"] < 0.0).any() or (frame["std_importance"] < 0.0).any():
+        raise ValueError(
+            "Feature-importance means and standard deviations must be non-negative.",
+        )
+
+    feature_order = (
+        frame.groupby(ORIGINAL_FEATURE_COLUMN)["mean_importance"]
+        .max()
+        .sort_values(ascending=False, kind="stable")
+        .index.astype(str)
+        .tolist()
+    )
+
+    if top_n is not None:
+        feature_order = feature_order[:top_n]
+
+    return feature_order
+
+
+def prepare_dataset_feature_importance_table(
+    feature_importances: pd.DataFrame,
+) -> pd.DataFrame:
+    """Prepare an aggregated feature-importance table for notebook display."""
+    feature_order = _get_feature_importance_order(
+        feature_importances,
+        top_n=None,
+    )
+
+    frame = feature_importances.copy()
+
+    frame[CLASSIFIER_COLUMN] = frame[CLASSIFIER_COLUMN].map(
+        _normalize_classifier_name,
+    )
+    frame[ORIGINAL_FEATURE_COLUMN] = frame[ORIGINAL_FEATURE_COLUMN].astype(str)
+
+    mean_matrix = frame.pivot(
+        index=ORIGINAL_FEATURE_COLUMN,
+        columns=CLASSIFIER_COLUMN,
+        values="mean_importance",
+    ).reindex(
+        index=feature_order,
+        columns=CLASSIFIER_ORDER,
+    )
+
+    std_matrix = frame.pivot(
+        index=ORIGINAL_FEATURE_COLUMN,
+        columns=CLASSIFIER_COLUMN,
+        values="std_importance",
+    ).reindex(
+        index=feature_order,
+        columns=CLASSIFIER_ORDER,
+    )
+
+    rows: list[dict[str, object]] = []
+
+    for feature_name in feature_order:
+        row: dict[str, object] = {
+            "Feature": feature_name,
+        }
+
+        for classifier_name in CLASSIFIER_ORDER:
+            mean = mean_matrix.loc[feature_name, classifier_name]
+            std = std_matrix.loc[feature_name, classifier_name]
+
+            if pd.isna(mean) or pd.isna(std):
+                row[_classifier_display_name(classifier_name)] = "—"
+            else:
+                row[_classifier_display_name(classifier_name)] = (
+                    f"{_to_python_float(mean):.{REPORT_DISPLAY_DECIMALS}f} ± "
+                    f"{_to_python_float(std):.{REPORT_DISPLAY_DECIMALS}f}"
+                )
+
+        rows.append(row)
+
+    return pd.DataFrame(rows)
+
+
+def plot_dataset_feature_importances(
+    feature_importances: pd.DataFrame,
+    *,
+    title: str | None = None,
+    top_n: int = DEFAULT_FEATURE_IMPORTANCE_TOP_N,
+) -> Figure:
+    """Plot top aggregated original-feature importances by classifier."""
+    feature_order = _get_feature_importance_order(
+        feature_importances,
+        top_n=top_n,
+    )
+
+    if not feature_order:
+        raise ValueError("Feature-importance data contains no features to plot.")
+
+    frame = feature_importances.copy()
+    frame[CLASSIFIER_COLUMN] = frame[CLASSIFIER_COLUMN].map(
+        _normalize_classifier_name,
+    )
+    frame[ORIGINAL_FEATURE_COLUMN] = frame[ORIGINAL_FEATURE_COLUMN].astype(str)
+
+    colors = get_discrete_colors(
+        len(CLASSIFIER_ORDER),
+    )
+
+    figure_height = max(
+        DEFAULT_FIGURE_SIZE[1],
+        0.38 * len(feature_order) + 2.5,
+    )
+
+    figure, axes = plt.subplots(
+        figsize=(
+            DEFAULT_FIGURE_SIZE[0],
+            figure_height,
+        ),
+    )
+
+    positions = np.arange(
+        len(feature_order),
+        dtype=float,
+    )
+
+    bar_height = 0.8 / len(CLASSIFIER_ORDER)
+    offsets = (
+        np.arange(
+            len(CLASSIFIER_ORDER),
+            dtype=float,
+        )
+        - (len(CLASSIFIER_ORDER) - 1) / 2.0
+    ) * bar_height
+
+    for classifier_index, classifier_name in enumerate(CLASSIFIER_ORDER):
+        classifier_frame = frame[frame[CLASSIFIER_COLUMN] == classifier_name].set_index(
+            ORIGINAL_FEATURE_COLUMN
+        )
+
+        means = np.asarray(
+            [
+                _to_python_float(classifier_frame.loc[feature, "mean_importance"])
+                for feature in feature_order
+            ],
+            dtype=float,
+        )
+        errors = np.asarray(
+            [
+                _to_python_float(classifier_frame.loc[feature, "std_importance"])
+                for feature in feature_order
+            ],
+            dtype=float,
+        )
+
+        axes.barh(
+            positions + offsets[classifier_index],
+            means,
+            height=bar_height,
+            xerr=errors,
+            capsize=3,
+            color=colors[classifier_index],
+            label=_classifier_display_name(classifier_name),
+        )
+
+    axes.set_yticks(
+        positions,
+        feature_order,
+    )
+    axes.invert_yaxis()
+    axes.set_xlabel("Mean feature importance")
+    axes.set_ylabel("Original feature")
+    axes.set_title(
+        title or "Feature importance by classifier",
+    )
+    axes.legend()
+
+    figure.tight_layout()
+    return figure
+
+
+def plot_dataset_feature_importance_heatmap(
+    feature_importances: pd.DataFrame,
+    *,
+    title: str | None = None,
+    top_n: int = DEFAULT_FEATURE_IMPORTANCE_TOP_N,
+) -> Figure:
+    """Plot top aggregated original-feature importances as a heatmap."""
+    feature_order = _get_feature_importance_order(
+        feature_importances,
+        top_n=top_n,
+    )
+
+    if not feature_order:
+        raise ValueError("Feature-importance data contains no features to plot.")
+
+    frame = feature_importances.copy()
+    frame[CLASSIFIER_COLUMN] = frame[CLASSIFIER_COLUMN].map(
+        _normalize_classifier_name,
+    )
+    frame[ORIGINAL_FEATURE_COLUMN] = frame[ORIGINAL_FEATURE_COLUMN].astype(str)
+
+    matrix = frame.pivot(
+        index=ORIGINAL_FEATURE_COLUMN,
+        columns=CLASSIFIER_COLUMN,
+        values="mean_importance",
+    ).reindex(
+        index=feature_order,
+        columns=CLASSIFIER_ORDER,
+    )
+
+    values = matrix.to_numpy(dtype=float)
+
+    if not np.isfinite(values).all():
+        raise ValueError(
+            "Feature-importance heatmap values must be finite.",
+        )
+
+    maximum_value = _to_python_float(values.max())
+    if maximum_value <= 0.0:
+        maximum_value = 1.0
+
+    normalization = Normalize(
+        vmin=0.0,
+        vmax=maximum_value,
+    )
+
+    figure_height = max(
+        DEFAULT_FIGURE_SIZE[1],
+        0.38 * len(feature_order) + 2.5,
+    )
+
+    figure, axes = plt.subplots(
+        figsize=(
+            DEFAULT_FIGURE_SIZE[0],
+            figure_height,
+        ),
+    )
+
+    sns.heatmap(
+        matrix,
+        ax=axes,
+        cmap=CONTINUOUS_PALETTE,
+        vmin=0.0,
+        vmax=maximum_value,
+        annot=False,
+        cbar=True,
+        cbar_kws={
+            "label": "Mean feature importance",
+        },
+        square=False,
+        xticklabels=[
+            _classifier_display_name(classifier_name)
+            for classifier_name in CLASSIFIER_ORDER
+        ],
+        yticklabels=feature_order,
+    )
+
+    axes.set_xlabel("Classifier")
+    axes.set_ylabel("Original feature")
+    axes.set_title(
+        title or "Feature importance by classifier",
+    )
+
+    for row_index in range(matrix.shape[0]):
+        for column_index in range(matrix.shape[1]):
+            value = matrix.iat[
+                row_index,
+                column_index,
+            ]
+
+            if pd.notna(value):
+                numeric_value = _to_python_float(value)
+
+                normalized_value = normalization(
+                    np.asarray(
+                        [numeric_value],
+                        dtype=float,
+                    ),
+                )
+
+                cell_color = CONTINUOUS_PALETTE(
+                    normalized_value,
+                )[0]
+
+                luminance = (
+                    0.2126 * _to_python_float(cell_color[0])
+                    + 0.7152 * _to_python_float(cell_color[1])
+                    + 0.0722 * _to_python_float(cell_color[2])
+                )
+
+                text_color = (
+                    "white" if luminance < REPORT_TEXT_LUMINANCE_THRESHOLD else "black"
+                )
+
+                axes.text(
+                    column_index + 0.5,
+                    row_index + 0.5,
+                    f"{numeric_value:.{REPORT_DISPLAY_DECIMALS}f}",
+                    ha="center",
+                    va="center",
+                    color=text_color,
+                )
+
+    figure.tight_layout()
+    return figure
 
 
 # ----------------------------------------
@@ -486,6 +1118,11 @@ def display_all_test_confusion_matrices(
 # ----------------------------------------
 
 
+def _to_python_float(value: object) -> float:
+    """Convert a numeric scalar to a Python float for static type checking."""
+    return float(cast(float, value))
+
+
 def _format_report_axis_tick(value: float) -> str:
     """Format report metric-axis ticks without collapsing values near 1."""
     if not np.isfinite(value):
@@ -503,7 +1140,9 @@ def _configure_report_axis_ticks(
     tick_values: Sequence[float],
 ) -> None:
     """Apply high-precision fixed tick labels to a report axis."""
-    labels = tuple(_format_report_axis_tick(float(value)) for value in tick_values)
+    labels = tuple(
+        _format_report_axis_tick(_to_python_float(value)) for value in tick_values
+    )
     axes.yaxis.set_major_locator(FixedLocator(tick_values))
     axes.yaxis.set_major_formatter(FixedFormatter(labels))
 
@@ -517,8 +1156,8 @@ def _get_metric_axis_bounds(
     if value_array.size == 0 or not np.isfinite(value_array).all():
         raise ValueError("Metric plot values must be finite and non-empty.")
 
-    lower = float(value_array.min())
-    upper = float(value_array.max())
+    lower = _to_python_float(value_array.min())
+    upper = _to_python_float(value_array.max())
 
     if len(errors) > 0:
         error_array = np.asarray(errors, dtype=float)
@@ -526,8 +1165,8 @@ def _get_metric_axis_bounds(
             raise ValueError("Metric plot errors must match value shape.")
         if not np.isfinite(error_array).all() or (error_array < 0.0).any():
             raise ValueError("Metric plot errors must be finite and non-negative.")
-        lower = min(lower, float((value_array - error_array).min()))
-        upper = max(upper, float((value_array + error_array).max()))
+        lower = min(lower, _to_python_float((value_array - error_array).min()))
+        upper = max(upper, _to_python_float((value_array + error_array).max()))
 
     lower = max(0.0, lower)
     upper = min(1.0, upper)
@@ -571,7 +1210,7 @@ def _configure_metric_y_axis(
     )
     axes.set_ylim(lower, upper)
     tick_values = tuple(
-        float(value)
+        _to_python_float(value)
         for value in np.linspace(
             lower,
             upper,
@@ -739,13 +1378,16 @@ def plot_test_seed_metric(
         )
 
     frame = seed_metrics.copy()
+
     frame[CLASSIFIER_COLUMN] = frame[CLASSIFIER_COLUMN].map(
         _normalize_classifier_name,
     )
+
     frame[SEED_COLUMN] = pd.to_numeric(
         frame[SEED_COLUMN],
         errors="raise",
     ).astype(int)
+
     frame[metric] = pd.to_numeric(
         frame[metric],
         errors="raise",
@@ -757,21 +1399,33 @@ def plot_test_seed_metric(
         table_name="seed_metrics",
     )
 
-    figure, axes = plt.subplots(
-        figsize=DEFAULT_FIGURE_SIZE,
-    )
-
     colors = get_discrete_colors(
         len(CLASSIFIER_ORDER),
     )
+
     seed_values = tuple(
         sorted(
             frame[SEED_COLUMN].unique(),
         ),
     )
+
     seed_positions = np.arange(
         len(seed_values),
         dtype=float,
+    )
+
+    bar_width = 0.8 / len(CLASSIFIER_ORDER)
+
+    offsets = (
+        np.arange(
+            len(CLASSIFIER_ORDER),
+            dtype=float,
+        )
+        - (len(CLASSIFIER_ORDER) - 1) / 2.0
+    ) * bar_width
+
+    figure, axes = plt.subplots(
+        figsize=DEFAULT_FIGURE_SIZE,
     )
 
     for classifier_index, classifier_name in enumerate(CLASSIFIER_ORDER):
@@ -781,13 +1435,13 @@ def plot_test_seed_metric(
 
         if classifier_frame.empty:
             raise ValueError(
-                f"No test metrics were found for classifier {classifier_name!r}."
+                f"No test metrics were found for classifier {classifier_name!r}.",
             )
 
         if classifier_frame[SEED_COLUMN].duplicated().any():
             raise ValueError(
                 f"Test seed metrics contain duplicate seeds for classifier "
-                f"{classifier_name!r}."
+                f"{classifier_name!r}.",
             )
 
         seed_to_value = dict(
@@ -795,23 +1449,25 @@ def plot_test_seed_metric(
                 classifier_frame[SEED_COLUMN].to_numpy(dtype=int),
                 classifier_frame[metric].to_numpy(dtype=float),
                 strict=True,
-            )
+            ),
         )
 
         values: list[float] = []
+
         for seed in seed_values:
             try:
                 value = seed_to_value[seed]
             except KeyError as error:
                 raise ValueError(
-                    f"Missing seed {seed} for classifier {classifier_name!r}."
+                    f"Missing seed {seed} for classifier {classifier_name!r}.",
                 ) from error
+
             values.append(value)
 
-        axes.plot(
-            seed_positions,
+        axes.bar(
+            seed_positions + offsets[classifier_index],
             values,
-            marker="o",
+            width=bar_width,
             color=colors[classifier_index],
             label=_classifier_display_name(classifier_name),
         )
@@ -820,15 +1476,23 @@ def plot_test_seed_metric(
         seed_positions,
         [str(seed) for seed in seed_values],
     )
+
     axes.set_xlabel("Seed")
-    axes.set_ylabel(METRIC_DISPLAY_NAMES[metric])
+    axes.set_ylabel(
+        METRIC_DISPLAY_NAMES[metric],
+    )
+
     axes.set_title(
         title or f"Test {METRIC_DISPLAY_NAMES[metric]} by seed",
     )
+
     _configure_metric_y_axis(
         axes,
-        values=tuple(float(value) for value in frame[metric].to_numpy(dtype=float)),
+        values=tuple(
+            _to_python_float(value) for value in frame[metric].to_numpy(dtype=float)
+        ),
     )
+
     axes.legend()
 
     figure.tight_layout()
@@ -938,8 +1602,8 @@ def plot_per_class_metric_heatmap(
             "Per-class metric heatmap values must be within [0, 1].",
         )
 
-    minimum_observed_value = float(finite_values.min())
-    maximum_observed_value = float(finite_values.max())
+    minimum_observed_value = _to_python_float(finite_values.min())
+    maximum_observed_value = _to_python_float(finite_values.max())
 
     span = maximum_observed_value - minimum_observed_value
 
@@ -1045,7 +1709,7 @@ def plot_per_class_metric_heatmap(
             ]
 
             if pd.notna(value):
-                numeric_value = float(value)
+                numeric_value = _to_python_float(value)
 
                 normalized_value = normalization(
                     np.asarray(
@@ -1059,9 +1723,9 @@ def plot_per_class_metric_heatmap(
                 )[0]
 
                 luminance = (
-                    0.2126 * float(cell_color[0])
-                    + 0.7152 * float(cell_color[1])
-                    + 0.0722 * float(cell_color[2])
+                    0.2126 * _to_python_float(cell_color[0])
+                    + 0.7152 * _to_python_float(cell_color[1])
+                    + 0.0722 * _to_python_float(cell_color[2])
                 )
 
                 text_color = (
@@ -1115,10 +1779,10 @@ def plot_confusion_matrix(
                 "Normalized confusion-matrix diagonal values must be finite.",
             )
 
-        minimum_diagonal_value = float(
+        minimum_diagonal_value = _to_python_float(
             diagonal_values.min(),
         )
-        maximum_diagonal_value = float(
+        maximum_diagonal_value = _to_python_float(
             diagonal_values.max(),
         )
 
@@ -1151,7 +1815,7 @@ def plot_confusion_matrix(
         value_format = ".0f"
         minimum_value = 0.0
 
-        maximum_value = float(values.max()) if values.size else 1.0
+        maximum_value = _to_python_float(values.max()) if values.size else 1.0
 
         maximum_value = max(
             maximum_value,
@@ -1213,9 +1877,9 @@ def plot_confusion_matrix(
             )[0]
 
             luminance = (
-                0.2126 * float(cell_color[0])
-                + 0.7152 * float(cell_color[1])
-                + 0.0722 * float(cell_color[2])
+                0.2126 * _to_python_float(cell_color[0])
+                + 0.7152 * _to_python_float(cell_color[1])
+                + 0.0722 * _to_python_float(cell_color[2])
             )
 
             text_color = (
@@ -1275,8 +1939,8 @@ def _prepare_summary_table(
             seed_frame[metric],
             errors="raise",
         ).to_numpy(dtype=float)
-        mean = float(np.mean(values))
-        std = float(np.std(values, ddof=1)) if len(values) > 1 else 0.0
+        mean = _to_python_float(np.mean(values))
+        std = _to_python_float(np.std(values, ddof=1)) if len(values) > 1 else 0.0
         result[METRIC_DISPLAY_NAMES[metric]] = format_mean_std(
             mean,
             std,
@@ -1394,13 +2058,13 @@ def _prepare_per_class_metrics_table(
                 str(classifier_name),
             ),
             "Class": str(class_name),
-            "Support": round(float(support_values[0])),
+            "Support": round(_to_python_float(support_values[0])),
         }
 
         for metric in ("precision", "recall", "f1"):
             values = group[metric].to_numpy(dtype=float)
-            mean = float(np.mean(values))
-            std = float(np.std(values, ddof=1)) if len(values) > 1 else 0.0
+            mean = _to_python_float(np.mean(values))
+            std = _to_python_float(np.std(values, ddof=1)) if len(values) > 1 else 0.0
             row[METRIC_DISPLAY_NAMES.get(metric, metric.title())] = format_mean_std(
                 mean,
                 std,
@@ -1528,14 +2192,18 @@ def _build_validation_vs_test_table(
             errors="raise",
         ).to_numpy(dtype=float)
 
-        validation_mean = float(np.mean(validation_values))
+        validation_mean = _to_python_float(np.mean(validation_values))
         validation_std = (
-            float(np.std(validation_values, ddof=1))
+            _to_python_float(np.std(validation_values, ddof=1))
             if len(validation_values) > 1
             else 0.0
         )
-        test_mean = float(np.mean(test_values))
-        test_std = float(np.std(test_values, ddof=1)) if len(test_values) > 1 else 0.0
+        test_mean = _to_python_float(np.mean(test_values))
+        test_std = (
+            _to_python_float(np.std(test_values, ddof=1))
+            if len(test_values) > 1
+            else 0.0
+        )
 
         rows.append(
             {
@@ -1702,7 +2370,11 @@ def _validate_summary(table: pd.DataFrame) -> None:
         table.iloc[0]["seed_count"],
         errors="coerce",
     )
-    if pd.isna(seed_count) or float(seed_count) < 1.0 or float(seed_count) % 1.0 != 0.0:
+    if (
+        pd.isna(seed_count)
+        or _to_python_float(seed_count) < 1.0
+        or _to_python_float(seed_count) % 1.0 != 0.0
+    ):
         raise ValueError(
             "test_summary.seed_count must be a positive integer.",
         )
@@ -2137,8 +2809,8 @@ def _parse_mean_std_string(value: str) -> tuple[float, float]:
         )
 
     try:
-        mean = float(parts[0])
-        std = float(parts[1])
+        mean = _to_python_float(parts[0])
+        std = _to_python_float(parts[1])
     except ValueError as error:
         raise ValueError(
             f"Invalid mean ± std value: {value!r}.",
@@ -2197,6 +2869,7 @@ __all__ = [
     "CLASSIFIER_ORDER",
     "DATASET_ORDER",
     "DEFAULT_ARTIFACTS_DIRECTORY",
+    "DEFAULT_FEATURE_IMPORTANCE_TOP_N",
     "METRIC_DISPLAY_NAMES",
     "PRIMARY_TEST_METRIC",
     "REPORT_DISPLAY_DECIMALS",
@@ -2205,14 +2878,19 @@ __all__ = [
     "TestStatistics",
     "compile_all_test_statistics",
     "compile_all_test_summary_table",
+    "compile_dataset_feature_importances",
     "compile_test_statistics",
     "display_all_test_confusion_matrices",
     "display_test_confusion_matrices",
     "display_test_statistics",
     "load_all_test_experiment_artifacts",
+    "load_dataset_feature_importances",
     "load_test_experiment_artifacts",
     "plot_confusion_matrix",
+    "plot_dataset_feature_importance_heatmap",
+    "plot_dataset_feature_importances",
     "plot_metric_comparison",
     "plot_per_class_metric_heatmap",
     "plot_test_seed_metric",
+    "prepare_dataset_feature_importance_table",
 ]
