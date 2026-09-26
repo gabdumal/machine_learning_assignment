@@ -1,0 +1,12 @@
+{
+  "configuration_id": "e49f974c2959",
+  "macro_f1_mean": 0.9997950143727715,
+  "macro_f1_std": 9.174657574182767e-05,
+  "parameters": {
+    "classifier__criterion": "entropy",
+    "classifier__max_depth": null,
+    "classifier__min_samples_leaf": 5,
+    "classifier__min_samples_split": 10,
+    "sampler": "passthrough"
+  }
+}

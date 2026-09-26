@@ -1,0 +1,2 @@
+configuration_id,sampler,classifier__criterion,classifier__max_depth,classifier__min_samples_split,classifier__min_samples_leaf,seed_27_macro_f1,seed_32_macro_f1,macro_f1_mean,macro_f1_std
+e49f974c2959,passthrough,entropy,,10,5,0.999730139747,0.999859888999,0.999795014373,9.17465757418e-05

@@ -1,7 +1,7 @@
-"""GENIS machine-learning pipeline configuration."""
+"""GENIS machine-learning experiment configuration."""
 
-from collections.abc import Sequence
-from typing import Any, Final, Literal
+from pathlib import Path
+from typing import Final
 
 import pandas as pd
 from imblearn.pipeline import Pipeline
@@ -10,13 +10,17 @@ from sklearn.tree import DecisionTreeClassifier
 
 from definitions import SEEDS
 from pipeline.common import (
+    ARTIFACT_ROOT,
     CV_FOLDS,
     DECISION_TREE_PARAM_GRID,
+    DEFAULT_VALIDATION_WORKERS,
     RANDOM_FOREST_PARAM_GRID,
     XGBOOST_PARAM_GRID,
+    ExperimentResult,
+    ParameterGrid,
     build_classification_pipeline,
     build_xgboost_classifier,
-    search_classifier,
+    run_classifier_experiment,
 )
 from schema.common import FeatureSemanticType
 from transformation.genis import (
@@ -26,8 +30,10 @@ from transformation.genis import (
 )
 
 # ----------------------------------------
-# Dataset
+# Dataset configuration
 # ----------------------------------------
+
+GENIS_DATASET_NAME: Final[str] = "GENIS"
 
 GENIS_TARGET_FEATURE: Final[str] = TRANSFORMED_GENIS_SCHEMA.target_feature_label
 
@@ -74,7 +80,17 @@ GENIS_Y_TEST: Final[pd.Series] = genis_df_for_test.loc[
 
 
 # ----------------------------------------
-# Classifiers
+# Artifact configuration
+# ----------------------------------------
+
+GENIS_ARTIFACT_ROOT: Final[Path] = ARTIFACT_ROOT / GENIS_DATASET_NAME.lower()
+
+
+GENIS_VALIDATION_WORKERS: Final[int] = DEFAULT_VALIDATION_WORKERS
+
+
+# ----------------------------------------
+# Classifier configuration
 # ----------------------------------------
 
 GENIS_DECISION_TREE: Final[DecisionTreeClassifier] = DecisionTreeClassifier()
@@ -83,7 +99,7 @@ GENIS_RANDOM_FOREST: Final[RandomForestClassifier] = RandomForestClassifier(
     n_jobs=1,
 )
 
-GENIS_XGBOOST = build_xgboost_classifier()
+GENIS_XGBOOST: Final = build_xgboost_classifier()
 
 
 # ----------------------------------------
@@ -113,60 +129,110 @@ GENIS_XGBOOST_PIPELINE: Final[Pipeline] = build_classification_pipeline(
 # Hyperparameter grids
 # ----------------------------------------
 
-GENIS_PARAMETER_GRIDS: Final[dict[str, dict[str, Sequence[Any]]]] = {
-    "decision_tree": DECISION_TREE_PARAM_GRID,
-    "random_forest": RANDOM_FOREST_PARAM_GRID,
-    "xgboost": XGBOOST_PARAM_GRID,
+GENIS_DECISION_TREE_PARAMETER_GRID: Final[ParameterGrid] = DECISION_TREE_PARAM_GRID
+
+GENIS_RANDOM_FOREST_PARAMETER_GRID: Final[ParameterGrid] = RANDOM_FOREST_PARAM_GRID
+
+GENIS_XGBOOST_PARAMETER_GRID: Final[ParameterGrid] = XGBOOST_PARAM_GRID
+
+
+# ----------------------------------------
+# Experiment definitions
+# ----------------------------------------
+
+GENIS_EXPERIMENTS: Final[dict[str, tuple[Pipeline, ParameterGrid]]] = {
+    "decision_tree": (
+        GENIS_DECISION_TREE_PIPELINE,
+        GENIS_DECISION_TREE_PARAMETER_GRID,
+    ),
+    "random_forest": (
+        GENIS_RANDOM_FOREST_PIPELINE,
+        GENIS_RANDOM_FOREST_PARAMETER_GRID,
+    ),
+    "xgboost": (
+        GENIS_XGBOOST_PIPELINE,
+        GENIS_XGBOOST_PARAMETER_GRID,
+    ),
 }
 
 
 # ----------------------------------------
-# Pipelines
-# ----------------------------------------
-
-GENIS_PIPELINES: Final[dict[str, Pipeline]] = {
-    "decision_tree": GENIS_DECISION_TREE_PIPELINE,
-    "random_forest": GENIS_RANDOM_FOREST_PIPELINE,
-    "xgboost": GENIS_XGBOOST_PIPELINE,
-}
-
-
-# ----------------------------------------
-# Hyperparameter search
+# Experiment execution
 # ----------------------------------------
 
 
-def search_genis_classifier(
-    classifier_name: Literal["decision_tree", "random_forest", "xgboost"],
-) -> pd.DataFrame:
-    """Search one GENIS classifier using repeated stratified CV.
+def run_genis_experiment(
+    classifier_name: str,
+) -> ExperimentResult:
+    """Run one GENIS classifier experiment.
 
-    The test set is never used during hyperparameter selection.
+    Validation is performed using only the GENIS training partition.
+    Once validation selects the configuration with the highest mean
+    macro F1 across the fixed seeds, the selected configuration is
+    fitted on the complete training partition for every seed.
 
-    Args:
-        classifier_name: One of the configured GENIS classifier names.
-
-    Returns:
-        One row per hyperparameter configuration, sorted by mean
-        macro F1 in descending order.
+    All validation results, final models, test predictions, class
+    probabilities, feature importances, and experiment metadata are
+    persisted by ``pipeline.common``.
     """
     try:
-        pipeline = GENIS_PIPELINES[classifier_name]
-        parameter_grid = GENIS_PARAMETER_GRIDS[classifier_name]
+        pipeline, parameter_grid = GENIS_EXPERIMENTS[classifier_name]
     except KeyError as error:
         available_classifiers = ", ".join(
-            GENIS_PIPELINES,
+            GENIS_EXPERIMENTS,
         )
+
         raise ValueError(
             f"Unknown GENIS classifier: {classifier_name!r}. "
             f"Available classifiers: {available_classifiers}.",
         ) from error
 
-    return search_classifier(
-        pipeline=pipeline,
+    return run_classifier_experiment(
+        dataset_name=GENIS_DATASET_NAME,
+        classifier_name=classifier_name,
+        base_pipeline=pipeline,
         parameter_grid=parameter_grid,
-        features=GENIS_X_TRAIN,
-        target=GENIS_Y_TRAIN,
+        train_features=GENIS_X_TRAIN,
+        train_target=GENIS_Y_TRAIN,
+        test_features=GENIS_X_TEST,
+        test_target=GENIS_Y_TEST,
+        numerical_features=GENIS_NUMERICAL_FEATURES,
+        categorical_features=GENIS_CATEGORICAL_FEATURES,
+        artifact_directory=(GENIS_ARTIFACT_ROOT / classifier_name),
         folds=CV_FOLDS,
-        seeds=SEEDS,
+        seeds_to_use=SEEDS,
+        max_workers=GENIS_VALIDATION_WORKERS,
     )
+
+
+def run_genis_decision_tree() -> ExperimentResult:
+    """Run the GENIS Decision Tree experiment."""
+    return run_genis_experiment(
+        "decision_tree",
+    )
+
+
+def run_genis_random_forest() -> ExperimentResult:
+    """Run the GENIS Random Forest experiment."""
+    return run_genis_experiment(
+        "random_forest",
+    )
+
+
+def run_genis_xgboost() -> ExperimentResult:
+    """Run the GENIS XGBoost experiment."""
+    return run_genis_experiment(
+        "xgboost",
+    )
+
+
+def run_all_genis_experiments() -> dict[str, ExperimentResult]:
+    """Run all configured GENIS classifier experiments."""
+    results: dict[str, ExperimentResult] = {}
+
+    for classifier_name in GENIS_EXPERIMENTS:
+        results[classifier_name] = run_genis_experiment(
+            classifier_name,
+        )
+
+    return results
