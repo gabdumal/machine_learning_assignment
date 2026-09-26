@@ -499,7 +499,7 @@ SOURCE_GENIS_FEATURES: tuple[SourceFeatureSpec, ...] = (
         source_column_name="Ssaddr",
         data_type=FeatureDataType.INTEGER,
         semantic_type=FeatureSemanticType.NUMERIC,
-        role=FeatureRole.PREDICTOR,
+        role=FeatureRole.METADATA,
         description="Number of connections with the same service and source address.",
     ),
     SourceFeatureSpec(
@@ -517,7 +517,7 @@ SOURCE_GENIS_FEATURES: tuple[SourceFeatureSpec, ...] = (
         source_column_name="Sdaddr",
         data_type=FeatureDataType.INTEGER,
         semantic_type=FeatureSemanticType.NUMERIC,
-        role=FeatureRole.PREDICTOR,
+        role=FeatureRole.METADATA,
         description="Number of connections with the same service and destination address.",
     ),
     SourceFeatureSpec(
@@ -860,4 +860,8 @@ genis_dataset_bundle = load_genis(
     training_csv_file_path=DATA_ROOT / "genis/genis-60-sec-train.csv",
     test_csv_file_path=DATA_ROOT / "genis/genis-60-sec-test.csv",
 )
-source_genis_df = merge_genis_partitions(genis_dataset_bundle)
+merged_source_genis_df = merge_genis_partitions(genis_dataset_bundle)
+assert genis_dataset_bundle.train is not None
+source_genis_df_for_train = genis_dataset_bundle.train.data_frame
+assert genis_dataset_bundle.test is not None
+source_genis_df_for_test = genis_dataset_bundle.test.data_frame

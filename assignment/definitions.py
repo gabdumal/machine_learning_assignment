@@ -4,7 +4,7 @@ from typing import Final
 SEEDS: Final[tuple[int, ...]] = (
     27,
     32,
-    # 59,
+    59,
     # 74,
     # 93,
 )

@@ -228,3 +228,18 @@ class CategoricalFeatureStatistics:
     category: str
     count: int
     frequency: float
+
+
+@dataclass(frozen=True, slots=True)
+class DatasetStatistics:
+    """Complete non-rendered statistics for dataset partitions."""
+
+    dataset_name: str
+    overview_table: pd.DataFrame
+    target_distribution_table: pd.DataFrame
+    feature_inventory_table: pd.DataFrame
+    data_quality_table: pd.DataFrame
+    numerical_statistics_table: pd.DataFrame
+    binary_statistics_table: pd.DataFrame
+    categorical_statistics_table: pd.DataFrame
+    datetime_statistics_table: pd.DataFrame
