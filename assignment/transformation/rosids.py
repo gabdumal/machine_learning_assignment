@@ -20,7 +20,7 @@ from schema.common import (
     TransformedDatasetSchema,
     TransformedFeatureSpec,
 )
-from transformation.transformation import (
+from transformation.common import (
     to_transformed_feature_spec,
     transform_data_frame,
 )
