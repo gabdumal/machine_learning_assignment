@@ -150,9 +150,10 @@ def transform_flow_bytes_per_second(
 ) -> pd.Series:
     """Replace non-finite flow byte-rate values with missing values."""
 
-    return source_data_frame["flow_bytes_per_second"].replace(
-        [np.inf, -np.inf],
-        np.nan,
+    return (
+        source_data_frame["flow_bytes_per_second"]
+        .replace([np.inf, -np.inf], np.nan)
+        .astype("float64")
     )
 
 
@@ -161,9 +162,10 @@ def transform_initial_backward_window_bytes(
 ) -> pd.Series:
     """Replace the ROSIDS -1 sentinel with a missing value."""
 
-    return source_data_frame["initial_backward_window_bytes"].replace(
-        -1,
-        np.nan,
+    return (
+        source_data_frame["initial_backward_window_bytes"]
+        .replace(-1, np.nan)
+        .astype("float64")
     )
 
 

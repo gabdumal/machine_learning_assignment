@@ -1,0 +1,144 @@
+{
+  "categorical_features": [
+    "destination_port_category",
+    "source_port_category"
+  ],
+  "classifier_name": "random_forest",
+  "cross_validation_folds": 3,
+  "cross_validation_seeds": [
+    27,
+    32,
+    59
+  ],
+  "dataset_name": "GENIS",
+  "experiment_signature": "d8b23c445eb6ce9edbb80531d3a117d8029145856e63929f22a83cce5bfd60f9",
+  "numerical_features": [
+    "syn_ack_time",
+    "maximum_duration",
+    "source_hops",
+    "tcp_rtt",
+    "destination_interpacket_time_minimum",
+    "mean_duration",
+    "amount_of_destination_packets",
+    "source_ttl",
+    "total_bytes",
+    "destination_interpacket_time_active",
+    "amount_of_destination_package_loss",
+    "source_window_in_bytes",
+    "source_application_bytes",
+    "packet_rate",
+    "destination_bytes",
+    "amount_of_source_packets",
+    "minimum_duration",
+    "destination_packet_rate",
+    "acknowledgement_data_time",
+    "source_maximum_packet_size",
+    "source_interpacket_time_maximum",
+    "amount_of_package_loss",
+    "destination_interpacket_time",
+    "source_load",
+    "source_packet_rate",
+    "destination_interpacket_time_maximum",
+    "source_bytes",
+    "total_application_bytes",
+    "source_minimum_packet_size",
+    "total_duration",
+    "source_interpacket_time_minimum",
+    "destination_mean_packet_size",
+    "total_packets",
+    "source_interpacket_time",
+    "destination_application_bytes",
+    "source_interpacket_time_active",
+    "producer_consumer_ratio",
+    "destination_window_in_bytes",
+    "destination_minimum_packet_size",
+    "source_active_jitter",
+    "destination_maximum_packet_size",
+    "source_mean_packet_size",
+    "destination_jitter",
+    "packet_loss_percentage",
+    "source_jitter",
+    "duration",
+    "load",
+    "run_time",
+    "destination_active_jitter",
+    "source_interpacket_time_idle",
+    "amount_of_source_packets_loss",
+    "destination_load",
+    "protocol_arp",
+    "protocol_icmp",
+    "protocol_tcp",
+    "protocol_udp",
+    "flags_e",
+    "flags_e_star",
+    "flags_e_s",
+    "state_con",
+    "state_eco",
+    "state_fin",
+    "state_int",
+    "state_req",
+    "state_rst"
+  ],
+  "parameter_grid_size": 72,
+  "schema_version": 2,
+  "selected_configuration": {
+    "configuration_id": "7eb62a443ff7",
+    "macro_f1_mean": 0.9999282703998648,
+    "macro_f1_std": 1.4123540530877619e-05,
+    "metrics": {
+      "accuracy": {
+        "mean": 0.9999773891883685,
+        "std": 5.180744867408131e-06
+      },
+      "balanced_accuracy": {
+        "mean": 0.999901926534618,
+        "std": 2.0786863959710262e-05
+      },
+      "macro_f1": {
+        "mean": 0.9999282703998648,
+        "std": 1.4123540530877619e-05
+      },
+      "mcc": {
+        "mean": 0.9999340892029825,
+        "std": 1.510270124641092e-05
+      },
+      "pr_auc": {
+        "mean": 0.9999999312878639,
+        "std": 6.411611018215741e-10
+      },
+      "precision": {
+        "mean": 0.9999546283663937,
+        "std": 7.580722745143877e-06
+      },
+      "recall": {
+        "mean": 0.999901926534618,
+        "std": 2.0786863959710262e-05
+      },
+      "roc_auc": {
+        "mean": 0.9999999952758539,
+        "std": 4.5163670309560664e-10
+      }
+    },
+    "parameters": {
+      "classifier__max_depth": null,
+      "classifier__min_samples_leaf": 1,
+      "classifier__min_samples_split": 2,
+      "classifier__n_estimators": 200,
+      "sampler": "passthrough"
+    }
+  },
+  "status": "complete",
+  "test_row_count": 73712,
+  "training_row_count": 294844,
+  "validation_metric": "macro_f1",
+  "validation_metrics": [
+    "accuracy",
+    "precision",
+    "recall",
+    "macro_f1",
+    "roc_auc",
+    "pr_auc",
+    "mcc",
+    "balanced_accuracy"
+  ]
+}

@@ -1,0 +1,142 @@
+{
+  "categorical_features": [
+    "source_port_category",
+    "destination_port_category",
+    "protocol"
+  ],
+  "classifier_name": "decision_tree",
+  "cross_validation_folds": 3,
+  "cross_validation_seeds": [
+    27,
+    32,
+    59
+  ],
+  "dataset_name": "ROSIDS",
+  "experiment_signature": "b0e4a288787019e31d124b26df50b1641697afa649fc9baf878fe54a89cdd735",
+  "numerical_features": [
+    "flow_duration",
+    "total_forward_packets",
+    "total_backward_packets",
+    "total_forward_packet_length",
+    "total_backward_packet_length",
+    "forward_packet_length_maximum",
+    "forward_packet_length_minimum",
+    "forward_packet_length_mean",
+    "forward_packet_length_standard_deviation",
+    "backward_packet_length_maximum",
+    "backward_packet_length_minimum",
+    "backward_packet_length_mean",
+    "backward_packet_length_standard_deviation",
+    "flow_bytes_per_second",
+    "flow_packets_per_second",
+    "flow_inter_arrival_time_mean",
+    "flow_inter_arrival_time_standard_deviation",
+    "flow_inter_arrival_time_maximum",
+    "flow_inter_arrival_time_minimum",
+    "forward_inter_arrival_time_total",
+    "forward_inter_arrival_time_mean",
+    "forward_inter_arrival_time_standard_deviation",
+    "forward_inter_arrival_time_maximum",
+    "forward_inter_arrival_time_minimum",
+    "backward_inter_arrival_time_total",
+    "backward_inter_arrival_time_mean",
+    "backward_inter_arrival_time_standard_deviation",
+    "backward_inter_arrival_time_maximum",
+    "backward_inter_arrival_time_minimum",
+    "backward_push_flag_count",
+    "forward_header_length",
+    "backward_header_length",
+    "forward_packets_per_second",
+    "backward_packets_per_second",
+    "packet_length_minimum",
+    "packet_length_maximum",
+    "packet_length_mean",
+    "packet_length_standard_deviation",
+    "packet_length_variance",
+    "fin_flag_count",
+    "syn_flag_count",
+    "rst_flag_count",
+    "psh_flag_count",
+    "ack_flag_count",
+    "down_up_ratio",
+    "packet_size_average",
+    "forward_segment_size_average",
+    "backward_segment_size_average",
+    "subflow_forward_packets",
+    "subflow_forward_bytes",
+    "subflow_backward_packets",
+    "subflow_backward_bytes",
+    "initial_backward_window_bytes",
+    "forward_active_data_packets",
+    "active_mean",
+    "active_standard_deviation",
+    "active_maximum",
+    "active_minimum",
+    "idle_mean",
+    "idle_standard_deviation",
+    "idle_maximum",
+    "idle_minimum"
+  ],
+  "parameter_grid_size": 72,
+  "schema_version": 2,
+  "selected_configuration": {
+    "configuration_id": "34fdea955c76",
+    "macro_f1_mean": 0.9420160109867021,
+    "macro_f1_std": 0.0011619637347098813,
+    "metrics": {
+      "accuracy": {
+        "mean": 0.9713534045458979,
+        "std": 0.0005824677187118177
+      },
+      "balanced_accuracy": {
+        "mean": 0.9399716705551978,
+        "std": 0.0012049545485125705
+      },
+      "macro_f1": {
+        "mean": 0.9420160109867021,
+        "std": 0.0011619637347098813
+      },
+      "mcc": {
+        "mean": 0.9582250270512874,
+        "std": 0.0008417512756138498
+      },
+      "pr_auc": {
+        "mean": 0.9342715697577627,
+        "std": 0.0017811274602556903
+      },
+      "precision": {
+        "mean": 0.9443137847909103,
+        "std": 0.0015538590812615848
+      },
+      "recall": {
+        "mean": 0.9399716705551978,
+        "std": 0.0012049545485125705
+      },
+      "roc_auc": {
+        "mean": 0.9805851238731672,
+        "std": 0.00048732506750704784
+      }
+    },
+    "parameters": {
+      "classifier__criterion": "entropy",
+      "classifier__max_depth": 20,
+      "classifier__min_samples_leaf": 1,
+      "classifier__min_samples_split": 10,
+      "sampler": "passthrough"
+    }
+  },
+  "status": "complete",
+  "test_row_count": 27337,
+  "training_row_count": 109344,
+  "validation_metric": "macro_f1",
+  "validation_metrics": [
+    "accuracy",
+    "precision",
+    "recall",
+    "macro_f1",
+    "roc_auc",
+    "pr_auc",
+    "mcc",
+    "balanced_accuracy"
+  ]
+}
