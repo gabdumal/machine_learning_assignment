@@ -1,0 +1,5 @@
+strategy,seed_count,corrected_count,incorrect_while_all_components_correct_count,correct_while_component_wrong_count,corrected_rate,incorrect_while_all_components_correct_rate,correct_while_component_wrong_rate
+hard_voting,3,0.00000 ± 0.00000,0.00000 ± 0.00000,3.33333 ± 1.52753,0.00000 ± 0.00000,0.00000 ± 0.00000,0.00005 ± 0.00002
+weighted_hard_voting,3,0.00000 ± 0.00000,0.00000 ± 0.00000,3.33333 ± 1.52753,0.00000 ± 0.00000,0.00000 ± 0.00000,0.00005 ± 0.00002
+soft_voting,3,0.00000 ± 0.00000,0.00000 ± 0.00000,3.00000 ± 1.00000,0.00000 ± 0.00000,0.00000 ± 0.00000,0.00004 ± 0.00001
+weighted_soft_voting,3,0.00000 ± 0.00000,0.00000 ± 0.00000,3.00000 ± 1.00000,0.00000 ± 0.00000,0.00000 ± 0.00000,0.00004 ± 0.00001

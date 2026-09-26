@@ -1,0 +1,4 @@
+classifier_a,classifier_b,seed_count,prediction_disagreement,double_fault,error_set_jaccard
+decision_tree,random_forest,3,0.00005 ± 0.00002,0.00000 ± 0.00000,0.00000 ± 0.00000
+decision_tree,xgboost,3,0.00005 ± 0.00002,0.00000 ± 0.00000,0.00000 ± 0.00000
+random_forest,xgboost,3,0.00000 ± 0.00000,0.00000 ± 0.00000,1.00000 ± 0.00000

@@ -22,8 +22,21 @@ Macro F1 for the already-selected configuration of each classifier:
     weight_i = validation_macro_f1_i / sum(validation_macro_f1_j)
 
 The persisted test predictions provide the component outputs. The persisted
-``actual_class`` column is read only after those outputs have been combined,
-and is used only for final metric calculation.
+``actual_class`` column is consumed only after component predictions have been
+loaded and aligned, and is used for final committee metrics plus post-hoc
+diversity and committee-correction statistics. It is never used for model,
+weight, or committee-strategy selection.
+
+Committee artifacts are persisted beneath each dataset as::
+
+    committee/metadata.json
+    committee/weights.csv
+    committee/seed_metrics.csv
+    committee/summary.csv
+    committee/diversity_seed_metrics.csv
+    committee/diversity_summary.csv
+    committee/correction_seed_metrics.csv
+    committee/correction_summary.csv
 """
 
 import argparse
@@ -31,6 +44,7 @@ import json
 import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from itertools import combinations
 from pathlib import Path
 from typing import Final, cast
 
@@ -61,10 +75,16 @@ from pipeline.common import (
 
 COMMITTEE_DIRECTORY_NAME: Final[str] = "committee"
 
+COMMITTEE_ARTIFACT_SCHEMA_VERSION: Final[int] = 1
+
 COMMITTEE_METADATA_FILE_NAME: Final[str] = "metadata.json"
 COMMITTEE_WEIGHTS_FILE_NAME: Final[str] = "weights.csv"
 COMMITTEE_SEED_METRICS_FILE_NAME: Final[str] = "seed_metrics.csv"
 COMMITTEE_SUMMARY_FILE_NAME: Final[str] = "summary.csv"
+COMMITTEE_DIVERSITY_SEED_METRICS_FILE_NAME: Final[str] = "diversity_seed_metrics.csv"
+COMMITTEE_DIVERSITY_SUMMARY_FILE_NAME: Final[str] = "diversity_summary.csv"
+COMMITTEE_CORRECTION_SEED_METRICS_FILE_NAME: Final[str] = "correction_seed_metrics.csv"
+COMMITTEE_CORRECTION_SUMMARY_FILE_NAME: Final[str] = "correction_summary.csv"
 
 COMPONENT_CLASSIFIERS: Final[tuple[str, ...]] = (
     "decision_tree",
@@ -79,6 +99,10 @@ COMMITTEE_STRATEGIES: Final[tuple[str, ...]] = (
     "weighted_soft_voting",
 )
 
+COMMITTEE_CLASSIFIER_PAIRS: Final[tuple[tuple[str, str], ...]] = tuple(
+    combinations(COMPONENT_CLASSIFIERS, 2),
+)
+
 COMMITTEE_METRIC_COLUMNS: Final[tuple[str, ...]] = (
     "accuracy",
     "precision",
@@ -88,6 +112,29 @@ COMMITTEE_METRIC_COLUMNS: Final[tuple[str, ...]] = (
     "pr_auc",
     "mcc",
     "balanced_accuracy",
+)
+
+DIVERSITY_METRIC_COLUMNS: Final[tuple[str, ...]] = (
+    "prediction_disagreement",
+    "double_fault",
+    "error_set_jaccard",
+)
+
+CORRECTION_COUNT_COLUMNS: Final[tuple[str, ...]] = (
+    "corrected_count",
+    "incorrect_while_all_components_correct_count",
+    "correct_while_component_wrong_count",
+)
+
+CORRECTION_RATE_COLUMNS: Final[tuple[str, ...]] = (
+    "corrected_rate",
+    "incorrect_while_all_components_correct_rate",
+    "correct_while_component_wrong_rate",
+)
+
+CORRECTION_METRIC_COLUMNS: Final[tuple[str, ...]] = (
+    *CORRECTION_COUNT_COLUMNS,
+    *CORRECTION_RATE_COLUMNS,
 )
 
 WEIGHT_METRIC: Final[str] = "macro_f1"
@@ -122,6 +169,10 @@ class CommitteeExperimentPaths:
     weights: Path
     seed_metrics: Path
     summary: Path
+    diversity_seed_metrics: Path
+    diversity_summary: Path
+    correction_seed_metrics: Path
+    correction_summary: Path
 
     @classmethod
     def from_root(
@@ -135,6 +186,12 @@ class CommitteeExperimentPaths:
             weights=root / COMMITTEE_WEIGHTS_FILE_NAME,
             seed_metrics=root / COMMITTEE_SEED_METRICS_FILE_NAME,
             summary=root / COMMITTEE_SUMMARY_FILE_NAME,
+            diversity_seed_metrics=(root / COMMITTEE_DIVERSITY_SEED_METRICS_FILE_NAME),
+            diversity_summary=root / COMMITTEE_DIVERSITY_SUMMARY_FILE_NAME,
+            correction_seed_metrics=(
+                root / COMMITTEE_CORRECTION_SEED_METRICS_FILE_NAME
+            ),
+            correction_summary=root / COMMITTEE_CORRECTION_SUMMARY_FILE_NAME,
         )
 
     def ensure_directory(self) -> None:
@@ -155,6 +212,10 @@ class CommitteeExperimentResult:
     weights: pd.DataFrame
     seed_metrics: pd.DataFrame
     summary: pd.DataFrame
+    diversity_seed_metrics: pd.DataFrame
+    diversity_summary: pd.DataFrame
+    correction_seed_metrics: pd.DataFrame
+    correction_summary: pd.DataFrame
 
 
 @dataclass(frozen=True, slots=True)
@@ -980,6 +1041,256 @@ def _aggregate_seed_predictions(
 
 
 # ----------------------------------------
+# Diversity and committee effects
+# ----------------------------------------
+
+
+def _seed_component_prediction_indices(
+    *,
+    components: Mapping[str, _ComponentPredictions],
+    seed: int,
+    classes: Sequence[str],
+) -> dict[str, np.ndarray]:
+    """Return each component's predicted class indices for one seed."""
+    return {
+        classifier: _class_indices(
+            components[classifier]
+            .rows_by_seed[seed]["predicted_class"]
+            .to_numpy(
+                dtype=object,
+            ),
+            classes,
+        )
+        for classifier in COMPONENT_CLASSIFIERS
+    }
+
+
+def _build_diversity_seed_metrics(
+    *,
+    dataset_name: str,
+    components: Mapping[str, _ComponentPredictions],
+    seeds: Sequence[int],
+    classes: Sequence[str],
+) -> pd.DataFrame:
+    """Calculate pairwise component-classifier diversity per seed."""
+    rows: list[dict[str, object]] = []
+
+    reference_classifier = COMPONENT_CLASSIFIERS[0]
+
+    for seed in seeds:
+        reference_frame = components[reference_classifier].rows_by_seed[seed]
+        actual_indices = _class_indices(
+            reference_frame["actual_class"].to_numpy(dtype=object),
+            classes,
+        )
+        prediction_indices = _seed_component_prediction_indices(
+            components=components,
+            seed=seed,
+            classes=classes,
+        )
+
+        for classifier_a, classifier_b in COMMITTEE_CLASSIFIER_PAIRS:
+            errors_a = prediction_indices[classifier_a] != actual_indices
+            errors_b = prediction_indices[classifier_b] != actual_indices
+
+            union_count = int(np.count_nonzero(errors_a | errors_b))
+            intersection_count = int(np.count_nonzero(errors_a & errors_b))
+
+            # When both error sets are empty, they are identical. Define the
+            # Jaccard similarity as 1.0 for this degenerate but well-defined
+            # case instead of introducing a NaN into the persisted artifact.
+            error_set_jaccard = (
+                1.0 if union_count == 0 else float(intersection_count / union_count)
+            )
+
+            rows.append(
+                {
+                    "dataset": dataset_name,
+                    "seed": int(seed),
+                    "test_row_count": len(actual_indices),
+                    "classifier_a": classifier_a,
+                    "classifier_b": classifier_b,
+                    "prediction_disagreement": float(
+                        np.mean(
+                            prediction_indices[classifier_a]
+                            != prediction_indices[classifier_b],
+                        ),
+                    ),
+                    "double_fault": float(np.mean(errors_a & errors_b)),
+                    "error_set_jaccard": error_set_jaccard,
+                },
+            )
+
+    frame = pd.DataFrame(rows)
+    return frame
+
+
+def _build_correction_seed_metrics(
+    *,
+    dataset_name: str,
+    components: Mapping[str, _ComponentPredictions],
+    seeds: Sequence[int],
+    classes: Sequence[str],
+    weights: Mapping[str, float],
+) -> pd.DataFrame:
+    """Calculate committee corrections and regressions for every seed."""
+    rows: list[dict[str, object]] = []
+    reference_classifier = COMPONENT_CLASSIFIERS[0]
+
+    for seed in seeds:
+        reference_frame = components[reference_classifier].rows_by_seed[seed]
+        actual_indices = _class_indices(
+            reference_frame["actual_class"].to_numpy(dtype=object),
+            classes,
+        )
+        prediction_indices = _seed_component_prediction_indices(
+            components=components,
+            seed=seed,
+            classes=classes,
+        )
+
+        all_components_wrong = np.ones(
+            len(actual_indices),
+            dtype=bool,
+        )
+        any_component_wrong = np.zeros(
+            len(actual_indices),
+            dtype=bool,
+        )
+
+        for component_predictions in prediction_indices.values():
+            component_wrong = component_predictions != actual_indices
+            all_components_wrong &= component_wrong
+            any_component_wrong |= component_wrong
+
+        all_components_correct = ~any_component_wrong
+
+        strategy_predictions = _aggregate_seed_predictions(
+            components=components,
+            seed=seed,
+            classes=classes,
+            weights=weights,
+        )
+
+        test_row_count = len(actual_indices)
+
+        for strategy in COMMITTEE_STRATEGIES:
+            committee_predictions = strategy_predictions[strategy][0]
+            committee_correct = committee_predictions == actual_indices
+
+            corrected_count = int(
+                np.count_nonzero(committee_correct & all_components_wrong),
+            )
+            incorrect_while_all_components_correct_count = int(
+                np.count_nonzero(
+                    ~committee_correct & all_components_correct,
+                ),
+            )
+            correct_while_component_wrong_count = int(
+                np.count_nonzero(committee_correct & any_component_wrong),
+            )
+
+            rows.append(
+                {
+                    "dataset": dataset_name,
+                    "strategy": strategy,
+                    "seed": int(seed),
+                    "test_row_count": test_row_count,
+                    "corrected_count": corrected_count,
+                    "incorrect_while_all_components_correct_count": (
+                        incorrect_while_all_components_correct_count
+                    ),
+                    "correct_while_component_wrong_count": (
+                        correct_while_component_wrong_count
+                    ),
+                    "corrected_rate": corrected_count / test_row_count,
+                    "incorrect_while_all_components_correct_rate": (
+                        incorrect_while_all_components_correct_count / test_row_count
+                    ),
+                    "correct_while_component_wrong_rate": (
+                        correct_while_component_wrong_count / test_row_count
+                    ),
+                },
+            )
+
+    return pd.DataFrame(rows)
+
+
+def _build_diversity_summary(
+    diversity_seed_metrics: pd.DataFrame,
+) -> pd.DataFrame:
+    """Build one mean-plus-standard-deviation row per classifier pair."""
+    rows: list[dict[str, object]] = []
+
+    for classifier_a, classifier_b in COMMITTEE_CLASSIFIER_PAIRS:
+        pair_frame = diversity_seed_metrics.loc[
+            (diversity_seed_metrics["classifier_a"] == classifier_a)
+            & (diversity_seed_metrics["classifier_b"] == classifier_b)
+        ].copy()
+
+        if pair_frame.empty:
+            raise ValueError(
+                "No diversity seed-level results were found for classifier "
+                f"pair ({classifier_a!r}, {classifier_b!r}).",
+            )
+
+        row: dict[str, object] = {
+            "classifier_a": classifier_a,
+            "classifier_b": classifier_b,
+            "seed_count": len(pair_frame),
+        }
+
+        for metric in DIVERSITY_METRIC_COLUMNS:
+            values = pd.to_numeric(
+                pair_frame[metric],
+                errors="raise",
+            ).to_numpy(dtype=float)
+            mean = float(np.mean(values))
+            std = float(np.std(values, ddof=1)) if len(values) > 1 else 0.0
+            row[metric] = f"{mean:.{SUMMARY_DECIMALS}f} ± {std:.{SUMMARY_DECIMALS}f}"
+
+        rows.append(row)
+
+    return pd.DataFrame(rows)
+
+
+def _build_correction_summary(
+    correction_seed_metrics: pd.DataFrame,
+) -> pd.DataFrame:
+    """Build one mean-plus-standard-deviation row per committee strategy."""
+    rows: list[dict[str, object]] = []
+
+    for strategy in COMMITTEE_STRATEGIES:
+        strategy_frame = correction_seed_metrics.loc[
+            correction_seed_metrics["strategy"] == strategy
+        ].copy()
+
+        if strategy_frame.empty:
+            raise ValueError(
+                "No correction seed-level results were found for strategy "
+                f"{strategy!r}."
+            )
+
+        row: dict[str, object] = {
+            "strategy": strategy,
+            "seed_count": len(strategy_frame),
+        }
+
+        for metric in CORRECTION_METRIC_COLUMNS:
+            values = pd.to_numeric(
+                strategy_frame[metric],
+                errors="raise",
+            ).to_numpy(dtype=float)
+            mean = float(np.mean(values))
+            std = float(np.std(values, ddof=1)) if len(values) > 1 else 0.0
+            row[metric] = f"{mean:.{SUMMARY_DECIMALS}f} ± {std:.{SUMMARY_DECIMALS}f}"
+
+        rows.append(row)
+
+    return pd.DataFrame(rows)
+
+
+# ----------------------------------------
 # Metrics
 # ----------------------------------------
 
@@ -1191,7 +1502,7 @@ def _build_metadata(
 ) -> dict[str, object]:
     """Build auditable committee metadata."""
     return {
-        "schema_version": 1,
+        "schema_version": COMMITTEE_ARTIFACT_SCHEMA_VERSION,
         "status": "complete",
         "dataset_name": dataset_name,
         "evaluation_type": "frozen_test_set_committee",
@@ -1207,7 +1518,11 @@ def _build_metadata(
         },
         "weights_use_test_labels": False,
         "committee_strategy_selection_uses_test_labels": False,
-        "test_labels_usage": "test_actual_class_is used only for final metric calculation",
+        "test_labels_usage": (
+            "test_actual_class is used for final committee metrics, model "
+            "diversity statistics, and committee-correction statistics; it is "
+            "never used for model, weight, or committee-strategy selection"
+        ),
         "hard_voting_tie_break": (
             "highest mean component predicted probability among tied classes; "
             "persisted class order resolves any remaining tie"
@@ -1227,6 +1542,31 @@ def _build_metadata(
             }
             for row in weights.to_dict(orient="records")
         ],
+        "diversity_statistics": {
+            "file": COMMITTEE_DIVERSITY_SEED_METRICS_FILE_NAME,
+            "summary_file": COMMITTEE_DIVERSITY_SUMMARY_FILE_NAME,
+            "metrics": DIVERSITY_METRIC_COLUMNS,
+            "classifier_pairs": COMMITTEE_CLASSIFIER_PAIRS,
+            "error_set_jaccard_empty_union": 1.0,
+        },
+        "committee_correction_statistics": {
+            "file": COMMITTEE_CORRECTION_SEED_METRICS_FILE_NAME,
+            "summary_file": COMMITTEE_CORRECTION_SUMMARY_FILE_NAME,
+            "count_metrics": CORRECTION_COUNT_COLUMNS,
+            "rate_metrics": CORRECTION_RATE_COLUMNS,
+            "definitions": {
+                "corrected_count": (
+                    "committee correct while every component classifier is incorrect"
+                ),
+                "incorrect_while_all_components_correct_count": (
+                    "committee incorrect while every component classifier is correct"
+                ),
+                "correct_while_component_wrong_count": (
+                    "committee correct while at least one component classifier "
+                    "is incorrect"
+                ),
+            },
+        },
     }
 
 
@@ -1237,6 +1577,10 @@ def _persist_committee_artifacts(
     weights: pd.DataFrame,
     seed_metrics: pd.DataFrame,
     summary: pd.DataFrame,
+    diversity_seed_metrics: pd.DataFrame,
+    diversity_summary: pd.DataFrame,
+    correction_seed_metrics: pd.DataFrame,
+    correction_summary: pd.DataFrame,
 ) -> None:
     """Persist all dataset-level committee artifacts."""
     paths.ensure_directory()
@@ -1253,6 +1597,24 @@ def _persist_committee_artifacts(
     )
     summary.to_csv(
         paths.summary,
+        index=False,
+    )
+    diversity_seed_metrics.to_csv(
+        paths.diversity_seed_metrics,
+        index=False,
+        float_format=NUMERIC_CSV_FLOAT_FORMAT,
+    )
+    diversity_summary.to_csv(
+        paths.diversity_summary,
+        index=False,
+    )
+    correction_seed_metrics.to_csv(
+        paths.correction_seed_metrics,
+        index=False,
+        float_format=NUMERIC_CSV_FLOAT_FORMAT,
+    )
+    correction_summary.to_csv(
+        paths.correction_summary,
         index=False,
     )
     _write_json(
@@ -1355,6 +1717,27 @@ def run_dataset_committee(
         seed_metrics,
     )
 
+    diversity_seed_metrics = _build_diversity_seed_metrics(
+        dataset_name=canonical_dataset,
+        components=components,
+        seeds=test_seeds,
+        classes=classes,
+    )
+    diversity_summary = _build_diversity_summary(
+        diversity_seed_metrics,
+    )
+
+    correction_seed_metrics = _build_correction_seed_metrics(
+        dataset_name=canonical_dataset,
+        components=components,
+        seeds=test_seeds,
+        classes=classes,
+        weights=weight_lookup,
+    )
+    correction_summary = _build_correction_summary(
+        correction_seed_metrics,
+    )
+
     selected_configuration_ids = {
         classifier: _selected_configuration_id(
             load_experiment_metadata(
@@ -1382,6 +1765,10 @@ def run_dataset_committee(
         weights=weights,
         seed_metrics=seed_metrics,
         summary=summary,
+        diversity_seed_metrics=diversity_seed_metrics,
+        diversity_summary=diversity_summary,
+        correction_seed_metrics=correction_seed_metrics,
+        correction_summary=correction_summary,
     )
 
     return CommitteeExperimentResult(
@@ -1391,6 +1778,10 @@ def run_dataset_committee(
         weights=weights,
         seed_metrics=seed_metrics,
         summary=summary,
+        diversity_seed_metrics=diversity_seed_metrics,
+        diversity_summary=diversity_summary,
+        correction_seed_metrics=correction_seed_metrics,
+        correction_summary=correction_summary,
     )
 
 
@@ -1489,6 +1880,78 @@ def load_committee_summary(
     )
 
 
+def load_committee_diversity_seed_metrics(
+    *,
+    dataset_name: str,
+    artifacts_directory: Path = ARTIFACT_ROOT,
+) -> pd.DataFrame:
+    """Load persisted pairwise component-classifier diversity metrics."""
+    canonical_dataset = _normalize_dataset_name(dataset_name)
+    paths = CommitteeExperimentPaths.from_root(
+        artifacts_directory.expanduser().resolve()
+        / canonical_dataset.lower()
+        / COMMITTEE_DIRECTORY_NAME,
+    )
+
+    return pd.read_csv(
+        paths.diversity_seed_metrics,
+    )
+
+
+def load_committee_diversity_summary(
+    *,
+    dataset_name: str,
+    artifacts_directory: Path = ARTIFACT_ROOT,
+) -> pd.DataFrame:
+    """Load persisted pairwise component-classifier diversity summaries."""
+    canonical_dataset = _normalize_dataset_name(dataset_name)
+    paths = CommitteeExperimentPaths.from_root(
+        artifacts_directory.expanduser().resolve()
+        / canonical_dataset.lower()
+        / COMMITTEE_DIRECTORY_NAME,
+    )
+
+    return pd.read_csv(
+        paths.diversity_summary,
+    )
+
+
+def load_committee_correction_seed_metrics(
+    *,
+    dataset_name: str,
+    artifacts_directory: Path = ARTIFACT_ROOT,
+) -> pd.DataFrame:
+    """Load persisted seed-level committee correction statistics."""
+    canonical_dataset = _normalize_dataset_name(dataset_name)
+    paths = CommitteeExperimentPaths.from_root(
+        artifacts_directory.expanduser().resolve()
+        / canonical_dataset.lower()
+        / COMMITTEE_DIRECTORY_NAME,
+    )
+
+    return pd.read_csv(
+        paths.correction_seed_metrics,
+    )
+
+
+def load_committee_correction_summary(
+    *,
+    dataset_name: str,
+    artifacts_directory: Path = ARTIFACT_ROOT,
+) -> pd.DataFrame:
+    """Load persisted committee correction summaries."""
+    canonical_dataset = _normalize_dataset_name(dataset_name)
+    paths = CommitteeExperimentPaths.from_root(
+        artifacts_directory.expanduser().resolve()
+        / canonical_dataset.lower()
+        / COMMITTEE_DIRECTORY_NAME,
+    )
+
+    return pd.read_csv(
+        paths.correction_summary,
+    )
+
+
 # ----------------------------------------
 # Command-line interface
 # ----------------------------------------
@@ -1555,15 +2018,29 @@ if __name__ == "__main__":
 
 
 __all__ = [
+    "COMMITTEE_ARTIFACT_SCHEMA_VERSION",
+    "COMMITTEE_CLASSIFIER_PAIRS",
+    "COMMITTEE_CORRECTION_SEED_METRICS_FILE_NAME",
+    "COMMITTEE_CORRECTION_SUMMARY_FILE_NAME",
     "COMMITTEE_DIRECTORY_NAME",
+    "COMMITTEE_DIVERSITY_SEED_METRICS_FILE_NAME",
+    "COMMITTEE_DIVERSITY_SUMMARY_FILE_NAME",
     "COMMITTEE_METRIC_COLUMNS",
     "COMMITTEE_SEED_METRICS_FILE_NAME",
     "COMMITTEE_STRATEGIES",
     "COMMITTEE_SUMMARY_FILE_NAME",
     "COMMITTEE_WEIGHTS_FILE_NAME",
     "COMPONENT_CLASSIFIERS",
+    "CORRECTION_COUNT_COLUMNS",
+    "CORRECTION_METRIC_COLUMNS",
+    "CORRECTION_RATE_COLUMNS",
+    "DIVERSITY_METRIC_COLUMNS",
     "CommitteeExperimentPaths",
     "CommitteeExperimentResult",
+    "load_committee_correction_seed_metrics",
+    "load_committee_correction_summary",
+    "load_committee_diversity_seed_metrics",
+    "load_committee_diversity_summary",
     "load_committee_metadata",
     "load_committee_seed_metrics",
     "load_committee_summary",

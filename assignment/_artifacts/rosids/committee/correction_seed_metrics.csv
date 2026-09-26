@@ -1,0 +1,13 @@
+dataset,strategy,seed,test_row_count,corrected_count,incorrect_while_all_components_correct_count,correct_while_component_wrong_count,corrected_rate,incorrect_while_all_components_correct_rate,correct_while_component_wrong_rate
+ROSIDS,hard_voting,27,27337,0,0,292,0,0,0.0106814939459
+ROSIDS,weighted_hard_voting,27,27337,0,0,292,0,0,0.0106814939459
+ROSIDS,soft_voting,27,27337,0,0,277,0,0,0.0101327870651
+ROSIDS,weighted_soft_voting,27,27337,0,0,277,0,0,0.0101327870651
+ROSIDS,hard_voting,32,27337,0,0,269,0,0,0.0098401433954
+ROSIDS,weighted_hard_voting,32,27337,0,0,272,0,0,0.00994988477156
+ROSIDS,soft_voting,32,27337,0,0,263,0,0,0.00962066064308
+ROSIDS,weighted_soft_voting,32,27337,0,0,263,0,0,0.00962066064308
+ROSIDS,hard_voting,59,27337,0,0,280,0,0,0.0102425284413
+ROSIDS,weighted_hard_voting,59,27337,0,0,282,0,0,0.0103156893587
+ROSIDS,soft_voting,59,27337,0,0,275,0,0,0.0100596261477
+ROSIDS,weighted_soft_voting,59,27337,0,0,276,0,0,0.0100962066064

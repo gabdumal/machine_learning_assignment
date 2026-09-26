@@ -1,0 +1,13 @@
+dataset,strategy,seed,test_row_count,corrected_count,incorrect_while_all_components_correct_count,correct_while_component_wrong_count,corrected_rate,incorrect_while_all_components_correct_rate,correct_while_component_wrong_rate
+GENIS,hard_voting,27,73712,0,0,2,0,0,2.71326242674e-05
+GENIS,weighted_hard_voting,27,73712,0,0,2,0,0,2.71326242674e-05
+GENIS,soft_voting,27,73712,0,0,2,0,0,2.71326242674e-05
+GENIS,weighted_soft_voting,27,73712,0,0,2,0,0,2.71326242674e-05
+GENIS,hard_voting,32,73712,0,0,5,0,0,6.78315606685e-05
+GENIS,weighted_hard_voting,32,73712,0,0,5,0,0,6.78315606685e-05
+GENIS,soft_voting,32,73712,0,0,4,0,0,5.42652485348e-05
+GENIS,weighted_soft_voting,32,73712,0,0,4,0,0,5.42652485348e-05
+GENIS,hard_voting,59,73712,0,0,3,0,0,4.06989364011e-05
+GENIS,weighted_hard_voting,59,73712,0,0,3,0,0,4.06989364011e-05
+GENIS,soft_voting,59,73712,0,0,3,0,0,4.06989364011e-05
+GENIS,weighted_soft_voting,59,73712,0,0,3,0,0,4.06989364011e-05

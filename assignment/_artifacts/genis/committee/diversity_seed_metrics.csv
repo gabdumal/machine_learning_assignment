@@ -1,0 +1,10 @@
+dataset,seed,test_row_count,classifier_a,classifier_b,prediction_disagreement,double_fault,error_set_jaccard
+GENIS,27,73712,decision_tree,random_forest,2.71326242674e-05,0,0
+GENIS,27,73712,decision_tree,xgboost,2.71326242674e-05,0,0
+GENIS,27,73712,random_forest,xgboost,0,0,1
+GENIS,32,73712,decision_tree,random_forest,6.78315606685e-05,0,0
+GENIS,32,73712,decision_tree,xgboost,6.78315606685e-05,0,0
+GENIS,32,73712,random_forest,xgboost,0,0,1
+GENIS,59,73712,decision_tree,random_forest,4.06989364011e-05,0,0
+GENIS,59,73712,decision_tree,xgboost,4.06989364011e-05,0,0
+GENIS,59,73712,random_forest,xgboost,0,0,1

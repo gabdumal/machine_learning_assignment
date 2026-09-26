@@ -1,4 +1,23 @@
 {
+  "committee_correction_statistics": {
+    "count_metrics": [
+      "corrected_count",
+      "incorrect_while_all_components_correct_count",
+      "correct_while_component_wrong_count"
+    ],
+    "definitions": {
+      "correct_while_component_wrong_count": "committee correct while at least one component classifier is incorrect",
+      "corrected_count": "committee correct while every component classifier is incorrect",
+      "incorrect_while_all_components_correct_count": "committee incorrect while every component classifier is correct"
+    },
+    "file": "correction_seed_metrics.csv",
+    "rate_metrics": [
+      "corrected_rate",
+      "incorrect_while_all_components_correct_rate",
+      "correct_while_component_wrong_rate"
+    ],
+    "summary_file": "correction_summary.csv"
+  },
   "committee_strategy_selection_uses_test_labels": false,
   "component_classifiers": [
     "decision_tree",
@@ -6,6 +25,30 @@
     "xgboost"
   ],
   "dataset_name": "ROSIDS",
+  "diversity_statistics": {
+    "classifier_pairs": [
+      [
+        "decision_tree",
+        "random_forest"
+      ],
+      [
+        "decision_tree",
+        "xgboost"
+      ],
+      [
+        "random_forest",
+        "xgboost"
+      ]
+    ],
+    "error_set_jaccard_empty_union": 1.0,
+    "file": "diversity_seed_metrics.csv",
+    "metrics": [
+      "prediction_disagreement",
+      "double_fault",
+      "error_set_jaccard"
+    ],
+    "summary_file": "diversity_summary.csv"
+  },
   "evaluation_type": "frozen_test_set_committee",
   "hard_vote_scores": "vote_count_divided_by_component_classifier_count",
   "hard_voting_tie_break": "highest mean component predicted probability among tied classes; persisted class order resolves any remaining tie",
@@ -40,7 +83,7 @@
     "weighted_soft_voting"
   ],
   "summary_decimals": 5,
-  "test_labels_usage": "test_actual_class_is used only for final metric calculation",
+  "test_labels_usage": "test_actual_class is used for final committee metrics, model diversity statistics, and committee-correction statistics; it is never used for model, weight, or committee-strategy selection",
   "weight_metric": "macro_f1",
   "weighted_hard_vote_scores": "validation_weighted_vote_sum",
   "weighted_soft_vote_scores": "validation_weighted_mean_component_probabilities",

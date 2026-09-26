@@ -12,6 +12,10 @@ Committee artifacts are stored beneath each dataset as::
     committee/weights.csv
     committee/seed_metrics.csv
     committee/summary.csv
+    committee/diversity_seed_metrics.csv
+    committee/diversity_summary.csv
+    committee/correction_seed_metrics.csv
+    committee/correction_summary.csv
 
 The four predefined strategies are:
 
@@ -42,15 +46,28 @@ from matplotlib.ticker import FixedFormatter, FixedLocator
 
 import reporting.test as reporting_test
 from eda.features import _configure_axis_grid
-from eda.palette import get_discrete_colors
+from eda.palette import CONTINUOUS_PALETTE, get_discrete_colors
 from pipeline.committee import (
+    COMMITTEE_ARTIFACT_SCHEMA_VERSION,
+    COMMITTEE_CLASSIFIER_PAIRS,
+    COMMITTEE_CORRECTION_SEED_METRICS_FILE_NAME,
+    COMMITTEE_CORRECTION_SUMMARY_FILE_NAME,
     COMMITTEE_DIRECTORY_NAME,
+    COMMITTEE_DIVERSITY_SEED_METRICS_FILE_NAME,
+    COMMITTEE_DIVERSITY_SUMMARY_FILE_NAME,
     COMMITTEE_METADATA_FILE_NAME,
     COMMITTEE_SEED_METRICS_FILE_NAME,
     COMMITTEE_STRATEGIES,
     COMMITTEE_SUMMARY_FILE_NAME,
     COMMITTEE_WEIGHTS_FILE_NAME,
     COMPONENT_CLASSIFIERS,
+    CORRECTION_COUNT_COLUMNS,
+    CORRECTION_RATE_COLUMNS,
+    DIVERSITY_METRIC_COLUMNS,
+    load_committee_correction_seed_metrics,
+    load_committee_correction_summary,
+    load_committee_diversity_seed_metrics,
+    load_committee_diversity_summary,
     load_committee_metadata,
     load_committee_seed_metrics,
     load_committee_summary,
@@ -162,6 +179,10 @@ class CommitteeExperimentArtifacts:
     weights: pd.DataFrame
     seed_metrics: pd.DataFrame
     summary: pd.DataFrame
+    diversity_seed_metrics: pd.DataFrame
+    diversity_summary: pd.DataFrame
+    correction_seed_metrics: pd.DataFrame
+    correction_summary: pd.DataFrame
 
 
 @dataclass(frozen=True, slots=True)
@@ -171,6 +192,8 @@ class CommitteeStatistics:
     configuration_table: pd.DataFrame
     performance_table: pd.DataFrame
     comparison_table: pd.DataFrame
+    diversity_table: pd.DataFrame
+    correction_table: pd.DataFrame
 
 
 # ----------------------------------------
@@ -440,6 +463,13 @@ def _validate_committee_metadata(
     dataset_name: str,
 ) -> None:
     """Validate the provenance metadata emitted by the committee pipeline."""
+    if metadata.get("schema_version") != COMMITTEE_ARTIFACT_SCHEMA_VERSION:
+        raise ValueError(
+            "Committee metadata uses an unsupported artifact schema version: "
+            f"{metadata.get('schema_version')!r} != "
+            f"{COMMITTEE_ARTIFACT_SCHEMA_VERSION!r}."
+        )
+
     if metadata.get("status") != "complete":
         raise ValueError(
             "Committee metadata is not marked as complete.",
@@ -801,6 +831,420 @@ def _validate_summary(
                 )
 
 
+def _validate_seed_sequence(
+    frame: pd.DataFrame,
+    *,
+    expected_seeds: Sequence[int],
+    key_columns: Sequence[str],
+    table_name: str,
+) -> pd.DataFrame:
+    """Validate and normalize persisted seed identifiers."""
+    normalized = frame.copy()
+    seed_values = pd.to_numeric(
+        normalized["seed"],
+        errors="coerce",
+    ).to_numpy(dtype=float)
+    if not np.all(np.isfinite(seed_values)) or not np.all(
+        seed_values == np.floor(seed_values),
+    ):
+        raise ValueError(f"{table_name} contains invalid seed values.")
+
+    normalized["seed"] = seed_values.astype(np.int64)
+    expected = tuple(sorted(int(seed) for seed in expected_seeds))
+    actual = tuple(sorted(int(seed) for seed in normalized["seed"].unique()))
+    if actual != expected:
+        raise ValueError(f"{table_name} uses seeds {actual!r}; expected {expected!r}.")
+
+    if normalized[list(key_columns)].duplicated().any():
+        raise ValueError(
+            f"{table_name} contains duplicate rows for keys {tuple(key_columns)!r}."
+        )
+
+    return normalized
+
+
+def _validate_rate_metrics(
+    frame: pd.DataFrame,
+    *,
+    metric_columns: Sequence[str],
+    table_name: str,
+) -> None:
+    """Validate finite rate metrics in the closed interval [0, 1]."""
+    for metric in metric_columns:
+        values = _validate_numeric_column(
+            frame,
+            metric,
+            table_name=table_name,
+        )
+        if np.any(values < 0.0) or np.any(values > 1.0):
+            raise ValueError(
+                f"{table_name} metric {metric!r} contains values outside [0, 1]."
+            )
+
+
+def _validate_non_negative_count_metrics(
+    frame: pd.DataFrame,
+    *,
+    metric_columns: Sequence[str],
+    test_row_counts: np.ndarray,
+    table_name: str,
+) -> None:
+    """Validate persisted non-negative integer counts against test size."""
+    for metric in metric_columns:
+        values = _validate_numeric_column(
+            frame,
+            metric,
+            table_name=table_name,
+        )
+        if not np.all(values == np.floor(values)):
+            raise ValueError(
+                f"{table_name} metric {metric!r} must contain integer counts."
+            )
+        if np.any(values < 0.0) or np.any(values > test_row_counts):
+            raise ValueError(
+                f"{table_name} metric {metric!r} contains counts outside the "
+                "valid test-row range."
+            )
+
+
+def _validate_diversity_seed_metrics(
+    diversity_seed_metrics: pd.DataFrame,
+    *,
+    metadata: Mapping[str, object],
+) -> None:
+    """Validate persisted per-seed pairwise diversity statistics."""
+    _validate_required_columns(
+        diversity_seed_metrics,
+        (
+            "dataset",
+            "seed",
+            "test_row_count",
+            "classifier_a",
+            "classifier_b",
+            *DIVERSITY_METRIC_COLUMNS,
+        ),
+        table_name="committee diversity seed metrics",
+    )
+    if diversity_seed_metrics.empty:
+        raise ValueError("Committee diversity seed metrics are empty.")
+
+    expected_dataset = str(metadata["dataset_name"])
+    recorded_datasets = {
+        str(value) for value in diversity_seed_metrics["dataset"].unique()
+    }
+    if recorded_datasets != {expected_dataset}:
+        raise ValueError(
+            "Committee diversity seed metrics contain unexpected dataset values: "
+            f"{sorted(recorded_datasets)!r}."
+        )
+
+    classifier_pairs = tuple(
+        (
+            str(row["classifier_a"]),
+            str(row["classifier_b"]),
+        )
+        for _, row in diversity_seed_metrics.iterrows()
+    )
+    expected_pairs = tuple(
+        (str(classifier_a), str(classifier_b))
+        for classifier_a, classifier_b in COMMITTEE_CLASSIFIER_PAIRS
+    )
+    if set(classifier_pairs) != set(expected_pairs):
+        raise ValueError(
+            "Committee diversity seed metrics do not contain exactly the expected "
+            f"classifier pairs: {sorted(set(classifier_pairs))!r}."
+        )
+
+    test_row_counts = _validate_numeric_column(
+        diversity_seed_metrics,
+        "test_row_count",
+        table_name="committee diversity seed metrics",
+    )
+    if not np.all(test_row_counts == np.floor(test_row_counts)) or np.any(
+        test_row_counts <= 0.0,
+    ):
+        raise ValueError(
+            "Committee diversity test_row_count values must be positive integers."
+        )
+
+    metadata_seeds = metadata.get("seeds")
+    if not isinstance(metadata_seeds, (list, tuple)):
+        raise TypeError("Committee metadata does not contain a valid seed sequence.")
+
+    normalized = _validate_seed_sequence(
+        diversity_seed_metrics,
+        expected_seeds=tuple(int(value) for value in metadata_seeds),
+        key_columns=("classifier_a", "classifier_b", "seed"),
+        table_name="Committee diversity seed metrics",
+    )
+
+    pair_counts = normalized.groupby(
+        ["classifier_a", "classifier_b"],
+        sort=False,
+    )["seed"].nunique()
+    expected_seed_count = len(tuple(int(value) for value in metadata_seeds))
+    if not np.all(pair_counts.to_numpy(dtype=int) == expected_seed_count):
+        raise ValueError(
+            "Committee diversity seed metrics do not contain every expected "
+            "seed for each classifier pair."
+        )
+
+    _validate_rate_metrics(
+        normalized,
+        metric_columns=DIVERSITY_METRIC_COLUMNS,
+        table_name="Committee diversity seed metrics",
+    )
+
+
+def _validate_mean_std_summary(
+    summary: pd.DataFrame,
+    *,
+    group_columns: Sequence[str],
+    group_values: Sequence[tuple[str, ...]],
+    metric_columns: Sequence[str],
+    seed_metrics: pd.DataFrame,
+    table_name: str,
+    context_column_names: Sequence[str],
+) -> None:
+    """Validate a persisted summary of per-seed statistics."""
+    _validate_required_columns(
+        summary,
+        (*group_columns, "seed_count", *metric_columns),
+        table_name=table_name,
+    )
+    if summary.empty:
+        raise ValueError(f"{table_name} is empty.")
+
+    expected_groups = set(group_values)
+    actual_groups = {
+        tuple(str(row[column]) for column in group_columns)
+        for _, row in summary.iterrows()
+    }
+    if actual_groups != expected_groups:
+        raise ValueError(
+            f"{table_name} does not contain exactly the expected groups: "
+            f"{sorted(actual_groups)!r}."
+        )
+
+    if len(summary) != len(expected_groups):
+        raise ValueError(f"{table_name} contains duplicate group rows.")
+
+    seed_counts = _validate_numeric_column(
+        summary,
+        "seed_count",
+        table_name=table_name,
+    )
+    if not np.all(seed_counts == np.floor(seed_counts)) or np.any(seed_counts <= 0.0):
+        raise ValueError(f"{table_name} contains invalid seed counts.")
+
+    for group in group_values:
+        summary_mask = np.ones(len(summary), dtype=bool)
+        seed_mask = np.ones(len(seed_metrics), dtype=bool)
+        for column, value in zip(group_columns, group, strict=True):
+            summary_mask &= summary[column].astype(str).to_numpy() == value
+            seed_mask &= seed_metrics[column].astype(str).to_numpy() == value
+
+        summary_positions = np.flatnonzero(summary_mask)
+        if len(summary_positions) != 1:
+            raise ValueError(
+                f"{table_name} does not contain exactly one row for group {group!r}."
+            )
+        summary_position = int(summary_positions[0])
+
+        group_frame = seed_metrics.loc[seed_mask]
+        if group_frame.empty:
+            raise ValueError(
+                f"{table_name} group {group!r} has no corresponding seed metrics."
+            )
+
+        if int(seed_counts[summary_position]) != len(group_frame):
+            raise ValueError(
+                f"{table_name} seed_count for group {group!r} does not match "
+                "the persisted seed metrics."
+            )
+
+        for metric in metric_columns:
+            values = group_frame[metric].to_numpy(dtype=float)
+            mean = float(np.mean(values))
+            std = float(np.std(values, ddof=1)) if len(values) > 1 else 0.0
+            stored_mean, stored_std = _parse_summary_value(
+                summary.iloc[summary_position][metric],
+                context=(f"{context_column_names!r}={group!r}, metric={metric!r}"),
+            )
+            if not np.isclose(
+                mean,
+                stored_mean,
+                atol=SUMMARY_COMPARISON_ATOL,
+                rtol=SUMMARY_COMPARISON_RTOL,
+            ) or not np.isclose(
+                std,
+                stored_std,
+                atol=SUMMARY_COMPARISON_ATOL,
+                rtol=SUMMARY_COMPARISON_RTOL,
+            ):
+                raise ValueError(
+                    f"{table_name} summary for group {group!r}/{metric!r} "
+                    "does not match the persisted seed metrics."
+                )
+
+
+def _validate_diversity_summary(
+    diversity_summary: pd.DataFrame,
+    *,
+    diversity_seed_metrics: pd.DataFrame,
+) -> None:
+    """Validate persisted pairwise diversity summaries."""
+    classifier_pairs = tuple(
+        (classifier_a, classifier_b)
+        for classifier_a, classifier_b in COMMITTEE_CLASSIFIER_PAIRS
+    )
+    _validate_mean_std_summary(
+        diversity_summary,
+        group_columns=("classifier_a", "classifier_b"),
+        group_values=classifier_pairs,
+        metric_columns=DIVERSITY_METRIC_COLUMNS,
+        seed_metrics=diversity_seed_metrics,
+        table_name="committee diversity summary",
+        context_column_names=("classifier_a", "classifier_b"),
+    )
+    means = diversity_summary.copy()
+    for metric in DIVERSITY_METRIC_COLUMNS:
+        means[metric] = means[metric].map(
+            lambda value, metric=metric: _parse_summary_value(
+                value,
+                context=f"committee diversity summary/{metric}",
+            )[0]
+        )
+    _validate_rate_metrics(
+        means,
+        metric_columns=DIVERSITY_METRIC_COLUMNS,
+        table_name="committee diversity summary means",
+    )
+
+
+def _validate_correction_seed_metrics(
+    correction_seed_metrics: pd.DataFrame,
+    *,
+    metadata: Mapping[str, object],
+) -> None:
+    """Validate persisted per-seed committee correction statistics."""
+    _validate_required_columns(
+        correction_seed_metrics,
+        (
+            "dataset",
+            "strategy",
+            "seed",
+            "test_row_count",
+            *CORRECTION_COUNT_COLUMNS,
+            *CORRECTION_RATE_COLUMNS,
+        ),
+        table_name="committee correction seed metrics",
+    )
+    if correction_seed_metrics.empty:
+        raise ValueError("Committee correction seed metrics are empty.")
+
+    expected_dataset = str(metadata["dataset_name"])
+    recorded_datasets = {
+        str(value) for value in correction_seed_metrics["dataset"].unique()
+    }
+    if recorded_datasets != {expected_dataset}:
+        raise ValueError(
+            "Committee correction seed metrics contain unexpected dataset values: "
+            f"{sorted(recorded_datasets)!r}."
+        )
+
+    metadata_seeds = metadata.get("seeds")
+    if not isinstance(metadata_seeds, (list, tuple)):
+        raise TypeError("Committee metadata does not contain a valid seed sequence.")
+
+    normalized = _validate_seed_sequence(
+        correction_seed_metrics,
+        expected_seeds=tuple(int(value) for value in metadata_seeds),
+        key_columns=("strategy", "seed"),
+        table_name="Committee correction seed metrics",
+    )
+
+    strategies = {str(value) for value in normalized["strategy"].unique()}
+    if strategies != set(COMMITTEE_STRATEGIES):
+        raise ValueError(
+            "Committee correction seed metrics do not contain exactly the "
+            f"expected strategies: {sorted(strategies)!r}."
+        )
+
+    expected_seeds = tuple(sorted(int(value) for value in metadata_seeds))
+    for strategy in COMMITTEE_STRATEGIES:
+        strategy_seeds = tuple(
+            sorted(
+                int(value)
+                for value in normalized.loc[
+                    normalized["strategy"].astype(str) == strategy,
+                    "seed",
+                ].unique()
+            )
+        )
+        if strategy_seeds != expected_seeds:
+            raise ValueError(
+                f"Committee correction strategy {strategy!r} uses seeds "
+                f"{strategy_seeds!r}; expected {expected_seeds!r}."
+            )
+
+    test_row_counts = _validate_numeric_column(
+        normalized,
+        "test_row_count",
+        table_name="committee correction seed metrics",
+    )
+    if not np.all(test_row_counts == np.floor(test_row_counts)) or np.any(
+        test_row_counts <= 0.0,
+    ):
+        raise ValueError(
+            "Committee correction test_row_count values must be positive integers."
+        )
+
+    _validate_non_negative_count_metrics(
+        normalized,
+        metric_columns=CORRECTION_COUNT_COLUMNS,
+        test_row_counts=test_row_counts,
+        table_name="Committee correction seed metrics",
+    )
+    _validate_rate_metrics(
+        normalized,
+        metric_columns=CORRECTION_RATE_COLUMNS,
+        table_name="Committee correction seed metrics",
+    )
+
+
+def _validate_correction_summary(
+    correction_summary: pd.DataFrame,
+    *,
+    correction_seed_metrics: pd.DataFrame,
+) -> None:
+    """Validate persisted committee correction summaries."""
+    _validate_mean_std_summary(
+        correction_summary,
+        group_columns=("strategy",),
+        group_values=tuple((strategy,) for strategy in COMMITTEE_STRATEGIES),
+        metric_columns=(*CORRECTION_COUNT_COLUMNS, *CORRECTION_RATE_COLUMNS),
+        seed_metrics=correction_seed_metrics,
+        table_name="committee correction summary",
+        context_column_names=("strategy",),
+    )
+
+    means = correction_summary.copy()
+    for metric in CORRECTION_RATE_COLUMNS:
+        means[metric] = [
+            _parse_summary_value(
+                value,
+                context=f"committee correction summary/{metric}",
+            )[0]
+            for value in means[metric]
+        ]
+    _validate_rate_metrics(
+        means,
+        metric_columns=CORRECTION_RATE_COLUMNS,
+        table_name="committee correction summary means",
+    )
+
+
 # ----------------------------------------
 # Loading
 # ----------------------------------------
@@ -854,6 +1298,42 @@ def load_committee_experiment_artifacts(
         seed_metrics=seed_metrics,
     )
 
+    diversity_seed_metrics = load_committee_diversity_seed_metrics(
+        dataset_name=canonical_dataset,
+        artifacts_directory=artifacts_directory,
+    )
+    _validate_diversity_seed_metrics(
+        diversity_seed_metrics,
+        metadata=metadata,
+    )
+
+    diversity_summary = load_committee_diversity_summary(
+        dataset_name=canonical_dataset,
+        artifacts_directory=artifacts_directory,
+    )
+    _validate_diversity_summary(
+        diversity_summary,
+        diversity_seed_metrics=diversity_seed_metrics,
+    )
+
+    correction_seed_metrics = load_committee_correction_seed_metrics(
+        dataset_name=canonical_dataset,
+        artifacts_directory=artifacts_directory,
+    )
+    _validate_correction_seed_metrics(
+        correction_seed_metrics,
+        metadata=metadata,
+    )
+
+    correction_summary = load_committee_correction_summary(
+        dataset_name=canonical_dataset,
+        artifacts_directory=artifacts_directory,
+    )
+    _validate_correction_summary(
+        correction_summary,
+        correction_seed_metrics=correction_seed_metrics,
+    )
+
     metadata_seeds_value = metadata.get("seeds")
     if not isinstance(metadata_seeds_value, (list, tuple)):
         raise TypeError("Committee metadata does not contain a valid seed sequence.")
@@ -870,6 +1350,10 @@ def load_committee_experiment_artifacts(
         committee_directory / COMMITTEE_WEIGHTS_FILE_NAME,
         committee_directory / COMMITTEE_SEED_METRICS_FILE_NAME,
         committee_directory / COMMITTEE_SUMMARY_FILE_NAME,
+        committee_directory / COMMITTEE_DIVERSITY_SEED_METRICS_FILE_NAME,
+        committee_directory / COMMITTEE_DIVERSITY_SUMMARY_FILE_NAME,
+        committee_directory / COMMITTEE_CORRECTION_SEED_METRICS_FILE_NAME,
+        committee_directory / COMMITTEE_CORRECTION_SUMMARY_FILE_NAME,
     )
     missing_paths = [path for path in expected_paths if not path.is_file()]
     if missing_paths:
@@ -885,6 +1369,10 @@ def load_committee_experiment_artifacts(
         weights=weights,
         seed_metrics=seed_metrics,
         summary=summary,
+        diversity_seed_metrics=diversity_seed_metrics,
+        diversity_summary=diversity_summary,
+        correction_seed_metrics=correction_seed_metrics,
+        correction_summary=correction_summary,
     )
 
 
@@ -1152,6 +1640,64 @@ def _prepare_comparison_table(
     return display_table, combined
 
 
+def _prepare_diversity_table(
+    artifacts: CommitteeExperimentArtifacts,
+) -> pd.DataFrame:
+    """Prepare the persisted pairwise diversity summary for notebook display."""
+    rows: list[dict[str, object]] = []
+    for _, row in artifacts.diversity_summary.iterrows():
+        classifier_a = str(row["classifier_a"])
+        classifier_b = str(row["classifier_b"])
+        rows.append(
+            {
+                "Classifier A": _classifier_display_name(classifier_a),
+                "Classifier B": _classifier_display_name(classifier_b),
+                "Prediction disagreement": str(row["prediction_disagreement"]),
+                "Double Fault": str(row["double_fault"]),
+                "Error-set Jaccard overlap": str(row["error_set_jaccard"]),
+            },
+        )
+
+    return pd.DataFrame(rows)
+
+
+def _prepare_correction_table(
+    artifacts: CommitteeExperimentArtifacts,
+) -> pd.DataFrame:
+    """Prepare persisted committee correction statistics for notebook display."""
+    rows: list[dict[str, object]] = []
+    for _, row in artifacts.correction_summary.iterrows():
+        strategy = str(row["strategy"])
+        rows.append(
+            {
+                "Strategy": _strategy_display_name(strategy),
+                "Corrected (all components wrong)": str(row["corrected_count"]),
+                "Incorrect (all components correct)": str(
+                    row["incorrect_while_all_components_correct_count"]
+                ),
+                "Correct (≥1 component wrong)": str(
+                    row["correct_while_component_wrong_count"]
+                ),
+            },
+        )
+
+    return pd.DataFrame(rows)
+
+
+def compile_committee_diversity_table(
+    artifacts: CommitteeExperimentArtifacts,
+) -> pd.DataFrame:
+    """Build the notebook-ready pairwise diversity table."""
+    return _prepare_diversity_table(artifacts)
+
+
+def compile_committee_correction_table(
+    artifacts: CommitteeExperimentArtifacts,
+) -> pd.DataFrame:
+    """Build the notebook-ready committee correction table."""
+    return _prepare_correction_table(artifacts)
+
+
 def compile_committee_statistics(
     *,
     artifacts: CommitteeExperimentArtifacts,
@@ -1201,6 +1747,8 @@ def compile_committee_statistics(
         configuration_table=configuration_table,
         performance_table=performance_table,
         comparison_table=comparison_table,
+        diversity_table=_prepare_diversity_table(artifacts),
+        correction_table=_prepare_correction_table(artifacts),
     )
 
 
@@ -1398,6 +1946,119 @@ def plot_committee_primary_metric(
     return figure
 
 
+def plot_committee_prediction_disagreement_heatmap(
+    diversity_table: pd.DataFrame,
+    *,
+    title: str | None = None,
+) -> Figure:
+    """Plot the mean persisted prediction-disagreement rate as a heatmap."""
+    required_columns = (
+        "Classifier A",
+        "Classifier B",
+        "Prediction disagreement",
+    )
+    _validate_required_columns(
+        diversity_table,
+        required_columns,
+        table_name="committee diversity table",
+    )
+    if diversity_table.empty:
+        raise ValueError("Committee diversity table is empty.")
+
+    expected_labels = tuple(
+        _classifier_display_name(classifier) for classifier in CLASSIFIER_ORDER
+    )
+    matrix = np.full(
+        (len(expected_labels), len(expected_labels)),
+        np.nan,
+        dtype=float,
+    )
+    label_to_index = {label: index for index, label in enumerate(expected_labels)}
+
+    for _, row in diversity_table.iterrows():
+        classifier_a = str(row["Classifier A"])
+        classifier_b = str(row["Classifier B"])
+        if classifier_a not in label_to_index or classifier_b not in label_to_index:
+            raise ValueError(
+                "Committee diversity table contains an unexpected classifier pair."
+            )
+        mean, std = _parse_summary_value(
+            row["Prediction disagreement"],
+            context=f"pair=({classifier_a}, {classifier_b})",
+        )
+        if not 0.0 <= mean <= 1.0 or std < 0.0 or not np.isfinite(std):
+            raise ValueError(
+                "Prediction-disagreement summary values must be finite and in "
+                "the interval [0, 1]."
+            )
+        index_a = label_to_index[classifier_a]
+        index_b = label_to_index[classifier_b]
+        if np.isfinite(matrix[index_a, index_b]):
+            raise ValueError("Committee diversity table contains duplicate pairs.")
+        matrix[index_a, index_b] = mean
+        matrix[index_b, index_a] = mean
+
+    if np.isnan(matrix[np.triu_indices_from(matrix, k=1)]).any():
+        raise ValueError("Committee diversity table is missing a classifier pair.")
+
+    figure, axes = plt.subplots(figsize=(7.5, 6.5))
+    image = axes.imshow(
+        matrix,
+        vmin=0.0,
+        vmax=1.0,
+        cmap=CONTINUOUS_PALETTE,
+    )
+    figure.colorbar(
+        image,
+        ax=axes,
+        label="Prediction disagreement",
+    )
+
+    axes.set_xticks(
+        np.arange(len(expected_labels)),
+        expected_labels,
+        rotation=30,
+        ha="right",
+    )
+    axes.set_yticks(
+        np.arange(len(expected_labels)),
+        expected_labels,
+    )
+    axes.set_xlabel("Classifier")
+    axes.set_ylabel("Classifier")
+    axes.set_title(title or "Prediction disagreement between classifiers")
+
+    for index in range(len(expected_labels)):
+        axes.text(
+            index,
+            index,
+            "—",
+            ha="center",
+            va="center",
+        )
+
+    for row_index in range(len(expected_labels)):
+        for column_index in range(row_index + 1, len(expected_labels)):
+            axes.text(
+                column_index,
+                row_index,
+                f"{matrix[row_index, column_index]:.4f}",
+                ha="center",
+                va="center",
+            )
+            axes.text(
+                row_index,
+                column_index,
+                f"{matrix[row_index, column_index]:.4f}",
+                ha="center",
+                va="center",
+            )
+
+    axes.set_aspect("equal")
+    figure.tight_layout()
+    return figure
+
+
 # ----------------------------------------
 # Display helpers
 # ----------------------------------------
@@ -1419,6 +2080,8 @@ def display_committee_statistics(
     show_configuration: bool = True,
     show_performance: bool = True,
     show_comparison: bool = True,
+    show_diversity: bool = False,
+    show_correction: bool = False,
 ) -> None:
     """Display notebook-ready committee result tables."""
     if show_configuration:
@@ -1439,6 +2102,18 @@ def display_committee_statistics(
             table=statistics.comparison_table,
         )
 
+    if show_diversity:
+        _display_section(
+            title="Pairwise model diversity and complementarity",
+            table=statistics.diversity_table,
+        )
+
+    if show_correction:
+        _display_section(
+            title="Committee correction behavior",
+            table=statistics.correction_table,
+        )
+
 
 def display_all_committee_statistics(
     *,
@@ -1456,7 +2131,11 @@ def display_all_committee_statistics(
             include_individual_comparison=True,
         )
         display(HTML(f"<h2>{experiment_artifacts.dataset_name} — Committees</h2>"))
-        display_committee_statistics(statistics)
+        display_committee_statistics(
+            statistics,
+            show_diversity=True,
+            show_correction=True,
+        )
 
 
 __all__ = [
@@ -1470,10 +2149,13 @@ __all__ = [
     "CommitteeStatistics",
     "compile_all_committee_comparison_table",
     "compile_all_committee_statistics",
+    "compile_committee_correction_table",
+    "compile_committee_diversity_table",
     "compile_committee_statistics",
     "display_all_committee_statistics",
     "display_committee_statistics",
     "load_all_committee_experiment_artifacts",
     "load_committee_experiment_artifacts",
+    "plot_committee_prediction_disagreement_heatmap",
     "plot_committee_primary_metric",
 ]
