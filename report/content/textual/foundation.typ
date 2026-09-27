@@ -3,18 +3,21 @@
 
 = Referencial teórico e trabalhos relacionados <seção:fundamentação>
 
-#note_from_advisor[
+#note_from_advisor(note: progress_note)[
   Esta seção deve fornecer o conhecimento necessário para compreender o problema e posicionar o estudo em relação à literatura. O levantamento bibliográfico pode ser sucinto, mas deve conter referências realmente relevantes para o tema. A descrição do trabalho prevê um estado da arte curto, com pelo menos 3--5 referências relevantes, além da apresentação de 2--3 exemplos de bases de dados e soluções típicas do domínio.
 ]
 
+Esta seção apresenta os fundamentos necessários para compreender o problema de detecção de intrusões abordado neste relatório e situa o estudo em relação a trabalhos relacionados.
+Inicialmente, são apresentados os principais conceitos do problema, incluindo a caracterização dos fluxos de rede, a formulação da tarefa como um problema de classificação supervisionada multiclasse e as características das representações utilizadas no estudo.
+
+Em seguida, são descritas as bases de dados empregadas, destacando seus contextos de aquisição, classes, características e diferenças na composição dos dados.
+Por fim, são discutidos os métodos relacionados ao trabalho, abrangendo os classificadores tradicionais utilizados nos experimentos, a combinação de modelos por meio de comitês e a aplicação de modelos de linguagem de grande porte à classificação de dados tabulares.
+Essa discussão estabelece o contexto para a metodologia apresentada posteriormente e fundamenta a comparação entre as diferentes abordagens consideradas no relatório.
+
 == Conceitos e definição do problema
 
-#note_from_advisor[
-  Defina os conceitos específicos do domínio e formalize a tarefa quando necessário. Explique o significado dos rótulos, variável-alvo, horizonte de previsão, grupos ou demais elementos do problema. Não repita conceitos gerais de aprendizado de máquina que não sejam necessários para compreender o estudo.
-]
-
-#note_from_advisor(note: todo_note)[
-  Apresente aqui os conceitos necessários e a definição do problema.
+#note_from_advisor(note: done_note)[
+  Esta seção deve fornecer o conhecimento necessário para compreender o problema e posicionar o estudo em relação à literatura. O levantamento bibliográfico pode ser sucinto, mas deve conter referências realmente relevantes para o tema. A descrição do trabalho prevê um estado da arte curto, com pelo menos 3--5 referências relevantes, além da apresentação de 2--3 exemplos de bases de dados e soluções típicas do domínio.
 ]
 
 == Bases de dados e benchmarks do domínio
