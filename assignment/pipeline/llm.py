@@ -1,4 +1,4 @@
-"""Local LLM classification experiments using LM Studio.
+"""Local LLM classification experiments using interchangeable local API backends.
 
 The module is the experiment and artifact-persistence layer for the GPT/LLM
 comparison. It deliberately mirrors the project's classical experiment
@@ -12,8 +12,9 @@ Two protocols are supported:
 * few-shot classification with one deterministic, class-balanced set of
   demonstrations sampled exclusively from the training partition.
 
-Inference uses a fixed number of concurrent requests. LM Studio controls its
-own server-side batching and model-runtime settings.
+The experiment layer delegates API connectivity and backend lifecycle to
+``pipeline.llm_api``. Experiment configuration remains here, while backend
+runtime settings are owned by the API-control module.
 
 Feature records are presented as named feature-value pairs. Predictor names
 and schema descriptions are included in the fixed system prompt, and each user
@@ -21,12 +22,12 @@ record presents one ``Feature Name: value`` pair per line. The target label is
 never included in a test record. Few-shot demonstrations use the same named
 feature-value representation and append their known training label.
 
-The default model is Google's Gemma 4 E2B IT QAT Q4_0 GGUF variant. Reasoning
-settings are controlled externally in LM Studio rather than by this module,
-and inference uses LM Studio's OpenAI-compatible Chat Completions endpoint.
-The variable test record remains at the end of each prompt so a stable prefix
-can benefit from LM Studio's prompt/KV-cache reuse. A fixed number of
-independent requests are kept in flight to use LM Studio continuous batching.
+Backend
+connection and runtime settings are defined by constants in
+``pipeline.llm_api``. Both supported backends use an OpenAI-compatible Chat
+Completions endpoint. The variable test record remains at the end of each
+prompt so a stable prefix can benefit from backend prompt/KV-cache reuse. A
+fixed number of independent requests are kept in flight.
 
 LLM responses are categorical outputs. ROC-AUC and PR-AUC therefore remain
 unavailable rather than being fabricated from non-probabilistic responses.
@@ -54,7 +55,7 @@ from typing import Any, Final, Literal, cast
 
 import numpy as np
 import pandas as pd
-from openai import APIError, OpenAI
+from openai import OpenAI
 from sklearn.metrics import (
     accuracy_score,
     confusion_matrix,
@@ -66,6 +67,25 @@ from sklearn.metrics import (
 
 from definitions import SEED, SEEDS
 from pipeline.common import ARTIFACT_ROOT
+from pipeline.llm_api import (
+    DEFAULT_API_BACKEND,
+    DEFAULT_CONCURRENT_PREDICTIONS,
+    DEFAULT_MAX_TOKENS,
+    DEFAULT_PARALLEL,
+    DEFAULT_TEMPERATURE,
+    DEFAULT_TIMEOUT_SECONDS,
+    DEFAULT_TOP_K,
+    DEFAULT_TOP_P,
+    LLAMA_SERVER_LOG_FILE_NAME,
+    LLM_API_BACKENDS,
+    APIBackend,
+    api_backend_configuration,
+    api_configuration,
+    create_api_client,
+    request_completion,
+    running_api,
+    validate_api_model,
+)
 from schema.common import TransformedDatasetSchema
 
 # ---------------------------------------------------------------------------
@@ -90,19 +110,9 @@ NORMALIZED_CONFUSION_MATRIX_FILE_PATTERN: Final[str] = (
     "confusion_matrix_normalized_seed_{seed}.csv"
 )
 
-LLM_ARTIFACT_SCHEMA_VERSION: Final[int] = 2
+LLM_ARTIFACT_SCHEMA_VERSION: Final[int] = 3
 PROMPT_VERSION: Final[str] = "dataset-specific-classification-v6"
 
-DEFAULT_LM_STUDIO_BASE_URL: Final[str] = "http://localhost:1234/v1"
-DEFAULT_LM_STUDIO_API_KEY: Final[str] = "lm-studio"
-DEFAULT_MODEL_ID: Final[str] = "gemma-4-e2b-it-qat"
-
-DEFAULT_TEMPERATURE: Final[float] = 0.0
-DEFAULT_TOP_P: Final[float] = 1.0
-DEFAULT_TOP_K: Final[int | None] = 1
-DEFAULT_MAX_TOKENS: Final[int] = 2048
-DEFAULT_TIMEOUT_SECONDS: Final[float] = 600.0
-DEFAULT_CONCURRENT_PREDICTIONS: Final[int] = 4
 
 DEFAULT_FEW_SHOT_EXAMPLES_PER_CLASS: Final[int] = 3
 DEFAULT_CHECKPOINT_FLUSH_EVERY: Final[int] = 5
@@ -177,9 +187,10 @@ class LLMDatasetConfiguration:
 class LLMInferenceConfig:
     """Configuration for one reproducible local-LLM experiment."""
 
-    base_url: str = DEFAULT_LM_STUDIO_BASE_URL
-    api_key: str = DEFAULT_LM_STUDIO_API_KEY
-    model: str = DEFAULT_MODEL_ID
+    api_backend: APIBackend = DEFAULT_API_BACKEND
+    base_url: str | None = None
+    api_key: str | None = None
+    model: str | None = None
     temperature: float = DEFAULT_TEMPERATURE
     top_p: float = DEFAULT_TOP_P
     top_k: int | None = DEFAULT_TOP_K
@@ -195,11 +206,28 @@ class LLMInferenceConfig:
     overwrite: bool = False
 
     def __post_init__(self) -> None:
-        """Validate all experiment configuration values."""
+        """Resolve backend defaults and validate all experiment settings."""
+        if self.api_backend not in LLM_API_BACKENDS:
+            raise ValueError(
+                f"Unknown LLM API backend: {self.api_backend!r}. "
+                f"Expected one of {LLM_API_BACKENDS!r}."
+            )
+
+        backend_config = api_configuration(self.api_backend)
+        if self.base_url is None:
+            object.__setattr__(self, "base_url", backend_config.base_url)
+        if self.api_key is None:
+            object.__setattr__(self, "api_key", backend_config.api_key)
+        if self.model is None:
+            object.__setattr__(self, "model", backend_config.model)
+
+        assert self.base_url is not None
+        assert self.api_key is not None
+        assert self.model is not None
         if not self.base_url.strip():
-            raise ValueError("LM Studio base URL must not be empty.")
+            raise ValueError("LLM API base URL must not be empty.")
         if not self.api_key:
-            raise ValueError("LM Studio API key value must not be empty.")
+            raise ValueError("LLM API key value must not be empty.")
         if not self.model.strip():
             raise ValueError("LLM model identifier must not be empty.")
         if not 0.0 <= self.temperature <= 2.0:
@@ -222,6 +250,10 @@ class LLMInferenceConfig:
             raise ValueError("checkpoint_flush_every must be positive.")
         if DEFAULT_CONCURRENT_PREDICTIONS <= 0:
             raise ValueError("DEFAULT_CONCURRENT_PREDICTIONS must be positive.")
+        if DEFAULT_PARALLEL != DEFAULT_CONCURRENT_PREDICTIONS:
+            raise ValueError(
+                "DEFAULT_PARALLEL must match DEFAULT_CONCURRENT_PREDICTIONS."
+            )
         if self.test_sample_size <= 0:
             raise ValueError("test_sample_size must be positive.")
 
@@ -323,19 +355,6 @@ class LLMExperimentResult:
     metadata: dict[str, object]
     few_shot_examples: tuple[FewShotExample, ...]
     metrics: pd.DataFrame
-
-
-@dataclass(frozen=True, slots=True, kw_only=True)
-class CompletionResult:
-    """Normalized result of one LM Studio Chat Completion request."""
-
-    raw_response: str | None
-    response_error: str | None
-    prompt_tokens: int | None
-    completion_tokens: int | None
-    total_tokens: int | None
-    finish_reason: str | None
-    request_time_seconds: float
 
 
 # ---------------------------------------------------------------------------
@@ -1183,106 +1202,6 @@ def build_prompt_messages(
 
 
 # ---------------------------------------------------------------------------
-# LM Studio client and request execution
-# ---------------------------------------------------------------------------
-
-
-def create_lm_studio_client(config: LLMInferenceConfig) -> OpenAI:
-    """Create an OpenAI client configured for the local LM Studio server."""
-    return OpenAI(
-        base_url=config.base_url,
-        api_key=config.api_key,
-        timeout=config.timeout_seconds,
-        max_retries=0,
-    )
-
-
-def validate_lm_studio_model(client: OpenAI, *, model: str) -> None:
-    """Verify that LM Studio advertises the requested model identifier."""
-    try:
-        available_models = client.models.list()
-    except APIError as error:
-        raise RuntimeError(
-            "Could not query LM Studio's /v1/models endpoint. Ensure the local "
-            "LM Studio server is running and reachable."
-        ) from error
-
-    available_ids = {str(item.id) for item in available_models.data}
-    if model not in available_ids:
-        raise RuntimeError(
-            f"Model {model!r} was not advertised by LM Studio. "
-            f"Available model identifiers: {tuple(sorted(available_ids))!r}."
-        )
-
-
-def _request_completion(
-    client: OpenAI,
-    *,
-    config: LLMInferenceConfig,
-    system_prompt: str,
-    user_prompt: str,
-    seed: int,
-) -> CompletionResult:
-    """Execute one request and record its request/response timing."""
-    start_time = time.perf_counter()
-    try:
-        completion = client.chat.completions.create(
-            model=config.model,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt},
-            ],
-            temperature=config.temperature,
-            top_p=config.top_p,
-            max_tokens=config.max_tokens,
-            seed=seed,
-            stream=False,
-            extra_body={"top_k": config.top_k},
-        )
-    except APIError as error:
-        raise RuntimeError("LM Studio returned an API error.") from error
-
-    elapsed = float(time.perf_counter() - start_time)
-    if not completion.choices:
-        return CompletionResult(
-            raw_response=None,
-            response_error="empty_choices",
-            prompt_tokens=None,
-            completion_tokens=None,
-            total_tokens=None,
-            finish_reason=None,
-            request_time_seconds=elapsed,
-        )
-
-    choice = completion.choices[0]
-    content = choice.message.content
-    usage = completion.usage
-    return CompletionResult(
-        raw_response=content if isinstance(content, str) else None,
-        response_error=("empty_response" if content is None else None),
-        prompt_tokens=(
-            int(usage.prompt_tokens)
-            if usage is not None and usage.prompt_tokens is not None
-            else None
-        ),
-        completion_tokens=(
-            int(usage.completion_tokens)
-            if usage is not None and usage.completion_tokens is not None
-            else None
-        ),
-        total_tokens=(
-            int(usage.total_tokens)
-            if usage is not None and usage.total_tokens is not None
-            else None
-        ),
-        finish_reason=(
-            str(choice.finish_reason) if choice.finish_reason is not None else None
-        ),
-        request_time_seconds=elapsed,
-    )
-
-
-# ---------------------------------------------------------------------------
 # Checkpoint helpers
 # ---------------------------------------------------------------------------
 
@@ -1321,6 +1240,13 @@ def _reset_checkpoint(path: Path) -> None:
     path.unlink(missing_ok=True)
 
 
+def _require_resolved_model(model: str | None) -> str:
+    """Return a resolved model name, rejecting an unresolved configuration."""
+    if model is None:
+        raise ValueError("LLM inference model has not been resolved.")
+    return model
+
+
 def _run_fingerprint(
     *,
     dataset_name: str,
@@ -1355,6 +1281,11 @@ def _run_fingerprint(
             }
             for example in few_shot_examples
         ],
+        "api_backend": config.api_backend,
+        "api": api_backend_configuration(
+            config.api_backend,
+            model=_require_resolved_model(config.model),
+        ),
     }
     serialized = json.dumps(
         payload,
@@ -1848,7 +1779,7 @@ def _build_metadata(
         "status": "complete",
         "dataset_name": dataset.dataset_name,
         "experiment_type": "local_llm_frozen_test_classification",
-        "provider": "LM Studio",
+        "provider": "local_openai_compatible",
         "endpoint": config.base_url,
         "model": config.model,
         "prompt_version": PROMPT_VERSION,
@@ -1910,16 +1841,25 @@ def _build_metadata(
             "pr_auc": "unavailable_without_probability_or_score_outputs",
         },
         "model_selection": {
-            "selected_model": DEFAULT_MODEL_ID,
-            "distribution": "Google Gemma 4 E2B IT QAT Q4_0 GGUF",
+            "selected_model": config.model,
+            "distribution": config.model,
             "selection_priority": "speed_first_with_quality_retention",
-            "target_hardware": "AMD Ryzen 5 5600G, 32 GB RAM",
-            "gpu_inference": "disabled_for_this_configuration",
+            "target_hardware": "Backend-dependent local hardware",
+            "gpu_inference": (
+                "llama.cpp SYCL with Intel Level Zero"
+                if config.api_backend == "llama_server_sycl"
+                else "LM Studio local inference backend"
+            ),
         },
+        "api_backend": config.api_backend,
+        "api": api_backend_configuration(
+            config.api_backend,
+            model=_require_resolved_model(config.model),
+        ),
         "timing": {
             "clock": "time.perf_counter",
             "request_scope": (
-                "Each request/response interval includes local LM Studio "
+                "Each request/response interval includes local backend "
                 "inference; excludes prompt construction, model loading, "
                 "and metric calculation."
             ),
@@ -1960,6 +1900,11 @@ def _validate_existing_metadata(
         "target_classes": list(classes),
         "csv_header": list(header_names),
         "header_line": header_line,
+        "api_backend": config.api_backend,
+        "api": api_backend_configuration(
+            config.api_backend,
+            model=_require_resolved_model(config.model),
+        ),
     }
     for key, expected in expected_values.items():
         if metadata.get(key) != expected:
@@ -2062,9 +2007,14 @@ def _classify_test_record(
 ) -> dict[str, object]:
     """Classify one test row without mutating shared experiment state."""
     user_prompt = f"{prompt_prefix}{row_text}\n"
-    result = _request_completion(
+    result = request_completion(
         client,
-        config=config,
+        backend=config.api_backend,
+        model=_require_resolved_model(config.model),
+        temperature=config.temperature,
+        top_p=config.top_p,
+        top_k=config.top_k,
+        max_tokens=config.max_tokens,
         system_prompt=system_prompt,
         user_prompt=user_prompt,
         seed=seed,
@@ -2571,43 +2521,72 @@ def run_dataset_llm_experiment(
         "summary_file": SUMMARY_FILE_NAME,
         "timing_file": TIMING_FILE_NAME,
         "seed_timing_pattern": SEED_TIMING_FILE_PATTERN,
+        "llama_server_log_file": (
+            LLAMA_SERVER_LOG_FILE_NAME
+            if experiment_config.api_backend == "llama_server_sycl"
+            else None
+        ),
     }
     _atomic_write_json(paths.metadata, metadata)
 
-    client = create_lm_studio_client(experiment_config)
-    validate_lm_studio_model(client, model=experiment_config.model)
-
     expected_row_count = len(dataset.test_features)
     expected_row_index_digest = _integer_index_digest(dataset.test_features.index)
+    server_log_path = paths.root / LLAMA_SERVER_LOG_FILE_NAME
+    model = _require_resolved_model(experiment_config.model)
+    base_url = experiment_config.base_url
+    api_key = experiment_config.api_key
+    if base_url is None or api_key is None:
+        raise ValueError("LLM API configuration has not been resolved.")
 
     try:
-        for method in normalized_methods:
-            seed_timings: list[dict[str, object]] = []
-            for seed in experiment_config.seeds:
-                _, seed_timing = _run_single_method_seed(
-                    client=client,
-                    dataset=dataset,
-                    method=method,
-                    seed=int(seed),
-                    config=experiment_config,
-                    header_line=header_line,
-                    classes=classes,
-                    few_shot_examples=few_shot_examples,
-                    paths=paths,
-                    system_prompt=system_prompt,
-                )
-                seed_timings.append(seed_timing)
-
-            _write_method_aggregate_artifacts(
-                paths=paths,
-                method=method,
-                dataset_name=dataset.dataset_name,
-                seeds=experiment_config.seeds,
-                classes=classes,
-                expected_row_count=expected_row_count,
-                expected_row_index_digest=expected_row_index_digest,
-                seed_timings=seed_timings,
+        log_path = (
+            server_log_path
+            if experiment_config.api_backend == "llama_server_sycl"
+            else None
+        )
+        with running_api(
+            backend=experiment_config.api_backend,
+            model=model,
+            base_url=base_url,
+            log_path=log_path,
+        ):
+            client = create_api_client(
+                base_url=base_url,
+                api_key=api_key,
+                timeout_seconds=experiment_config.timeout_seconds,
             )
+            validate_api_model(
+                client,
+                model=model,
+                backend=experiment_config.api_backend,
+            )
+            for method in normalized_methods:
+                seed_timings: list[dict[str, object]] = []
+                for seed in experiment_config.seeds:
+                    _, seed_timing = _run_single_method_seed(
+                        client=client,
+                        dataset=dataset,
+                        method=method,
+                        seed=int(seed),
+                        config=experiment_config,
+                        header_line=header_line,
+                        classes=classes,
+                        few_shot_examples=few_shot_examples,
+                        paths=paths,
+                        system_prompt=system_prompt,
+                    )
+                    seed_timings.append(seed_timing)
+
+                _write_method_aggregate_artifacts(
+                    paths=paths,
+                    method=method,
+                    dataset_name=dataset.dataset_name,
+                    seeds=experiment_config.seeds,
+                    classes=classes,
+                    expected_row_count=expected_row_count,
+                    expected_row_index_digest=expected_row_index_digest,
+                    seed_timings=seed_timings,
+                )
     except Exception as error:
         metadata["status"] = "failed"
         metadata["error"] = {
@@ -2789,7 +2768,7 @@ def load_llm_few_shot_examples(
 def _build_argument_parser() -> argparse.ArgumentParser:
     """Build the local-LLM experiment command-line interface."""
     parser = argparse.ArgumentParser(
-        description="Run one classification protocol with a local LM Studio model."
+        description="Run one classification protocol with a local LLM API backend."
     )
     parser.add_argument(
         "--dataset",
@@ -2798,16 +2777,28 @@ def _build_argument_parser() -> argparse.ArgumentParser:
         help="Dataset to run.",
     )
     parser.add_argument(
+        "--api-backend",
+        choices=LLM_API_BACKENDS,
+        default=DEFAULT_API_BACKEND,
+        help=(
+            "Inference backend: llama_server_sycl or lm_studio "
+            f"(default: {DEFAULT_API_BACKEND})."
+        ),
+    )
+    parser.add_argument(
         "--model",
-        default=DEFAULT_MODEL_ID,
-        help=f"LM Studio model identifier (default: {DEFAULT_MODEL_ID}).",
+        default=None,
+        help=(
+            "Override the model identifier; otherwise use the selected "
+            "backend's configured model."
+        ),
     )
     parser.add_argument(
         "--base-url",
-        default=DEFAULT_LM_STUDIO_BASE_URL,
+        default=None,
         help=(
-            "LM Studio OpenAI-compatible base URL "
-            f"(default: {DEFAULT_LM_STUDIO_BASE_URL})."
+            "Override the OpenAI-compatible API base URL; otherwise use the "
+            "selected backend's configured URL."
         ),
     )
     parser.add_argument("--temperature", type=float, default=DEFAULT_TEMPERATURE)
@@ -2850,6 +2841,7 @@ def main() -> None:
 
     methods = (arguments.method,)
     config = LLMInferenceConfig(
+        api_backend=arguments.api_backend,
         base_url=arguments.base_url,
         model=arguments.model,
         temperature=arguments.temperature,
@@ -2876,10 +2868,10 @@ __all__ = [
     "ADDITIONAL_METRIC_COLUMNS",
     "CONFUSION_MATRIX_INVALID_LABEL",
     "DATASET_NAMES",
+    "DEFAULT_API_BACKEND",
     "DEFAULT_CONCURRENT_PREDICTIONS",
-    "DEFAULT_LM_STUDIO_BASE_URL",
-    "DEFAULT_MODEL_ID",
     "FEW_SHOT_DIRECTORY_NAME",
+    "LLM_API_BACKENDS",
     "LLM_METHODS",
     "LLM_SEEDS",
     "METRIC_COLUMNS",
@@ -2887,6 +2879,7 @@ __all__ = [
     "SUMMARY_FILE_NAME",
     "TIMING_FILE_NAME",
     "ZERO_SHOT_DIRECTORY_NAME",
+    "APIBackend",
     "FewShotExample",
     "LLMDatasetConfiguration",
     "LLMExperimentPaths",
@@ -2896,7 +2889,6 @@ __all__ = [
     "build_prompt_messages",
     "build_system_prompt",
     "build_zero_shot_user_prompt",
-    "create_lm_studio_client",
     "load_dataset_configuration",
     "load_llm_few_shot_examples",
     "load_llm_metadata",
@@ -2910,7 +2902,6 @@ __all__ = [
     "select_few_shot_examples",
     "serialize_feature_csv",
     "serialize_feature_row",
-    "validate_lm_studio_model",
 ]
 
 
