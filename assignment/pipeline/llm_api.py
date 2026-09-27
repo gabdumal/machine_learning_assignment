@@ -50,7 +50,7 @@ DEFAULT_TOP_P: Final[float] = 1.0
 DEFAULT_TOP_K: Final[int | None] = 1
 DEFAULT_MAX_TOKENS: Final[int] = 8192
 DEFAULT_TIMEOUT_SECONDS: Final[float] = 600.0
-DEFAULT_CONCURRENT_PREDICTIONS: Final[int] = 4
+DEFAULT_CONCURRENT_PREDICTIONS: Final[int] = 2
 
 # Shared model-load/runtime settings. These are deliberately limited to values
 # that both supported backends expose programmatically.

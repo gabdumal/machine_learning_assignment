@@ -22,7 +22,7 @@ record presents one ``Feature Name: value`` pair per line. The target label is
 never included in a test record. Few-shot demonstrations use the same named
 feature-value representation and append their known training label.
 
-Backend
+The default model is Qwen3.5 4B Q4_K_M. Backend
 connection and runtime settings are defined by constants in
 ``pipeline.llm_api``. Both supported backends use an OpenAI-compatible Chat
 Completions endpoint. The variable test record remains at the end of each
@@ -65,28 +65,30 @@ from sklearn.metrics import (
     recall_score,
 )
 
-from definitions import SEED, SEEDS
+from definitions import SEED
 from pipeline.common import ARTIFACT_ROOT
+from schema.common import TransformedDatasetSchema
 from pipeline.llm_api import (
+    APIBackend,
     DEFAULT_API_BACKEND,
     DEFAULT_CONCURRENT_PREDICTIONS,
     DEFAULT_MAX_TOKENS,
-    DEFAULT_PARALLEL,
+    DEFAULT_MODEL_ID,
     DEFAULT_TEMPERATURE,
     DEFAULT_TIMEOUT_SECONDS,
     DEFAULT_TOP_K,
     DEFAULT_TOP_P,
     LLAMA_SERVER_LOG_FILE_NAME,
+    DEFAULT_PARALLEL,
     LLM_API_BACKENDS,
-    APIBackend,
+    create_api_client,
     api_backend_configuration,
     api_configuration,
-    create_api_client,
     request_completion,
     running_api,
     validate_api_model,
 )
-from schema.common import TransformedDatasetSchema
+
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -99,25 +101,20 @@ LLM_FEW_SHOT_EXAMPLES_FILE_NAME: Final[str] = "few_shot_examples.csv"
 ZERO_SHOT_DIRECTORY_NAME: Final[str] = "zero_shot"
 FEW_SHOT_DIRECTORY_NAME: Final[str] = "few_shot"
 
-PREDICTIONS_FILE_PATTERN: Final[str] = "predictions_seed_{seed}.csv"
-CHECKPOINT_FILE_PATTERN: Final[str] = "checkpoint_seed_{seed}.jsonl"
+PREDICTIONS_FILE_NAME: Final[str] = "predictions.csv"
+CHECKPOINT_FILE_NAME: Final[str] = "checkpoint.jsonl"
 METRICS_FILE_NAME: Final[str] = "metrics.csv"
-SUMMARY_FILE_NAME: Final[str] = "summary.csv"
-TIMING_FILE_NAME: Final[str] = "timing.csv"
-SEED_TIMING_FILE_PATTERN: Final[str] = "timing_seed_{seed}.json"
-CONFUSION_MATRIX_FILE_PATTERN: Final[str] = "confusion_matrix_seed_{seed}.csv"
-NORMALIZED_CONFUSION_MATRIX_FILE_PATTERN: Final[str] = (
-    "confusion_matrix_normalized_seed_{seed}.csv"
-)
+TIMING_FILE_NAME: Final[str] = "timing.json"
+CONFUSION_MATRIX_FILE_NAME: Final[str] = "confusion_matrix.csv"
+NORMALIZED_CONFUSION_MATRIX_FILE_NAME: Final[str] = "confusion_matrix_normalized.csv"
 
-LLM_ARTIFACT_SCHEMA_VERSION: Final[int] = 3
+LLM_ARTIFACT_SCHEMA_VERSION: Final[int] = 4
 PROMPT_VERSION: Final[str] = "dataset-specific-classification-v6"
 
 
 DEFAULT_FEW_SHOT_EXAMPLES_PER_CLASS: Final[int] = 3
 DEFAULT_CHECKPOINT_FLUSH_EVERY: Final[int] = 5
 
-LLM_SEEDS: Final[tuple[int, ...]] = tuple(int(seed) for seed in SEEDS)
 DATASET_NAMES: Final[tuple[str, ...]] = ("genis", "rosids")
 LLM_METHODS: Final[tuple[str, ...]] = ("zero_shot", "few_shot")
 LLMMethod = Literal["zero_shot", "few_shot"]
@@ -164,8 +161,6 @@ ADDITIONAL_METRIC_COLUMNS: Final[tuple[str, ...]] = (
     "invalid_response_rate",
 )
 
-AUC_METRICS: Final[frozenset[str]] = frozenset({"roc_auc", "pr_auc"})
-
 # ---------------------------------------------------------------------------
 # Data structures
 # ---------------------------------------------------------------------------
@@ -196,7 +191,7 @@ class LLMInferenceConfig:
     top_k: int | None = DEFAULT_TOP_K
     max_tokens: int = DEFAULT_MAX_TOKENS
     timeout_seconds: float = DEFAULT_TIMEOUT_SECONDS
-    seeds: tuple[int, ...] = LLM_SEEDS
+    seed: int = SEED
     few_shot_examples_per_class: int = DEFAULT_FEW_SHOT_EXAMPLES_PER_CLASS
     few_shot_selection_seed: int = SEED
     checkpoint_flush_every: int = DEFAULT_CHECKPOINT_FLUSH_EVERY
@@ -240,10 +235,8 @@ class LLMInferenceConfig:
             raise ValueError("max_tokens must be positive.")
         if self.timeout_seconds <= 0.0:
             raise ValueError("timeout_seconds must be positive.")
-        if not self.seeds:
-            raise ValueError("At least one LLM seed is required.")
-        if len(self.seeds) != len(set(self.seeds)):
-            raise ValueError("LLM seeds must be unique.")
+        if not isinstance(self.seed, int):
+            raise TypeError("seed must be an integer.")
         if self.few_shot_examples_per_class <= 0:
             raise ValueError("few_shot_examples_per_class must be positive.")
         if self.checkpoint_flush_every <= 0:
@@ -297,47 +290,29 @@ class LLMExperimentPaths:
             return self.few_shot_directory
         raise ValueError(f"Unknown LLM method: {method!r}.")
 
-    def predictions_path(self, method: str, seed: int) -> Path:
-        """Return the completed per-seed prediction artifact path."""
-        return self.method_directory(method) / PREDICTIONS_FILE_PATTERN.format(
-            seed=seed,
-        )
+    def predictions_path(self, method: str) -> Path:
+        """Return the completed prediction artifact path for ``method``."""
+        return self.method_directory(method) / PREDICTIONS_FILE_NAME
 
-    def checkpoint_path(self, method: str, seed: int) -> Path:
-        """Return the resumable per-seed checkpoint path."""
-        return self.method_directory(method) / CHECKPOINT_FILE_PATTERN.format(
-            seed=seed,
-        )
+    def checkpoint_path(self, method: str) -> Path:
+        """Return the resumable checkpoint artifact path for ``method``."""
+        return self.method_directory(method) / CHECKPOINT_FILE_NAME
 
     def metrics_path(self, method: str) -> Path:
-        """Return the per-method seed-metrics artifact path."""
+        """Return the metrics artifact path for ``method``."""
         return self.method_directory(method) / METRICS_FILE_NAME
 
-    def summary_path(self, method: str) -> Path:
-        """Return the per-method summary artifact path."""
-        return self.method_directory(method) / SUMMARY_FILE_NAME
-
     def timing_path(self, method: str) -> Path:
-        """Return the per-method aggregate timing artifact path."""
+        """Return the single-run timing artifact path for ``method``."""
         return self.method_directory(method) / TIMING_FILE_NAME
 
-    def seed_timing_path(self, method: str, seed: int) -> Path:
-        """Return one seed-level timing artifact path."""
-        return self.method_directory(method) / SEED_TIMING_FILE_PATTERN.format(
-            seed=seed,
-        )
-
-    def confusion_matrix_path(self, method: str, seed: int) -> Path:
+    def confusion_matrix_path(self, method: str) -> Path:
         """Return the raw confusion-matrix artifact path."""
-        return self.method_directory(method) / CONFUSION_MATRIX_FILE_PATTERN.format(
-            seed=seed,
-        )
+        return self.method_directory(method) / CONFUSION_MATRIX_FILE_NAME
 
-    def normalized_confusion_matrix_path(self, method: str, seed: int) -> Path:
+    def normalized_confusion_matrix_path(self, method: str) -> Path:
         """Return the normalized confusion-matrix artifact path."""
-        return self.method_directory(
-            method
-        ) / NORMALIZED_CONFUSION_MATRIX_FILE_PATTERN.format(seed=seed)
+        return self.method_directory(method) / NORMALIZED_CONFUSION_MATRIX_FILE_NAME
 
     def ensure_directories(self) -> None:
         """Create all directories required by the experiment."""
@@ -348,7 +323,7 @@ class LLMExperimentPaths:
 
 @dataclass(frozen=True, slots=True, kw_only=True)
 class LLMExperimentResult:
-    """References and aggregate metrics from a completed LLM experiment."""
+    """References and metrics from a completed single-seed LLM experiment."""
 
     dataset_name: str
     paths: LLMExperimentPaths
@@ -1409,15 +1384,15 @@ def _build_confusion_matrix_frames(
     return raw, normalized
 
 
-def _metric_row_for_seed(
+def _build_method_metrics(
     *,
     dataset_name: str,
     method: str,
     seed: int,
     prediction_frame: pd.DataFrame,
     classes: Sequence[str],
-) -> dict[str, object]:
-    """Build one seed-level metrics record."""
+) -> pd.DataFrame:
+    """Build the metrics table for the single completed run."""
     actual_labels = prediction_frame["actual_class"].astype(str).tolist()
     predicted_labels = prediction_frame["predicted_class"].astype(str).tolist()
     valid = prediction_frame["response_valid"].astype(bool)
@@ -1428,194 +1403,25 @@ def _metric_row_for_seed(
         predicted_labels=predicted_labels,
         classes=classes,
     )
-    return {
+    row = {
         **metrics,
         "dataset": dataset_name,
         "method": method,
-        "seed": seed,
+        "seed": int(seed),
         "test_row_count": row_count,
         "valid_prediction_count": row_count - invalid_count,
         "invalid_response_count": invalid_count,
         "coverage_rate": (row_count - invalid_count) / row_count,
         "invalid_response_rate": invalid_count / row_count,
     }
-
-
-def _build_method_summary(metrics: pd.DataFrame) -> pd.DataFrame:
-    """Build one row containing mean ± standard deviation across seeds."""
-    if metrics.empty:
-        raise ValueError("Cannot summarize an empty metrics table.")
-
-    first_row = metrics.iloc[0]
-    summary: dict[str, object] = {
-        "dataset": str(first_row["dataset"]),
-        "method": str(first_row["method"]),
-        "seed_count": len(metrics),
-    }
-    for metric in METRIC_COLUMNS:
-        if metric in AUC_METRICS:
-            summary[metric] = "N/A"
-            continue
-        values = pd.to_numeric(metrics[metric], errors="raise").to_numpy(dtype=float)
-        mean = float(np.mean(values))
-        std = float(np.std(values, ddof=1)) if len(values) > 1 else 0.0
-        summary[metric] = f"{mean:.5f} ± {std:.5f}"
-    for metric in ADDITIONAL_METRIC_COLUMNS:
-        values = pd.to_numeric(metrics[metric], errors="raise").to_numpy(dtype=float)
-        mean = float(np.mean(values))
-        std = float(np.std(values, ddof=1)) if len(values) > 1 else 0.0
-        summary[metric] = f"{mean:.5f} ± {std:.5f}"
-    return pd.DataFrame([summary])
-
-
-def _build_method_timing(
-    predictions: pd.DataFrame,
-    *,
-    dataset_name: str,
-    method: str,
-    seeds: Sequence[int],
-    seed_timings: Sequence[dict[str, object]],
-) -> pd.DataFrame:
-    """Build aggregate request-latency and parallel wall-clock metrics."""
-    required_columns = {
-        "request_time_seconds",
-        "prompt_tokens",
-        "completion_tokens",
-        "total_tokens",
-    }
-    missing = required_columns - set(predictions.columns)
-    if missing:
-        raise ValueError(
-            f"Predictions are missing timing columns: {tuple(sorted(missing))!r}."
-        )
-    if not seed_timings:
-        raise ValueError("At least one seed timing record is required.")
-
-    request_times = pd.to_numeric(
-        predictions["request_time_seconds"],
-        errors="raise",
-    ).to_numpy(dtype=float)
-    prompt_tokens = pd.to_numeric(
-        predictions["prompt_tokens"],
-        errors="coerce",
-    )
-    completion_tokens = pd.to_numeric(
-        predictions["completion_tokens"],
-        errors="coerce",
-    )
-    total_tokens = pd.to_numeric(
-        predictions["total_tokens"],
-        errors="coerce",
-    )
-
-    wall_clock_times = np.asarray(
-        [float(cast(float, timing["wall_clock_seconds"])) for timing in seed_timings],
-        dtype=float,
-    )
-    measured_request_counts = np.asarray(
-        [int(cast(int, timing["request_count"])) for timing in seed_timings],
-        dtype=float,
-    )
-    request_time_sums = np.asarray(
-        [
-            float(cast(float, timing["request_time_sum_seconds"]))
-            for timing in seed_timings
-        ],
-        dtype=float,
-    )
-    prompt_token_sums = np.asarray(
-        [int(cast(int, timing["prompt_token_sum"])) for timing in seed_timings],
-        dtype=float,
-    )
-    completion_token_sums = np.asarray(
-        [int(cast(int, timing["completion_token_sum"])) for timing in seed_timings],
-        dtype=float,
-    )
-    total_token_sums = np.asarray(
-        [int(cast(int, timing["total_token_sum"])) for timing in seed_timings],
-        dtype=float,
-    )
-
-    if (wall_clock_times <= 0.0).any() or not np.isfinite(wall_clock_times).all():
-        raise ValueError("Seed wall-clock timings must be positive and finite.")
-    if (measured_request_counts <= 0.0).any():
-        raise ValueError("Seed request counts must be positive.")
-
-    total_request_time = float(request_time_sums.sum())
-    total_wall_clock_time = float(wall_clock_times.sum())
-    request_count = int(measured_request_counts.sum())
-    prompt_token_sum = int(prompt_token_sums.sum())
-    completion_token_sum = int(completion_token_sums.sum())
-    total_token_sum = int(total_token_sums.sum())
-
-    request_latency_mean = float(np.mean(request_times))
-    request_latency_p50 = float(np.percentile(request_times, 50.0))
-    request_latency_p95 = float(np.percentile(request_times, 95.0))
-    request_latency_max = float(np.max(request_times))
-    effective_requests_per_second = (
-        request_count / total_wall_clock_time if total_wall_clock_time > 0.0 else 0.0
-    )
-    wall_clock_per_100_samples = (
-        total_wall_clock_time / request_count * 100.0 if request_count else 0.0
-    )
-    request_time_per_100_samples = (
-        total_request_time / request_count * 100.0 if request_count else 0.0
-    )
-    average_in_flight_requests = (
-        total_request_time / total_wall_clock_time
-        if total_wall_clock_time > 0.0
-        else 0.0
-    )
-
-    return pd.DataFrame(
-        [
-            {
-                "dataset": dataset_name,
-                "method": method,
-                "seed_count": len(tuple(seeds)),
-                "test_row_count": len(predictions),
-                "request_count": request_count,
-                "total_request_time_seconds": total_request_time,
-                "wall_clock_seconds": total_wall_clock_time,
-                "inference_time_per_100_samples": request_time_per_100_samples,
-                "wall_clock_time_per_100_samples": wall_clock_per_100_samples,
-                "effective_requests_per_second": effective_requests_per_second,
-                "effective_samples_per_second": effective_requests_per_second,
-                "request_latency_mean_seconds": request_latency_mean,
-                "request_latency_p50_seconds": request_latency_p50,
-                "request_latency_p95_seconds": request_latency_p95,
-                "request_latency_max_seconds": request_latency_max,
-                "average_in_flight_requests": average_in_flight_requests,
-                "prompt_tokens": prompt_token_sum,
-                "completion_tokens": completion_token_sum,
-                "total_tokens": total_token_sum,
-                "prompt_tokens_per_wall_second": (
-                    prompt_token_sum / total_wall_clock_time
-                    if total_wall_clock_time > 0.0
-                    else 0.0
-                ),
-                "completion_tokens_per_wall_second": (
-                    completion_token_sum / total_wall_clock_time
-                    if total_wall_clock_time > 0.0
-                    else 0.0
-                ),
-                "total_tokens_per_wall_second": (
-                    total_token_sum / total_wall_clock_time
-                    if total_wall_clock_time > 0.0
-                    else 0.0
-                ),
-                "seed_wall_clock_mean_seconds": float(np.mean(wall_clock_times)),
-                "seed_wall_clock_std_seconds": (
-                    float(np.std(wall_clock_times, ddof=1))
-                    if len(wall_clock_times) > 1
-                    else 0.0
-                ),
-                "seed_wall_clock_min_seconds": float(np.min(wall_clock_times)),
-                "seed_wall_clock_max_seconds": float(np.max(wall_clock_times)),
-                "local_api_cost_usd": 0.0,
-            }
-        ]
-    )
+    columns = [
+        "dataset",
+        "method",
+        "seed",
+        *METRIC_COLUMNS,
+        *ADDITIONAL_METRIC_COLUMNS,
+    ]
+    return pd.DataFrame([row], columns=columns)
 
 
 def _validate_completed_prediction_frame(
@@ -1627,136 +1433,147 @@ def _validate_completed_prediction_frame(
     expected_row_count: int,
     expected_row_index_digest: str,
 ) -> None:
-    """Validate one complete per-seed prediction artifact."""
-    missing = set(PREDICTION_COLUMNS) - set(frame.columns)
-    if missing:
+    """Validate a completed prediction artifact before it is reused."""
+    missing_columns = set(PREDICTION_COLUMNS) - set(frame.columns)
+    if missing_columns:
         raise ValueError(
-            f"Predictions for {dataset_name}/{method}/seed {seed} are missing "
-            f"columns: {tuple(sorted(missing))!r}."
+            "Completed prediction artifact is missing required columns: "
+            f"{tuple(sorted(missing_columns))!r}."
         )
+
     if len(frame) != expected_row_count:
         raise ValueError(
-            f"Predictions for {dataset_name}/{method}/seed {seed} contain "
-            f"{len(frame)} rows; expected {expected_row_count}."
+            "Completed prediction artifact has an unexpected row count. "
+            f"Expected {expected_row_count}, found {len(frame)}."
         )
 
-    row_indices = pd.to_numeric(frame["row_index"], errors="raise")
-    numeric_row_indices = row_indices.to_numpy(dtype=float)
-    if not np.isfinite(numeric_row_indices).all():
-        raise ValueError("Prediction row indices contain non-finite values.")
-    if not np.equal(numeric_row_indices, np.floor(numeric_row_indices)).all():
-        raise ValueError("Prediction row indices contain non-integer values.")
-    normalized = row_indices.astype("int64")
-    if normalized.duplicated().any():
-        raise ValueError("Prediction row indices contain duplicates.")
-    if _integer_index_digest(normalized) != expected_row_index_digest:
+    if frame["dataset"].astype(str).ne(dataset_name).any():
         raise ValueError(
-            "Prediction artifacts do not cover exactly the expected frozen-test rows."
+            "Completed prediction artifact contains rows from an unexpected dataset."
         )
 
-    dataset_values = {str(value) for value in frame["dataset"]}
-    method_values = {str(value) for value in frame["method"]}
-    seed_values = set(pd.to_numeric(frame["seed"], errors="raise").astype(int))
-    if (
-        dataset_values != {dataset_name}
-        or method_values != {method}
-        or seed_values != {seed}
-    ):
+    if frame["method"].astype(str).ne(method).any():
         raise ValueError(
-            f"Predictions for {dataset_name}/{method}/seed {seed} "
-            "contain inconsistent identifiers."
+            "Completed prediction artifact contains rows from an unexpected method."
         )
 
-    if frame["response_valid"].isna().any():
-        raise ValueError("Prediction artifacts contain missing response_valid values.")
+    try:
+        actual_seeds = pd.to_numeric(frame["seed"], errors="raise").astype("int64")
+    except (TypeError, ValueError) as error:
+        raise ValueError(
+            "Completed prediction artifact contains invalid seed values."
+        ) from error
+
+    if actual_seeds.ne(seed).any():
+        raise ValueError(
+            "Completed prediction artifact contains rows from an unexpected seed."
+        )
+
+    try:
+        row_indices = pd.to_numeric(
+            frame["row_index"],
+            errors="raise",
+        ).astype("int64")
+    except (TypeError, ValueError) as error:
+        raise ValueError(
+            "Completed prediction artifact contains invalid row indices."
+        ) from error
+
+    if row_indices.duplicated().any():
+        raise ValueError(
+            "Completed prediction artifact contains duplicate row indices."
+        )
+
+    actual_row_index_digest = _integer_index_digest(row_indices.tolist())
+    if actual_row_index_digest != expected_row_index_digest:
+        raise ValueError(
+            "Completed prediction artifact row indices do not match the "
+            "expected frozen test partition."
+        )
+
+    if frame["actual_class"].isna().any():
+        raise ValueError(
+            "Completed prediction artifact contains missing actual classes."
+        )
+
+    if frame["predicted_class"].isna().any():
+        raise ValueError(
+            "Completed prediction artifact contains missing predicted classes."
+        )
+
+    valid_values = frame["response_valid"].astype(str).str.lower()
+    if not valid_values.isin({"true", "false"}).all():
+        raise ValueError(
+            "Completed prediction artifact contains invalid response_valid values."
+        )
+
+    valid = valid_values.eq("true")
+    predicted = frame["predicted_class"].astype(str)
+
+    invalid_predictions = predicted[~valid].ne(INVALID_CLASS_SENTINEL)
+    if invalid_predictions.any():
+        raise ValueError(
+            "Invalid responses must use the "
+            f"{INVALID_CLASS_SENTINEL!r} predicted-class sentinel."
+        )
+
+    valid_predictions = predicted[valid]
+    if not valid_predictions.isin(set(_class_labels(frame["actual_class"]))).all():
+        raise ValueError(
+            "Completed prediction artifact contains unknown predicted classes."
+        )
 
 
-def _write_method_aggregate_artifacts(
+def _write_method_artifacts(
     *,
     paths: LLMExperimentPaths,
     method: str,
     dataset_name: str,
-    seeds: Sequence[int],
+    seed: int,
     classes: Sequence[str],
     expected_row_count: int,
     expected_row_index_digest: str,
-    seed_timings: Sequence[dict[str, object]],
-) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """Build and persist all aggregate artifacts for one method."""
-    prediction_frames: list[pd.DataFrame] = []
-    for seed in seeds:
-        frame = pd.read_csv(paths.predictions_path(method, seed))
-        _validate_completed_prediction_frame(
-            frame,
-            dataset_name=dataset_name,
-            method=method,
-            seed=seed,
-            expected_row_count=expected_row_count,
-            expected_row_index_digest=expected_row_index_digest,
-        )
-        prediction_frames.append(frame)
+) -> pd.DataFrame:
+    """Compute and persist metrics and confusion matrices for one run."""
+    prediction_path = paths.predictions_path(method)
+    frame = pd.read_csv(prediction_path)
+    _validate_completed_prediction_frame(
+        frame,
+        dataset_name=dataset_name,
+        method=method,
+        seed=seed,
+        expected_row_count=expected_row_count,
+        expected_row_index_digest=expected_row_index_digest,
+    )
 
-    metrics = pd.DataFrame(
-        [
-            _metric_row_for_seed(
-                dataset_name=dataset_name,
-                method=method,
-                seed=seed,
-                prediction_frame=frame,
-                classes=classes,
-            )
-            for seed, frame in zip(seeds, prediction_frames, strict=True)
-        ]
-    ).loc[
-        :,
-        [
-            "dataset",
-            "method",
-            "seed",
-            *METRIC_COLUMNS,
-            *ADDITIONAL_METRIC_COLUMNS,
-        ],
-    ]
+    metrics = _build_method_metrics(
+        dataset_name=dataset_name,
+        method=method,
+        seed=seed,
+        prediction_frame=frame,
+        classes=classes,
+    )
     _atomic_write_dataframe(
         paths.metrics_path(method),
         metrics,
         float_format=NUMERIC_CSV_FLOAT_FORMAT,
     )
 
-    summary = _build_method_summary(metrics)
-    _atomic_write_dataframe(paths.summary_path(method), summary)
-
-    predictions = pd.concat(prediction_frames, ignore_index=True)
-    timing = _build_method_timing(
-        predictions,
-        dataset_name=dataset_name,
-        method=method,
-        seeds=seeds,
-        seed_timings=seed_timings,
+    raw_matrix, normalized_matrix = _build_confusion_matrix_frames(
+        actual_labels=frame["actual_class"].astype(str).tolist(),
+        predicted_labels=frame["predicted_class"].astype(str).tolist(),
+        classes=classes,
     )
     _atomic_write_dataframe(
-        paths.timing_path(method),
-        timing,
+        paths.confusion_matrix_path(method),
+        raw_matrix.reset_index(),
+    )
+    _atomic_write_dataframe(
+        paths.normalized_confusion_matrix_path(method),
+        normalized_matrix.reset_index(),
         float_format=NUMERIC_CSV_FLOAT_FORMAT,
     )
-
-    for seed, frame in zip(seeds, prediction_frames, strict=True):
-        raw_matrix, normalized_matrix = _build_confusion_matrix_frames(
-            actual_labels=frame["actual_class"].astype(str).tolist(),
-            predicted_labels=frame["predicted_class"].astype(str).tolist(),
-            classes=classes,
-        )
-        _atomic_write_dataframe(
-            paths.confusion_matrix_path(method, seed),
-            raw_matrix.reset_index(),
-        )
-        _atomic_write_dataframe(
-            paths.normalized_confusion_matrix_path(method, seed),
-            normalized_matrix.reset_index(),
-            float_format=NUMERIC_CSV_FLOAT_FORMAT,
-        )
-
-    return metrics, timing
+    return metrics
 
 
 # ---------------------------------------------------------------------------
@@ -1808,7 +1625,7 @@ def _build_metadata(
             "top_p": config.top_p,
             "top_k": config.top_k,
             "max_tokens": config.max_tokens,
-            "seed_values": [int(seed) for seed in sorted(config.seeds)],
+            "seed": int(config.seed),
         },
         "few_shot": {
             "examples_per_class": config.few_shot_examples_per_class,
@@ -1936,7 +1753,7 @@ def _validate_existing_metadata(
         "top_p": config.top_p,
         "top_k": config.top_k,
         "max_tokens": config.max_tokens,
-        "seed_values": [int(seed) for seed in sorted(config.seeds)],
+        "seed": int(config.seed),
     }
     if generation != expected_generation:
         raise ValueError(
@@ -2046,12 +1863,11 @@ def _classify_test_record(
     }
 
 
-def _run_single_method_seed(
+def _run_single_method(
     *,
     client: OpenAI,
     dataset: LLMDatasetConfiguration,
     method: str,
-    seed: int,
     config: LLMInferenceConfig,
     header_line: str,
     classes: Sequence[str],
@@ -2059,10 +1875,11 @@ def _run_single_method_seed(
     paths: LLMExperimentPaths,
     system_prompt: str,
 ) -> tuple[Path, dict[str, object]]:
-    """Run or resume one LLM method/seed over the frozen test partition."""
-    prediction_path = paths.predictions_path(method, seed)
-    checkpoint_path = paths.checkpoint_path(method, seed)
-    seed_timing_path = paths.seed_timing_path(method, seed)
+    """Run or resume one LLM method using the experiment's single seed."""
+    seed = int(config.seed)
+    prediction_path = paths.predictions_path(method)
+    checkpoint_path = paths.checkpoint_path(method)
+    timing_path = paths.timing_path(method)
 
     expected_row_count = len(dataset.test_features)
     expected_row_index_digest = _integer_index_digest(dataset.test_features.index)
@@ -2086,22 +1903,20 @@ def _run_single_method_seed(
             expected_row_count=expected_row_count,
             expected_row_index_digest=expected_row_index_digest,
         )
-        if not seed_timing_path.is_file():
+        if not timing_path.is_file():
             raise FileNotFoundError(
-                "Completed LLM predictions have no seed timing artifact. "
-                "Re-run with --overwrite to create complete timing metrics."
+                "Completed LLM predictions have no timing artifact. "
+                "Re-run with --overwrite to create the complete artifact set."
             )
-        timing_payload = json.loads(seed_timing_path.read_text(encoding="utf-8"))
+        timing_payload = json.loads(timing_path.read_text(encoding="utf-8"))
         if not isinstance(timing_payload, dict):
-            raise TypeError(
-                f"Seed timing artifact '{seed_timing_path}' must contain an object."
-            )
+            raise TypeError(f"Timing artifact '{timing_path}' must contain an object.")
         return prediction_path, dict(timing_payload)
 
     if config.overwrite:
         prediction_path.unlink(missing_ok=True)
         _reset_checkpoint(checkpoint_path)
-        seed_timing_path.unlink(missing_ok=True)
+        timing_path.unlink(missing_ok=True)
 
     checkpoint_records = _checkpoint_config_matches(
         _load_checkpoint_records(checkpoint_path) if config.resume else {},
@@ -2130,7 +1945,7 @@ def _run_single_method_seed(
         record: dict[str, object],
         checkpoint_handle: Any,
     ) -> None:
-        """Persist one completed inference result in the calling thread."""
+        """Persist one completed inference result immediately."""
         nonlocal new_records
         checkpoint_handle.write(
             json.dumps(
@@ -2150,15 +1965,13 @@ def _run_single_method_seed(
     inference_start: float | None = None
     wall_clock_seconds: float | None = None
     with checkpoint_path.open("a", encoding="utf-8") as checkpoint_handle:
-        test_row_iterator = _iter_test_rows(dataset)
         inference_start = time.perf_counter()
-
         pending: set[Future[dict[str, object]]] = set()
         with ThreadPoolExecutor(
             max_workers=DEFAULT_CONCURRENT_PREDICTIONS,
             thread_name_prefix="llm",
         ) as executor:
-            for row_index, actual_class, row_line in test_row_iterator:
+            for row_index, actual_class, row_line in _iter_test_rows(dataset):
                 if row_index in existing_indices:
                     continue
                 row_text = _feature_value_block_from_csv_row(
@@ -2199,7 +2012,6 @@ def _run_single_method_seed(
                     persist_record(future.result(), checkpoint_handle)
 
         wall_clock_seconds = float(time.perf_counter() - inference_start)
-
         checkpoint_handle.flush()
         os.fsync(checkpoint_handle.fileno())
 
@@ -2207,15 +2019,15 @@ def _run_single_method_seed(
         raise RuntimeError("Could not measure the LLM inference wall-clock interval.")
 
     if new_records == 0:
-        if len(rows) == expected_row_count and seed_timing_path.is_file():
-            timing_payload = json.loads(seed_timing_path.read_text(encoding="utf-8"))
+        if len(rows) == expected_row_count and timing_path.is_file():
+            timing_payload = json.loads(timing_path.read_text(encoding="utf-8"))
             if not isinstance(timing_payload, dict):
                 raise TypeError(
-                    f"Seed timing artifact '{seed_timing_path}' must contain an object."
+                    f"Timing artifact '{timing_path}' must contain an object."
                 )
             return prediction_path, dict(timing_payload)
         raise RuntimeError(
-            "The LLM seed run produced no new records and no completed prediction "
+            "The LLM run produced no new records and no completed prediction "
             "artifact was available."
         )
 
@@ -2241,44 +2053,70 @@ def _run_single_method_seed(
         float_format=NUMERIC_CSV_FLOAT_FORMAT,
     )
 
-    request_time_values: list[float] = [
+    request_time_values = [
         float(cast(float, record["request_time_seconds"])) for record in new_record_rows
     ]
-    request_times = np.asarray(
-        request_time_values,
-        dtype=np.float64,
-    )
-    prompt_token_values: list[int] = [
+    request_times = np.asarray(request_time_values, dtype=np.float64)
+    prompt_token_values = [
         cast(int, record["prompt_tokens"])
         for record in new_record_rows
         if record["prompt_tokens"] is not None
     ]
-    completion_token_values: list[int] = [
+    completion_token_values = [
         cast(int, record["completion_tokens"])
         for record in new_record_rows
         if record["completion_tokens"] is not None
     ]
-    total_token_values: list[int] = [
+    total_token_values = [
         cast(int, record["total_tokens"])
         for record in new_record_rows
         if record["total_tokens"] is not None
     ]
     request_time_sum = sum(request_time_values)
-    request_latency_mean = request_time_sum / len(request_time_values)
+    prompt_token_sum = sum(prompt_token_values)
+    completion_token_sum = sum(completion_token_values)
+    total_token_sum = sum(total_token_values)
+    request_count = new_records
+    effective_requests_per_second = (
+        request_count / wall_clock_seconds if wall_clock_seconds > 0.0 else 0.0
+    )
     timing = {
         "dataset": dataset.dataset_name,
         "method": method,
-        "seed": int(seed),
-        "request_count": new_records,
+        "seed": seed,
+        "request_count": request_count,
         "wall_clock_seconds": wall_clock_seconds,
         "request_time_sum_seconds": float(request_time_sum),
-        "request_latency_mean_seconds": float(request_latency_mean),
+        "inference_time_per_100_samples": (
+            request_time_sum / request_count * 100.0 if request_count else 0.0
+        ),
+        "wall_clock_time_per_100_samples": (
+            wall_clock_seconds / request_count * 100.0 if request_count else 0.0
+        ),
+        "effective_requests_per_second": effective_requests_per_second,
+        "effective_samples_per_second": effective_requests_per_second,
+        "request_latency_mean_seconds": float(request_time_sum / request_count),
         "request_latency_p50_seconds": float(np.percentile(request_times, 50.0)),
         "request_latency_p95_seconds": float(np.percentile(request_times, 95.0)),
         "request_latency_max_seconds": max(request_time_values),
-        "prompt_token_sum": sum(prompt_token_values),
-        "completion_token_sum": sum(completion_token_values),
-        "total_token_sum": sum(total_token_values),
+        "average_in_flight_requests": (
+            request_time_sum / wall_clock_seconds if wall_clock_seconds > 0.0 else 0.0
+        ),
+        "prompt_tokens": prompt_token_sum,
+        "completion_tokens": completion_token_sum,
+        "total_tokens": total_token_sum,
+        "prompt_tokens_per_wall_second": (
+            prompt_token_sum / wall_clock_seconds if wall_clock_seconds > 0.0 else 0.0
+        ),
+        "completion_tokens_per_wall_second": (
+            completion_token_sum / wall_clock_seconds
+            if wall_clock_seconds > 0.0
+            else 0.0
+        ),
+        "total_tokens_per_wall_second": (
+            total_token_sum / wall_clock_seconds if wall_clock_seconds > 0.0 else 0.0
+        ),
+        "local_api_cost_usd": 0.0,
         "resumed_record_count": len(checkpoint_records),
         "timing_scope": (
             "Current invocation from first request submission through the final "
@@ -2286,7 +2124,7 @@ def _run_single_method_seed(
             "request and wall-clock counts."
         ),
     }
-    _atomic_write_json(seed_timing_path, timing)
+    _atomic_write_json(timing_path, timing)
     return prediction_path, timing
 
 
@@ -2515,12 +2353,12 @@ def run_dataset_llm_experiment(
     metadata["artifact_layout"] = {
         "zero_shot_directory": ZERO_SHOT_DIRECTORY_NAME,
         "few_shot_directory": FEW_SHOT_DIRECTORY_NAME,
-        "predictions_pattern": PREDICTIONS_FILE_PATTERN,
-        "checkpoint_pattern": CHECKPOINT_FILE_PATTERN,
+        "predictions_file": PREDICTIONS_FILE_NAME,
+        "checkpoint_file": CHECKPOINT_FILE_NAME,
         "metrics_file": METRICS_FILE_NAME,
-        "summary_file": SUMMARY_FILE_NAME,
         "timing_file": TIMING_FILE_NAME,
-        "seed_timing_pattern": SEED_TIMING_FILE_PATTERN,
+        "confusion_matrix_file": CONFUSION_MATRIX_FILE_NAME,
+        "normalized_confusion_matrix_file": NORMALIZED_CONFUSION_MATRIX_FILE_NAME,
         "llama_server_log_file": (
             LLAMA_SERVER_LOG_FILE_NAME
             if experiment_config.api_backend == "llama_server_sycl"
@@ -2561,31 +2399,25 @@ def run_dataset_llm_experiment(
                 backend=experiment_config.api_backend,
             )
             for method in normalized_methods:
-                seed_timings: list[dict[str, object]] = []
-                for seed in experiment_config.seeds:
-                    _, seed_timing = _run_single_method_seed(
-                        client=client,
-                        dataset=dataset,
-                        method=method,
-                        seed=int(seed),
-                        config=experiment_config,
-                        header_line=header_line,
-                        classes=classes,
-                        few_shot_examples=few_shot_examples,
-                        paths=paths,
-                        system_prompt=system_prompt,
-                    )
-                    seed_timings.append(seed_timing)
-
-                _write_method_aggregate_artifacts(
+                _run_single_method(
+                    client=client,
+                    dataset=dataset,
+                    method=method,
+                    config=experiment_config,
+                    header_line=header_line,
+                    classes=classes,
+                    few_shot_examples=few_shot_examples,
+                    paths=paths,
+                    system_prompt=system_prompt,
+                )
+                _write_method_artifacts(
                     paths=paths,
                     method=method,
                     dataset_name=dataset.dataset_name,
-                    seeds=experiment_config.seeds,
+                    seed=experiment_config.seed,
                     classes=classes,
                     expected_row_count=expected_row_count,
                     expected_row_index_digest=expected_row_index_digest,
-                    seed_timings=seed_timings,
                 )
     except Exception as error:
         metadata["status"] = "failed"
@@ -2674,17 +2506,16 @@ def load_llm_predictions(
     *,
     dataset_name: str,
     method: str,
-    seed: int,
     artifacts_directory: Path = ARTIFACT_ROOT,
 ) -> pd.DataFrame:
-    """Load one completed per-seed LLM prediction table."""
+    """Load the completed single-seed prediction table."""
     normalized_method = method.strip().lower()
     if normalized_method not in LLM_METHODS:
         raise ValueError(f"Unknown LLM method: {method!r}.")
     path = _llm_paths(
         dataset_name=dataset_name,
         artifacts_directory=artifacts_directory,
-    ).predictions_path(normalized_method, int(seed))
+    ).predictions_path(normalized_method)
     if not path.is_file():
         raise FileNotFoundError(f"LLM predictions artifact does not exist: '{path}'.")
     return pd.read_csv(path)
@@ -2696,7 +2527,7 @@ def load_llm_metrics(
     method: str,
     artifacts_directory: Path = ARTIFACT_ROOT,
 ) -> pd.DataFrame:
-    """Load one persisted per-method seed-metrics table."""
+    """Load the metrics table for one completed method run."""
     normalized_method = method.strip().lower()
     if normalized_method not in LLM_METHODS:
         raise ValueError(f"Unknown LLM method: {method!r}.")
@@ -2709,32 +2540,13 @@ def load_llm_metrics(
     return pd.read_csv(path)
 
 
-def load_llm_summary(
-    *,
-    dataset_name: str,
-    method: str,
-    artifacts_directory: Path = ARTIFACT_ROOT,
-) -> pd.DataFrame:
-    """Load one persisted per-method summary table."""
-    normalized_method = method.strip().lower()
-    if normalized_method not in LLM_METHODS:
-        raise ValueError(f"Unknown LLM method: {method!r}.")
-    path = _llm_paths(
-        dataset_name=dataset_name,
-        artifacts_directory=artifacts_directory,
-    ).summary_path(normalized_method)
-    if not path.is_file():
-        raise FileNotFoundError(f"LLM summary artifact does not exist: '{path}'.")
-    return pd.read_csv(path)
-
-
 def load_llm_timing(
     *,
     dataset_name: str,
     method: str,
     artifacts_directory: Path = ARTIFACT_ROOT,
-) -> pd.DataFrame:
-    """Load one persisted per-method timing table."""
+) -> dict[str, object]:
+    """Load the timing data for the single completed run."""
     normalized_method = method.strip().lower()
     if normalized_method not in LLM_METHODS:
         raise ValueError(f"Unknown LLM method: {method!r}.")
@@ -2744,7 +2556,10 @@ def load_llm_timing(
     ).timing_path(normalized_method)
     if not path.is_file():
         raise FileNotFoundError(f"LLM timing artifact does not exist: '{path}'.")
-    return pd.read_csv(path)
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        raise TypeError(f"LLM timing artifact must contain a JSON object: '{path}'.")
+    return dict(payload)
 
 
 def load_llm_few_shot_examples(
@@ -2868,33 +2683,34 @@ __all__ = [
     "ADDITIONAL_METRIC_COLUMNS",
     "CONFUSION_MATRIX_INVALID_LABEL",
     "DATASET_NAMES",
-    "DEFAULT_API_BACKEND",
     "DEFAULT_CONCURRENT_PREDICTIONS",
     "FEW_SHOT_DIRECTORY_NAME",
-    "LLM_API_BACKENDS",
     "LLM_METHODS",
-    "LLM_SEEDS",
     "METRIC_COLUMNS",
     "PREDICTION_COLUMNS",
-    "SUMMARY_FILE_NAME",
+    "PREDICTIONS_FILE_NAME",
+    "CHECKPOINT_FILE_NAME",
+    "CONFUSION_MATRIX_FILE_NAME",
+    "NORMALIZED_CONFUSION_MATRIX_FILE_NAME",
     "TIMING_FILE_NAME",
     "ZERO_SHOT_DIRECTORY_NAME",
-    "APIBackend",
     "FewShotExample",
     "LLMDatasetConfiguration",
     "LLMExperimentPaths",
     "LLMExperimentResult",
     "LLMInferenceConfig",
+    "APIBackend",
+    "DEFAULT_API_BACKEND",
+    "LLM_API_BACKENDS",
     "build_few_shot_user_prompt",
-    "build_prompt_messages",
     "build_system_prompt",
     "build_zero_shot_user_prompt",
+    "build_prompt_messages",
     "load_dataset_configuration",
     "load_llm_few_shot_examples",
     "load_llm_metadata",
     "load_llm_metrics",
     "load_llm_predictions",
-    "load_llm_summary",
     "load_llm_timing",
     "parse_classification_response",
     "run_all_llm_experiments",
