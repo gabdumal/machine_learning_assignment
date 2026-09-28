@@ -3,9 +3,12 @@
 
 = Metodologia <seção:métodos>
 
-#note_from_advisor(note: progress_note)[
+#note_from_advisor(note: done_note)[
   Esta seção deve permitir que outra pessoa reproduza o experimento. Descreva dados, preparação, modelos, comitês, abordagem com GPT/LLM quando aplicável, protocolo de avaliação, métricas, software e decisões de implementação. O trabalho exige dois datasets experimentais; datasets adicionais são opcionais. Para classificação, devem ser avaliados pelo menos três modelos clássicos adequados, além dos comitês e da comparação com GPT. Para regressão, séries temporais ou agrupamento, adapte os métodos e a etapa com GPT conforme o problema e, quando necessário, conforme orientação do professor.
 ]
+
+Esta seção descreve os procedimentos utilizados para a realização dos experimentos, desde a preparação das bases de dados até a avaliação dos modelos.
+São apresentados os conjuntos de dados utilizados, as etapas de preparação e pré-processamento, os modelos de referência, os comitês de modelos, as abordagens baseadas em modelos de linguagem, o protocolo experimental, as métricas de avaliação e os detalhes de implementação necessários para a reprodução dos experimentos.
 
 
 == Bases de dados utilizadas
