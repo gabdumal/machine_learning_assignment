@@ -1,0 +1,2 @@
+dataset,method,seed,accuracy,precision,recall,macro_f1,roc_auc,pr_auc,mcc,balanced_accuracy,test_row_count,valid_prediction_count,invalid_response_count,coverage_rate,invalid_response_rate
+ROSIDS,zero_shot,27,0.437,0.189933459094,0.227400016639,0.193114039367,,,0.0868044435049,0.227400016639,2000,2000,0,1,0

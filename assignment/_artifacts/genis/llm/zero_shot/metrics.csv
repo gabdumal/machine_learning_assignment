@@ -1,0 +1,2 @@
+dataset,method,seed,accuracy,precision,recall,macro_f1,roc_auc,pr_auc,mcc,balanced_accuracy,test_row_count,valid_prediction_count,invalid_response_count,coverage_rate,invalid_response_rate
+GENIS,zero_shot,27,0.3155,0.681527963995,0.560699056317,0.491255086718,,,0.241128084532,0.560699056317,2000,2000,0,1,0
