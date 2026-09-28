@@ -730,66 +730,44 @@ Por esse motivo, ROC-AUC e PR-AUC não são calculadas para essas abordagens, en
 
 == Implementação e reprodutibilidade
 
-#note_from_advisor[
+#note_from_advisor(note: done_note)[
   Informe linguagem, bibliotecas principais, versões, hardware relevante, sementes e demais informações necessárias para reprodução. Se utilizar API, registre a versão/modelo, data ou identificador relevante, parâmetros de geração e custo estimado. Considere disponibilizar código e instruções de execução quando possível.
 ]
 
+Os experimentos foram implementados em Python e executados em um único ambiente computacional.
+As principais informações necessárias para reproduzir os experimentos são apresentadas na @tabela:reprodutibilidade, incluindo as dependências utilizadas, as sementes dos experimentos, o hardware empregado e a configuração adotada para as inferências com o modelo de linguagem.
+
 #describe_figure(
-  figure(
-    caption: "Informações de implementação e reprodutibilidade",
+  [#figure(
+    caption: [Informações de implementação e reprodutibilidade],
     format_table(
       table(
         columns: (auto, 1fr),
+        align: (start, start),
 
-        [
-          Item
-        ],
-        [
-          Informação
-        ],
+        [Item], [Informação],
 
-        [
-          Linguagem
-        ],
-        [
-          Python 3.x / R / outra
-        ],
+        [Linguagem], [Python 3.14],
 
-        [
-          Bibliotecas
-        ],
-        [
-          scikit-learn, imbalanced-learn, XGBoost, etc.
-        ],
+        [Bibliotecas],
+        [imbalanced-learn>=0.14.2; ipython>=9.17.1; matplotlib>=3.11.2;\ numpy>=2.5.3; openai>=3.19.2; pandas>=3.0.6; scikit-learn>=1.9.1;\ seaborn>=0.13.2; xgboost>=3.4.1; ],
 
-        [
-          Semente(s)
-        ],
-        [
-          valor(es)
-        ],
+        [Semente(s)], [27, 32 e 59],
 
-        [
-          Hardware
-        ],
-        [
-          CPU/GPU e memória, quando relevante
-        ],
+        [Hardware], [AMD Ryzen 5 5600G with Radeon Graphics × 12;\ 32 GB de memória RAM a 3200 MHz],
 
-        [
-          Modelo GPT/LLM
-        ],
-        [
-          nome e versão, quando aplicável
-        ],
+        [Modelo GPT/LLM], [Gemma 4 E2B IT QAT, identificado como `gemma-4-e2b-it-qat`],
 
-        [
-          Código
-        ],
-        [
-          link ou informação de disponibilidade, se houver
-        ],
+        [Interface de inferência], [LM Studio],
+
+        [Parâmetros de geração],
+        [`temperature = 0`; `top_p = 1`; `top_k = 1`; `max_tokens = 8192`; raciocínio desabilitado],
+
+        [Código], link("https://github.com/gabdumal/machine_learning_assignment"),
       ),
     ),
-  ),
+  )<tabela:reprodutibilidade>],
 )
+
+As configurações foram mantidas fixas ao longo dos experimentos para reduzir variações introduzidas pelo ambiente de execução.
+Para o modelo de linguagem, as requisições foram realizadas localmente por meio da interface compatível com a API utilizada pelo experimento.
