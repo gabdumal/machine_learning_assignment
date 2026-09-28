@@ -30,13 +30,12 @@ A distribuição de instâncias rotuladas com cada classe é exibida na @tabela:
 Por sua vez, as características preditoras, com seus nomes, rótulos e tipos de dado, são listadas na @tabela:genis_características.
 
 #describe_figure(
-  sticky: true,
   [#figure(
     caption: [Distribuição de instâncias da base de dados #glossarium.gls-short("genis")],
     format_table(table(
       columns: (1fr, 1fr, 1fr, 1fr),
 
-      [Partição], [Classe], [Instâncias], [Proporção],
+      table.header([Partição], [Classe], [Instâncias], [Proporção]),
 
       table.cell(rowspan: 5)[Treino],
       table.cell()[#get_term("dos")],
@@ -95,7 +94,6 @@ Por sua vez, as características preditoras, com seus nomes, rótulos e tipos de
     )),
   ) <tabela:genis_distribuição>],
 )
-
 
 #describe_figure(
   [#figure(
@@ -211,6 +209,186 @@ Um exemplo é a característica #foreign_text[Source Application Bytes], cuja di
         "/assets/images/source_application_bytes_histogram.png",
       ),
     )<figura:histograma_source_application_bytes>
+  ],
+)
+
+
+=== #glossarium.gls("rosids")
+
+Os autores da base de dados @degirmenci:2023:rosids23_network_intrusion disponibilizaram os dados no arquivo `ROSIDS23.csv`.
+A partir desse arquivo, realizamos a preparação dos dados e a divisão estratificada em partições de treino e teste na proporção de 80% e 20%, respectivamente.
+
+A variável-alvo, chamada de #foreign_text[Label], é identificada pelo rótulo `label` e é do tipo categórico.
+A distribuição de instâncias rotuladas com cada classe é exibida na @tabela:rosids_distribuição.
+Por sua vez, as 66 características preditoras, com seus nomes, rótulos e tipos de dado, são listadas na @tabela:rosids_características.
+
+#describe_figure(
+  [
+    #figure(caption: [Distribuição de instâncias da base de dados #glossarium.gls-short("rosids")], format_table(table(
+      columns: (1fr, 1fr, 1fr, 1fr),
+
+      table.header([Partição], [Classe], [Instâncias], [Proporção]),
+
+      table.cell(rowspan: 6)[Treino],
+      table.cell()[Benign],
+      table.cell()[50 008],
+      table.cell()[45,73%],
+      table.cell()[DoS],
+      table.cell()[24 800],
+      table.cell()[22,68%],
+      table.cell()[Subflood],
+      table.cell()[24 051],
+      table.cell()[22,00%],
+      table.cell()[UnauthPub],
+      table.cell()[6 254],
+      table.cell()[5,72%],
+      table.cell()[UnauthSub],
+      table.cell()[4 231],
+      table.cell()[3,87%],
+      table.cell()[*Total*],
+      table.cell()[109 344],
+      table.cell()[100%],
+
+      table.hline(stroke: 0.5pt),
+
+      table.cell(rowspan: 6)[Teste],
+      table.cell()[Benign],
+      table.cell()[12 503],
+      table.cell()[45,74%],
+      table.cell()[DoS],
+      table.cell()[6 200],
+      table.cell()[22,68%],
+      table.cell()[Subflood],
+      table.cell()[6 013],
+      table.cell()[22,00%],
+      table.cell()[UnauthPub],
+      table.cell()[1 563],
+      table.cell()[5,72%],
+      table.cell()[UnauthSub],
+      table.cell()[1 058],
+      table.cell()[3,87%],
+      table.cell()[*Total*],
+      table.cell()[27 337],
+      table.cell()[100%],
+
+      table.hline(stroke: 0.5pt),
+
+      table.cell(rowspan: 6)[Agrupado],
+      table.cell()[Benign],
+      table.cell()[62 511],
+      table.cell()[45,73%],
+      table.cell()[DoS],
+      table.cell()[31 000],
+      table.cell()[22,68%],
+      table.cell()[Subflood],
+      table.cell()[30 064],
+      table.cell()[22,00%],
+      table.cell()[UnauthPub],
+      table.cell()[7 817],
+      table.cell()[5,72%],
+      table.cell()[UnauthSub],
+      table.cell()[5 289],
+      table.cell()[3,87%],
+      table.cell()[*Total*],
+      table.cell()[136 681],
+      table.cell()[100%],
+    ))) <tabela:rosids_distribuição>],
+)
+
+#describe_figure(
+  [
+    #figure(caption: [Características selecionadas da base de dados #glossarium.gls("rosids")], format_table(table(
+      columns: (2.2fr, 2.5fr, 1fr),
+      align: (start + top, start + top, start + top),
+
+      table.header([Nome], [Rótulo], [Tipo de dado]),
+
+      [Source Port Category], [source_port_category], [Categórico],
+      [Destination Port Category], [destination_port_category], [Categórico],
+      [Protocol], [protocol], [Categórico],
+      [Flow Duration], [flow_duration], [Numérico],
+      [Total Forward Packets], [total_forward_packets], [Numérico],
+      [Total Backward Packets], [total_backward_packets], [Numérico],
+      [Total Forward Packet Length], [total_forward_packet_length], [Numérico],
+      [Total Backward Packet Length], [total_backward_packet_length], [Numérico],
+      [Maximum Forward Packet Length], [forward_packet_length_maximum], [Numérico],
+      [Minimum Forward Packet Length], [forward_packet_length_minimum], [Numérico],
+      [Mean Forward Packet Length], [forward_packet_length_mean], [Numérico],
+      [Forward Packet Length Standard Deviation], [forward_packet_length_standard_deviation], [Numérico],
+      [Maximum Backward Packet Length], [backward_packet_length_maximum], [Numérico],
+      [Minimum Backward Packet Length], [backward_packet_length_minimum], [Numérico],
+      [Mean Backward Packet Length], [backward_packet_length_mean], [Numérico],
+      [Backward Packet Length Standard Deviation], [backward_packet_length_standard_deviation], [Numérico],
+      [Flow Bytes per Second], [flow_bytes_per_second], [Numérico],
+      [Flow Packets per Second], [flow_packets_per_second], [Numérico],
+      [Mean Flow Inter-Arrival Time], [flow_inter_arrival_time_mean], [Numérico],
+      [Flow Inter-Arrival Time Standard Deviation], [flow_inter_arrival_time_standard_deviation], [Numérico],
+      [Maximum Flow Inter-Arrival Time], [flow_inter_arrival_time_maximum], [Numérico],
+      [Minimum Flow Inter-Arrival Time], [flow_inter_arrival_time_minimum], [Numérico],
+      [Total Forward Inter-Arrival Time], [forward_inter_arrival_time_total], [Numérico],
+      [Mean Forward Inter-Arrival Time], [forward_inter_arrival_time_mean], [Numérico],
+      [Forward Inter-Arrival Time Standard Deviation], [forward_inter_arrival_time_standard_deviation], [Numérico],
+      [Maximum Forward Inter-Arrival Time], [forward_inter_arrival_time_maximum], [Numérico],
+      [Minimum Forward Inter-Arrival Time], [forward_inter_arrival_time_minimum], [Numérico],
+      [Total Backward Inter-Arrival Time], [backward_inter_arrival_time_total], [Numérico],
+      [Mean Backward Inter-Arrival Time], [backward_inter_arrival_time_mean], [Numérico],
+      [Backward Inter-Arrival Time Standard Deviation], [backward_inter_arrival_time_standard_deviation], [Numérico],
+      [Maximum Backward Inter-Arrival Time], [backward_inter_arrival_time_maximum], [Numérico],
+      [Minimum Backward Inter-Arrival Time], [backward_inter_arrival_time_minimum], [Numérico],
+      [Backward PSH Flag Count], [backward_push_flag_count], [Numérico],
+      [Forward Header Length], [forward_header_length], [Numérico],
+      [Backward Header Length], [backward_header_length], [Numérico],
+      [Forward Packets per Second], [forward_packets_per_second], [Numérico],
+      [Backward Packets per Second], [backward_packets_per_second], [Numérico],
+      [Minimum Packet Length], [packet_length_minimum], [Numérico],
+      [Maximum Packet Length], [packet_length_maximum], [Numérico],
+      [Mean Packet Length], [packet_length_mean], [Numérico],
+      [Packet Length Standard Deviation], [packet_length_standard_deviation], [Numérico],
+      [Packet Length Variance], [packet_length_variance], [Numérico],
+      [FIN Flag Count], [fin_flag_count], [Numérico],
+      [SYN Flag Count], [syn_flag_count], [Numérico],
+      [RST Flag Count], [rst_flag_count], [Numérico],
+      [PSH Flag Count], [psh_flag_count], [Numérico],
+      [ACK Flag Count], [ack_flag_count], [Numérico],
+      [Downstream-to-Upstream Ratio], [down_up_ratio], [Numérico],
+      [Average Packet Size], [packet_size_average], [Numérico],
+      [Average Forward Segment Size], [forward_segment_size_average], [Numérico],
+      [Average Backward Segment Size], [backward_segment_size_average], [Numérico],
+      [Subflow Forward Packets], [subflow_forward_packets], [Numérico],
+      [Subflow Forward Bytes], [subflow_forward_bytes], [Numérico],
+      [Subflow Backward Packets], [subflow_backward_packets], [Numérico],
+      [Subflow Backward Bytes], [subflow_backward_bytes], [Numérico],
+      [Initial Backward Window Bytes], [initial_backward_window_bytes], [Numérico],
+      [Forward Active Data Packets], [forward_active_data_packets], [Numérico],
+      [Mean Active Time], [active_mean], [Numérico],
+      [Active Time Standard Deviation], [active_standard_deviation], [Numérico],
+      [Maximum Active Time], [active_maximum], [Numérico],
+      [Minimum Active Time], [active_minimum], [Numérico],
+      [Mean Idle Time], [idle_mean], [Numérico],
+      [Idle Time Standard Deviation], [idle_standard_deviation], [Numérico],
+      [Maximum Idle Time], [idle_maximum], [Numérico],
+      [Minimum Idle Time], [idle_minimum], [Numérico],
+    ))) <tabela:rosids_características>],
+)
+
+Não foram identificadas linhas duplicadas.
+Na característica #foreign_text[Flow Bytes per Second], foram identificados 272 valores ausentes e 3 valores incorretamente atribuídos como infinito.
+Além disso, destaca-se a característica #foreign_text[Initial Backward Window Bytes], que apresenta o valor `-1` como indicador de valor ausente em 1.263 registros.
+
+Similarmente às características da base de dados #glossarium.gls("genis"), muitos atributos apresentam uma variação muito expressiva no valor, o que requer cuidado com outliers.
+A característica #foreign_text[Flow Bytes per Second] serve como exemplo desse fenômeno, como é mostrado na @figura:histograma_flow_bytes_per_second.
+
+#describe_figure(
+  sticky: true,
+  [
+    #figure(
+      caption: [
+        Histograma por classes-alvo da característica Flow Bytes per Second
+      ],
+      image(
+        "/assets/images/flow_bytes_per_second_histogram.png",
+      ),
+    )<figura:histograma_flow_bytes_per_second>
   ],
 )
 
