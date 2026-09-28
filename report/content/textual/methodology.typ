@@ -470,40 +470,62 @@ Dado que nenhuma dessas transformações utilizou informações descobertas na b
 
 == Protocolo experimental
 
-#note_from_advisor[
+#note_from_advisor(note: done_note)[
   Descreva como treino, validação e teste foram separados. Para classificação, utilize validação cruzada estratificada quando apropriado. Quando houver grupos naturais, mantenha todas as amostras do mesmo grupo na mesma partição. Para séries temporais, preserve a ordem temporal e use validação compatível com previsão. Pré-processamento, seleção de características, balanceamento e ajuste de hiperparâmetros devem ocorrer dentro do pipeline de treinamento. Informe sementes e número de repetições quando houver aleatoriedade relevante. Se usar repeated k-fold, deixe claro como as predições out-of-fold são agregadas e como os resultados entre repetições são resumidos.
 ]
 
-#note_from_advisor(note: todo_note)[
+#note_from_advisor(note: done_note)[
   Descreva detalhadamente o protocolo de validação e comparação.
 ]
 
-A etapa de validação cruzada foi estruturada como um #get_term("pipeline") composto por três operações principais: pré-processamento das características, balanceamento das classes e treinamento do classificador.
-O primeiro estágio é realizado por meio de um `ColumnTransformer`, que separa as características numéricas e categóricas e descarta qualquer coluna que não pertença explicitamente a esses grupos.
+O protocolo experimental foi organizado a partir de partições de treinamento e teste previamente definidas para cada base de dados.
+A partição de teste permaneceu separada durante toda a etapa de validação e seleção dos modelos.
+A validação cruzada foi realizada exclusivamente sobre a partição de treinamento, enquanto os modelos finais foram avaliados no conjunto de teste somente após a definição da configuração de cada modelo.
 
-Para as características numéricas, o #get_term("pipeline") substitui inicialmente valores infinitos por `NaN` e, em seguida, realiza a imputação pela mediana.
-Não foi aplicada normalização ou padronização às características numéricas.
-Para as características categóricas, os valores ausentes são substituídos pela categoria mais frequente e, posteriormente, é aplicado #foreign_text[one-hot encoding].
+A etapa de validação utiliza um pipeline de classificação composto por pré-processamento das características, balanceamento das classes e treinamento do classificador.
+O pré-processamento é realizado por meio de um `ColumnTransformer`, que separa as características numéricas e categóricas e descarta as demais colunas.
+Para as características numéricas, valores infinitos são convertidos para `NaN` e os valores ausentes são posteriormente substituídos pela mediana calculada nos dados de treinamento.
+Não é aplicada normalização ou padronização.
+Para as características categóricas, os valores ausentes são substituídos pela categoria mais frequente e, em seguida, as categorias são transformadas por one-hot encoding, mantendo uma representação consistente para categorias não observadas durante o treinamento.
 
-O #get_term("pipeline") contém uma etapa de balanceamento que pode ser: `passthrough`, mantendo a distribuição original das classes, ou `random_over_sampler`.
-Essa segunda aplica o algoritmo #foreign_text[Random Over Sampler] da biblioteca `imblearn`.
-Dado que o balanceamento pode alterar a definição dos hiperparâmetros ideias para um modelo, sua seleção faz parte da validação cruzada.
+O balanceamento das classes pode assumir duas configurações: `passthrough`, que mantém a distribuição original, ou `random_over_sampler`.
+Quando essa segunda configuração é utilizada, a amostragem é realizada somente sobre os dados de treinamento do fold, depois da aplicação do pré-processamento.
+Os dados de validação permanecem sem alteração na sua distribuição original.
+Como a escolha entre utilizar ou não o balanceamento pode influenciar o desempenho e os hiperparâmetros adequados ao classificador, essa decisão também faz parte do espaço de configurações avaliado durante a validação cruzada.
 
-Na validação cruzada, foram utilizados três #get_term("fold", plural: true) estratificados, com embaralhamento das instâncias.
-Em cada um, as instâncias são separadas em subconjuntos de treinamento e validação (k-fold).
-O processo de validação é executado três vezes distintas, utilizando as #get_term("seed", plural: true): 27, 32, e 59.
-Os resultados são agrupados para melhor representação.
+A validação cruzada utiliza três folds estratificados, com embaralhamento das instâncias.
+Foram realizadas três repetições do procedimento, utilizando as #get_term("seed", plural: true) 27, 32 e 59.
+Assim, cada configuração é avaliada em nove folds ao todo, correspondentes aos três folds de cada uma das três #get_term("seed", plural: true).
+Em cada fold, uma parte da partição de treinamento é utilizada para ajustar o pré-processamento e o classificador, enquanto a parte restante é utilizada exclusivamente para validação.
 
-Quando a configuração selecionada utiliza o `random_over_sampler`, o balanceamento é aplicado somente aos dados de treinamento já transformados.
-O conjunto de validação não é submetido à amostragem e permanece com sua distribuição original das classes.
+O ajuste do pré-processamento é realizado de forma independente em cada fold.
+Dessa forma, parâmetros obtidos a partir dos dados, como a mediana utilizada na imputação e as categorias identificadas pelo codificador, são calculados somente a partir da parcela de treinamento daquele fold.
+Posteriormente, essa transformação é aplicada à parcela de validação correspondente.
+Quando configurado, o `RandomOverSampler` também utiliza somente os dados de treinamento do fold, evitando que informações da validação participem do ajuste do modelo.
 
-Para cada combinação de hiperparâmetros, o modelo é ajustado sobre os dados de treinamento do #get_term("fold").
-São calculadas as métricas #foreign_text[accuracy], #foreign_text[precision], #foreign_text[recall], #foreign_text[macro F1], #foreign_text[ROC-AUC], #foreign_text[PR-AUC], #foreign_text[MCC] e #foreign_text[balanced accuracy].
+Para cada combinação de hiperparâmetros, são calculadas as métricas accuracy, precision, recall, Macro F1, ROC-AUC, PR-AUC, MCC e balanced accuracy.
+Para cada #get_term("seed"), os valores obtidos nos três folds são promediados, produzindo um resultado de validação por #get_term("seed") para cada configuração.
+Em seguida, os resultados das três #get_term("seed", plural: true) são agregados pela média e pelo desvio-padrão.
+A configuração selecionada é aquela que apresenta o maior Macro F1 médio entre as #get_term("seed", plural: true).
 
-A configuração a ser utilizada para o treinamento definitivo é selecionada segundo a média da métrica #foreign_text[macro F1] obtida entre os #get_term("fold", plural: true) e as diferentes #get_term("seed", plural: true) fixadas para o experimento.
+Após a seleção da configuração, o modelo é treinado novamente utilizando toda a partição de treinamento.
+Esse treinamento definitivo é realizado separadamente para cada uma das três #get_term("seed", plural: true), mantendo a configuração selecionada para o respectivo classificador.
+Nenhuma decisão de seleção ou ajuste é realizada a partir dos resultados do conjunto de teste.
 
-Esse procedimento mantém o conjunto de teste completamente separado da seleção de hiperparâmetros.
-Após a conclusão da validação, a configuração selecionada é ajustada sobre toda a partição de treinamento.
+A avaliação final utiliza os modelos treinados na etapa anterior sobre as respectivas partições de teste.
+Para cada semente, são obtidas as classes previstas e as probabilidades das classes, a partir das quais são calculadas as métricas finais e a matriz de confusão.
+Os resultados entre as três #get_term("seed", plural: true) são posteriormente resumidos por média e desvio-padrão.
+
+
+== Métricas de avaliação
+
+#note_from_advisor[
+  Escolha métricas adequadas à tarefa e ao custo dos erros. Para classificação, a descrição do trabalho requer no mínimo acurácia, precisão, revocação, F-scores, AUC-ROC e matriz de confusão, podendo incluir AUC-PR, MCC, balanced accuracy ou outras métricas relevantes. Para regressão, use ao menos MAE e MSE, além de $R^2$ quando apropriado. Para agrupamento, inclua Silhouette e outras medidas justificadas. Use exatamente as mesmas métricas para comparar modelos clássicos e GPT quando a comparação for aplicável.
+]
+
+#note_from_advisor(note: todo_note)[
+  Defina as métricas usadas e justifique sua escolha.
+]
 
 
 == Modelos de referência
@@ -689,16 +711,6 @@ Os exemplos few-shot são selecionados antes da inferência a partir exclusivame
 As respostas do modelo são categóricas, sem uma distribuição de probabilidades por classe.
 Por esse motivo, ROC-AUC e PR-AUC não são calculadas para essas abordagens, enquanto as demais métricas de classificação são obtidas a partir dos rótulos previstos.
 
-
-== Métricas de avaliação
-
-#note_from_advisor[
-  Escolha métricas adequadas à tarefa e ao custo dos erros. Para classificação, a descrição do trabalho requer no mínimo acurácia, precisão, revocação, F-scores, AUC-ROC e matriz de confusão, podendo incluir AUC-PR, MCC, balanced accuracy ou outras métricas relevantes. Para regressão, use ao menos MAE e MSE, além de $R^2$ quando apropriado. Para agrupamento, inclua Silhouette e outras medidas justificadas. Use exatamente as mesmas métricas para comparar modelos clássicos e GPT quando a comparação for aplicável.
-]
-
-#note_from_advisor(note: todo_note)[
-  Defina as métricas usadas e justifique sua escolha.
-]
 
 == Implementação e reprodutibilidade
 
