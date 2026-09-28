@@ -56,6 +56,7 @@ from typing import Any, Final, Literal, cast
 import numpy as np
 import pandas as pd
 from openai import OpenAI
+from openai.types.chat import ChatCompletionMessageParam
 from sklearn.metrics import (
     accuracy_score,
     confusion_matrix,
@@ -84,6 +85,7 @@ from pipeline.llm_api import (
     create_api_client,
     api_backend_configuration,
     api_configuration,
+    build_chat_messages,
     request_completion,
     running_api,
     validate_api_model,
@@ -113,7 +115,7 @@ PROMPT_VERSION: Final[str] = "dataset-specific-classification-v6"
 
 
 DEFAULT_FEW_SHOT_EXAMPLES_PER_CLASS: Final[int] = 3
-DEFAULT_CHECKPOINT_FLUSH_EVERY: Final[int] = 5
+DEFAULT_CHECKPOINT_FLUSH_EVERY: Final[int] = 1
 
 DATASET_NAMES: Final[tuple[str, ...]] = ("genis", "rosids")
 LLM_METHODS: Final[tuple[str, ...]] = ("zero_shot", "few_shot")
@@ -983,10 +985,37 @@ def _build_rosids_system_guidance(classes: Sequence[str]) -> tuple[str, ...]:
     )
 
 
+def _build_few_shot_system_context(
+    *,
+    examples: Sequence[FewShotExample],
+    schema: TransformedDatasetSchema,
+) -> str:
+    """Build the fixed few-shot context included in the system prompt."""
+    demonstration_blocks: list[str] = []
+    for example in examples:
+        feature_values = _feature_value_block_from_csv_row(example.csv_row, schema)
+        demonstration_blocks.append(
+            f"Example {example.example_number}:\n"
+            f"{feature_values}\n"
+            f"Target: {example.target_class}"
+        )
+    demonstrations = "\n\n".join(demonstration_blocks)
+    return (
+        "Few-shot training examples:\n"
+        "Use the labeled training examples as additional evidence for "
+        "classifying the new network-flow record. Infer relationships between "
+        "feature patterns and target labels, but classify the new record from "
+        "its own observed values.\n\n"
+        f"{demonstrations}"
+    )
+
+
 def build_system_prompt(
     dataset_name: str,
     classes: Sequence[str],
     schema: TransformedDatasetSchema,
+    *,
+    few_shot_examples: Sequence[FewShotExample] | None = None,
 ) -> str:
     """Build a dataset-specific system prompt with a stable feature glossary."""
     normalized_dataset = _normalize_dataset_name(dataset_name)
@@ -1010,15 +1039,27 @@ def build_system_prompt(
         "Do not use a single feature as a deterministic rule unless the overall "
         "traffic pattern supports it. "
     )
-    return (
-        common
-        + "\n\n"
-        + "\n".join(guidance)
-        + "\n\n"
-        + "\n".join(feature_definitions)
-        + "\n\nThink through the classification internally, then return "
-        "exactly one allowed target label as the final answer and nothing else."
+
+    sections = [
+        common,
+        "\n".join(guidance),
+        "\n".join(feature_definitions),
+    ]
+    if few_shot_examples is not None:
+        if not few_shot_examples:
+            raise ValueError("few_shot_examples must not be empty when provided.")
+        sections.append(
+            _build_few_shot_system_context(
+                examples=few_shot_examples,
+                schema=schema,
+            )
+        )
+
+    sections.append(
+        "Think through the classification internally, then return exactly one "
+        "allowed target label as the final answer and nothing else."
     )
+    return "\n\n".join(sections)
 
 
 def _build_zero_shot_prompt_prefix() -> str:
@@ -1031,46 +1072,17 @@ def build_zero_shot_user_prompt(*, row_text: str) -> str:
     return _build_zero_shot_prompt_prefix() + f"{row_text}\n"
 
 
-def _build_few_shot_prompt_prefix(
-    *,
-    examples: Sequence[FewShotExample],
-    schema: TransformedDatasetSchema,
-) -> str:
-    """Build the invariant portion of a few-shot prompt."""
-    demonstration_blocks: list[str] = []
-    for example in examples:
-        feature_values = _feature_value_block_from_csv_row(example.csv_row, schema)
-        demonstration_blocks.append(
-            f"Example {example.example_number}:\n"
-            f"{feature_values}\n"
-            f"Target: {example.target_class}"
-        )
-    demonstrations = "\n\n".join(demonstration_blocks)
-    return (
-        "Use the labeled training examples as additional evidence for "
-        "classifying the new network-flow record. Infer relationships between "
-        "feature patterns and target labels, but classify the new record from "
-        "its own observed values.\n\n"
-        f"{demonstrations}\n\n"
-        "Classify this new network-flow record.\n\n"
-        "Feature values:\n"
-    )
-
-
 def build_few_shot_user_prompt(
     *,
     examples: Sequence[FewShotExample],
     schema: TransformedDatasetSchema,
     row_text: str,
 ) -> str:
-    """Build one few-shot user prompt from persisted training demonstrations."""
-    return (
-        _build_few_shot_prompt_prefix(
-            examples=examples,
-            schema=schema,
-        )
-        + f"{row_text}\n"
-    )
+    """Build the variable user prompt for a few-shot classification request."""
+    if not examples:
+        raise ValueError("examples must not be empty.")
+    _ = schema
+    return _build_zero_shot_prompt_prefix() + f"{row_text}\n"
 
 
 def build_prompt_messages(
@@ -1083,7 +1095,7 @@ def build_prompt_messages(
     test_sample_seed: int = SEED,
     few_shot_examples_per_class: int = DEFAULT_FEW_SHOT_EXAMPLES_PER_CLASS,
     few_shot_selection_seed: int = SEED,
-) -> tuple[str, tuple[dict[str, str], ...]]:
+) -> tuple[str, tuple[ChatCompletionMessageParam, ...]]:
     """Build the exact chat messages for one frozen test record."""
     normalized_dataset = _normalize_dataset_name(dataset_name)
     normalized_method = method.strip().lower()
@@ -1140,11 +1152,6 @@ def build_prompt_messages(
         row_position = int(matching_positions[0])
 
     classes = _class_labels(dataset.train_target)
-    system_prompt = build_system_prompt(
-        normalized_dataset,
-        classes,
-        dataset.schema,
-    )
 
     test_row = dataset.test_features.iloc[row_position]
     actual_class = str(dataset.test_target.iloc[row_position])
@@ -1154,6 +1161,11 @@ def build_prompt_messages(
     )
 
     if normalized_method == ZERO_SHOT_DIRECTORY_NAME:
+        system_prompt = build_system_prompt(
+            normalized_dataset,
+            classes,
+            dataset.schema,
+        )
         user_prompt = build_zero_shot_user_prompt(row_text=row_text)
     else:
         few_shot_examples = select_few_shot_examples(
@@ -1163,15 +1175,21 @@ def build_prompt_messages(
             examples_per_class=few_shot_examples_per_class,
             selection_seed=few_shot_selection_seed,
         )
+        system_prompt = build_system_prompt(
+            normalized_dataset,
+            classes,
+            dataset.schema,
+            few_shot_examples=few_shot_examples,
+        )
         user_prompt = build_few_shot_user_prompt(
             examples=few_shot_examples,
             schema=dataset.schema,
             row_text=row_text,
         )
 
-    messages = (
-        {"role": "system", "content": system_prompt},
-        {"role": "user", "content": user_prompt},
+    messages = build_chat_messages(
+        system_prompt=system_prompt,
+        user_prompt=user_prompt,
     )
     return actual_class, messages
 
@@ -1932,14 +1950,7 @@ def _run_single_method(
     ]
     new_records = 0
     new_record_rows: list[dict[str, object]] = []
-    prompt_prefix = (
-        _build_zero_shot_prompt_prefix()
-        if method == ZERO_SHOT_DIRECTORY_NAME
-        else _build_few_shot_prompt_prefix(
-            examples=few_shot_examples,
-            schema=dataset.schema,
-        )
-    )
+    prompt_prefix = _build_zero_shot_prompt_prefix()
 
     def persist_record(
         record: dict[str, object],
@@ -2334,10 +2345,16 @@ def run_dataset_llm_experiment(
         schema=dataset.schema,
     )
 
-    system_prompt = build_system_prompt(
+    zero_shot_system_prompt = build_system_prompt(
         normalized_dataset,
         classes,
         dataset.schema,
+    )
+    few_shot_system_prompt = build_system_prompt(
+        normalized_dataset,
+        classes,
+        dataset.schema,
+        few_shot_examples=few_shot_examples,
     )
     metadata = _build_metadata(
         dataset=dataset,
@@ -2349,7 +2366,11 @@ def run_dataset_llm_experiment(
     )
     metadata["status"] = "running"
     metadata["methods"] = list(normalized_methods)
-    metadata["system_prompt"] = system_prompt
+    metadata["system_prompt"] = zero_shot_system_prompt
+    metadata["system_prompts"] = {
+        ZERO_SHOT_DIRECTORY_NAME: zero_shot_system_prompt,
+        FEW_SHOT_DIRECTORY_NAME: few_shot_system_prompt,
+    }
     metadata["artifact_layout"] = {
         "zero_shot_directory": ZERO_SHOT_DIRECTORY_NAME,
         "few_shot_directory": FEW_SHOT_DIRECTORY_NAME,
@@ -2399,6 +2420,11 @@ def run_dataset_llm_experiment(
                 backend=experiment_config.api_backend,
             )
             for method in normalized_methods:
+                method_system_prompt = (
+                    few_shot_system_prompt
+                    if method == FEW_SHOT_DIRECTORY_NAME
+                    else zero_shot_system_prompt
+                )
                 _run_single_method(
                     client=client,
                     dataset=dataset,
@@ -2408,7 +2434,7 @@ def run_dataset_llm_experiment(
                     classes=classes,
                     few_shot_examples=few_shot_examples,
                     paths=paths,
-                    system_prompt=system_prompt,
+                    system_prompt=method_system_prompt,
                 )
                 _write_method_artifacts(
                     paths=paths,

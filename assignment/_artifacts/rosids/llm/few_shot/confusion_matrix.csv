@@ -1,0 +1,7 @@
+actual_class,Benign,DoS,Subflood,UnauthPub,UnauthSub,<invalid>
+Benign,315,16,175,117,291,0
+DoS,0,453,0,0,0,0
+Subflood,6,5,399,12,20,0
+UnauthPub,27,0,14,41,32,0
+UnauthSub,24,0,27,4,22,0
+<invalid>,0,0,0,0,0,0
