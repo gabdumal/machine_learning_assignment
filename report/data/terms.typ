@@ -139,6 +139,11 @@
     key: "seed",
     short: foreign_text[seed],
   ),
+  (
+    key: "fold",
+    short: foreign_text[fold],
+    plural: foreign_text[folds],
+  ),
 )
 
 

@@ -395,11 +395,11 @@ A característica #foreign_text[Flow Bytes per Second] serve como exemplo desse 
 
 == Preparação e pré-processamento
 
-#note_from_advisor[
+#note_from_advisor(note: done_note)[
   Explique limpeza, tratamento de dados ausentes, codificação, normalização, seleção de características e balanceamento, quando aplicável. Toda transformação que aprende informação dos dados deve ser ajustada apenas no conjunto de treinamento de cada partição/fold. Oversampling, undersampling e SMOTE, por exemplo, devem ser aplicados somente ao treino. Evite qualquer vazamento de informação do conjunto de avaliação.
 ]
 
-#note_from_advisor(note: todo_note)[
+#note_from_advisor(note: done_note)[
   Descreva o pipeline de preparação e pré-processamento dos dados.
 ]
 
@@ -467,9 +467,34 @@ Logo, essas entradas foram imputadas com o tipo NaN do `pandas`.
 As transformações foram aplicadas deterministicamente sobre as partições de treino e de teste.
 Dado que nenhuma dessas transformações utilizou informações descobertas na base, o tratamento não configura leakage.
 
-Em relação a métodos de balanceamento das classes-alvo, decidimos aplicar o algoritmo de #foreign_text[Random Over Sampler], disponibilizado pela biblioteca `imblearn`.
-Ele é responsável por selecionar amostras aleatoriamente a partir de uma #get_term("seed") fixa, garantindo uma representação igualitária das classes da variável-alvo.
-Uma vez que o balanceamento pode alterar a seleção dos hiperparâmetros ideais para um modelo, ela foi realizada dentro do #get_term("pipeline") de validação cruzada.
+=== #get_term("pipeline", capitalize: true)
+
+A etapa de validação cruzada foi estruturada como um #get_term("pipeline") composto por três operações principais: pré-processamento das características, balanceamento das classes e treinamento do classificador.
+O primeiro estágio é realizado por meio de um `ColumnTransformer`, que separa as características numéricas e categóricas e descarta qualquer coluna que não pertença explicitamente a esses grupos.
+
+Para as características numéricas, o #get_term("pipeline") substitui inicialmente valores infinitos por `NaN` e, em seguida, realiza a imputação pela mediana.
+Não foi aplicada normalização ou padronização às características numéricas.
+Para as características categóricas, os valores ausentes são substituídos pela categoria mais frequente e, posteriormente, é aplicado #foreign_text[one-hot encoding].
+
+O #get_term("pipeline") contém uma etapa de balanceamento que pode ser: `passthrough`, mantendo a distribuição original das classes, ou `random_over_sampler`.
+Essa segunda aplica o algoritmo #foreign_text[Random Over Sampler] da biblioteca `imblearn`.
+Dado que o balanceamento pode alterar a definição dos hiperparâmetros ideias para um modelo, sua seleção faz parte da validação cruzada.
+
+Na validação cruzada, foram utilizados três #get_term("fold", plural: true) estratificados, com embaralhamento das instâncias.
+Em cada um, as instâncias são separadas em subconjuntos de treinamento e validação (k-fold).
+O processo de validação é executado três vezes distintas, utilizando as #get_term("seed", plural: true): 27, 32, e 59.
+Os resultados são agrupados para melhor representação.
+
+Quando a configuração selecionada utiliza o `random_over_sampler`, o balanceamento é aplicado somente aos dados de treinamento já transformados.
+O conjunto de validação não é submetido à amostragem e permanece com sua distribuição original das classes.
+
+Para cada combinação de hiperparâmetros, o modelo é ajustado sobre os dados de treinamento do #get_term("fold").
+São calculadas as métricas #foreign_text[accuracy], #foreign_text[precision], #foreign_text[recall], #foreign_text[macro F1], #foreign_text[ROC-AUC], #foreign_text[PR-AUC], #foreign_text[MCC] e #foreign_text[balanced accuracy].
+
+A configuração a ser utilizada para o treinamento definitivo é selecionada segundo a média da métrica #foreign_text[macro F1] obtida entre os #get_term("fold", plural: true) e as diferentes #get_term("seed", plural: true) fixadas para o experimento.
+
+Esse procedimento mantém o conjunto de teste completamente separado da seleção de hiperparâmetros.
+Após a conclusão da validação, a configuração selecionada é ajustada sobre toda a partição de treinamento.
 
 
 == Modelos de referência
