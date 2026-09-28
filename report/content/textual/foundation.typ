@@ -44,14 +44,13 @@ A escolha entre essas formulações depende da definição das classes e da estr
 
 == Bases de dados e benchmarks do domínio
 
-#note_from_advisor(note: progress_note)[
+#note_from_advisor(note: done_note)[
   Apresente brevemente 2--3 bases de dados conhecidas ou representativas do problema, mesmo que nem todas sejam usadas nos experimentos. Para cada uma, destaque finalidade, tipo de dado, dimensão aproximada, classes/alvo e particularidades relevantes. Cite a fonte original da base sempre que possível.
 ]
 
 #note_from_advisor(note: done_note)[
   Descreva bases de dados ou benchmarks relevantes para o tema.
 ]
-
 
 As bases de dados utilizadas em pesquisas de detecção de intrusões diferem quanto ao ambiente representado, à forma de coleta, às características extraídas e às classes consideradas.
 Esta seção apresenta três bases representativas de diferentes contextos: o #glossarium.gls("genis"), voltado a redes corporativas, o #glossarium.gls("rosids"), voltado a sistemas baseados em #glossarium.gls("ros"), e o conjunto de dados de #get_term("westermo"), voltado a redes de comunicação industrial.
@@ -277,10 +276,32 @@ Além disso, é salvo qual evento estava sendo executado no momento do rotulamen
 
 == Métodos e trabalhos relacionados
 
-#note_from_advisor[
+#note_from_advisor(note: done_note)[
   Discuta trabalhos anteriores que resolvem problemas semelhantes. Dê preferência a estudos recentes e/ou referências clássicas fundamentais. Compare métodos, dados, protocolos e resultados quando houver informação suficiente. O objetivo não é apenas listar artigos, mas mostrar quais abordagens são típicas, quais limitações permanecem e como o seu experimento se relaciona com a literatura.
 ]
 
-#note_from_advisor(note: todo_note)[
+#note_from_advisor(note: done_note)[
   Apresente e compare os principais trabalhos relacionados.
 ]
+
+Soluções para detecção e classificação de intrusões em fluxos de rede utilizam diferentes estratégias de modelagem.
+Elencam-se primariamente métodos clássicos de classificação, que podem ser combinados em comitês.
+Além disso, estudos mais recentes usam métodos de #glossarium.gls("llm") para analisar dados de tráfego estruturados.
+
+#cite_prose(<umer:2018:two_stage_flow_based_intrusion_detection>) propuseram uma arquitetura de duas etapas para detecção baseada em fluxos.
+Os autores utilizam o método de #glossarium.gls("svm") na variação de #foreign_text[one-class] para separar fluxos maliciosos do tráfego normal sem utilizar exemplos rotulados.
+Então, um #glossarium.gls("som") agrupa os fluxos maliciosos em diferentes categorias de ataque.
+O estudo observou que o desempenho do SVM é sensível ao controle de outliers, e que o agrupamento requer conhecimento sobre os ataques presentes nos dados.
+
+#cite_prose(<rodriguez:2022:ml_for_flow_based_intrusion>) testam diferentes classificadores na base de dados CICIDS2017.
+Foram comparados métodos de #glossarium.gls("random_forest"), Naive Bayes, KNN, entre outros.
+Os resultados mostram desempenho superior dos métodos baseados em árvores nos experimentos de classificação binária.
+Ainda assim, erros foram mais frequentes na classificação multiclasse, indicando dificuldade para distinguir tipos específicos de intrusão.
+
+#cite_prose(<mehavilla:2026:llm_flow_intrusion_detection>) realizaram uma comparação entre #glossarium.gls("llm", plural: true), métodos clássicos --- #glossarium.gls("decision_tree"), #glossarium.gls("random_forest") e XGBoost --- e modelos de aprendizado profundo.
+Os experimentos incluíram classificação binária e multiclasse, além de análise de tempo de inferência e de consumo de recursos.
+Os #glossarium.gls("llm", plural: true) avaliados apresentaram F1 superior a 0,95, mas não superaram os métodos clássicos de #glossarium.gls("machine_learning"), que requerem menor custo computacional.
+
+Métodos baseados em árvores se mostram efetivos e eficientes na tarefa de classificação de fluxos de rede, cujos dados frequentemente apresentam outliers.
+Trabalhos recentes investigam o uso de #glossarium.gls("llm"), avaliando seu custo computacional.
+O presente relatório busca avaliar ambos os métodos em protocolo comum de classificação de intrusões multiclasse.

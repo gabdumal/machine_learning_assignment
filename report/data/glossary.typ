@@ -114,7 +114,7 @@
   (
     key: "svm",
     short: "SVM",
-    long: "Máquina de vetores de suporte",
+    long: "Máquina de Vetores de Suporte",
     description: [Em inglês, #foreign_text[Support Vector Machine].],
     group: "Aprendizado de máquina",
   ),
