@@ -1,6 +1,7 @@
 // # Components. Componentes.
 
 #import "data/data.typ": authors, date, subtitle, title
+#import "data/terms.typ": get_term
 #import "packages.typ": (
   hydra, quati-abnt.article, quati-abnt.bibliography.cite_prose, quati-abnt.common.components,
   quati-abnt.common.components.describe_figure, quati-abnt.common.components.equation,

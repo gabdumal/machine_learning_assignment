@@ -40,23 +40,302 @@ Em uma tarefa de #stress[#glossarium.gls("multiclass_classification", link: fals
 
 Podem representar diferentes tipos de comportamento de rede, incluindo tráfego #strong[benigno] e diferentes #strong[categorias de ataques] (DoS, Recon, #sym.dots).
 
-// Empregar métodos de #stress[mineração de dados] para predizer a *idade* de humanos, com foco em *adultos*.
 
-// Utilizar #stress[entradas] de *dados* que requeiram *menor intervenção* física e interpretação por profissionais odontológicos.
+#title_slide("Bases de dados")
 
-// Realizar as manipulações de formas não invasivas, e que permitam *preservar* os dentes.
+== #glossarium.gls-short("genis")
 
-// #title_slide("Base de dados")
+#glossarium.gls("genis") é voltada a redes #strong[corporativas] no contexto de pequenas e médias empresas #footnote[
+  #cite(<silva:2025:genis_network_intrusion>, form: "full")
+].
 
-// == Coleta
+- Pacotes coletados pela plataforma Airbus CyberRange no formato #glossarium.gls("pcap").
+- Transformados em fluxos de rede pela ferramenta HERA (#foreign_text[Holistic nEtwork featuRes Aggregator]).
+- Versões com intervalos de 5 (n = 2.806.168), 10, 30 e 60 (n = 368.556) segundos.
 
-// O #glossarium.gls("inredd", link: false) da #glossarium.gls("usp", link: false) Campus Ribeirão Preto montou a base de dados #stress[InReDD-Dataset-PAN924]#footnote[
-//   #cite(<costa:2024:dental_digital_dataset_ai>, form: "full")
-// ].
+#colbreak()
 
-// Ela é composta por #strong[924 imagens] de radiografias panorâmicas da população local.
+#copy_last_heading()
 
-// #pagebreak()
+Apresenta três níveis de #stress[rotulação]:
+- #strong[Binária:] benigno e malicioso.
+- #strong[Multiclasse:] Benign, Bruteforce, DoS, Recon.
+- #strong[Detalhamento] da forma de acesso (admin ou usuário, protocolo de ataque, método de negação de serviço, etc.).
+
+#pagebreak()
+
+== #glossarium.gls-short("rosids")
+
+A base #glossarium.gls("rosids") é voltada a  sistemas robóticos baseados em #glossarium.gls("ros") #footnote[
+  #cite(<degirmenci:2023:rosids23_network_intrusion>, form: "full")
+].
+
+#grid(
+  columns: (1fr, 1fr),
+  gutter: leading,
+  [
+    A rede inclui os componentens:
+    - um #stress[ROS Master],
+    - um dispositivo controlador,
+    - um braço robótico,
+    - um registrador do tráfego,
+    - e um dispositivo #stress[atacante]
+  ],
+  [
+    O ROS Master coordena o registro dos componentes e a comunicação entre os nós do sistema.
+  ],
+)
+
+#colbreak()
+
+#copy_last_heading()
+
+#stress[Ataques] exploram mecanismos gerais da rede e características específicas do middleware #strong[#glossarium.gls("ros")].
+- Ataques de #strong[publicação] (Unauth Pub) e de #strong[subscrição não autorizadas] (Unauth Sub) exploram a possibilidade de um nó não autorizado publicar ou acessar dados.
+- #strong[#foreign_text[Subscriber flood]] (Subflood) utiliza múltiplas identidades de nós para fazer requisições sucessivas ao ROS Master, aumentando o tráfego maliciosamente.
+- Ataques de #strong[negação de serviço] (DoS) tradicionais.
+
+== #get_term("westermo")
+
+A base #get_term("westermo") simula o contexto de uma rede de comunicação #strong[industrial].
+Coleta realizada em uma rede física com doze dispositivos
+#footnote[
+  #cite(<strandberg:2023:westermo_network_traffic>, form: "full")
+].
+
+Foram removidos os pacotes que eram ruído dos componentes de execução do experimento.
+Então, foram transformados em fluxos de rede.
+
+Pacotes coletados individualmente em três pontos da rede.
+Cada um gerou sua base de registros.
+Modela capacidade de um modelo relacionar a diferença de acessos entre pontos.
+
+#colbreak()
+
+#copy_last_heading()
+#grid(
+  columns: 2,
+  gutter: leading,
+  [
+    Experimento executou seis tipos de #stress[eventos]:
+    - conexões SSH corretas,
+    - conexões SSH sem sucesso,
+    - dispositivos recebem IP inválido,
+    - dispositivos recebem o mesmo IP,
+    - escaneamento de portas, e
+    - #foreign_text[man-in-the-middle].
+  ],
+  [
+    Duas rotulações independentes:
+    + todos os pacotes que ocorrem #strong[durante um evento] recebem o rótulo do evento;
+    + todos os pacotes com origem ou destino no #strong[atacante] durante um evento recebem o rótulo do evento.
+  ],
+)
+
+#pagebreak()
+
+#align(
+  center + horizon,
+  table(
+    columns: (auto, auto, auto, 1fr, 1fr, 1fr),
+    align: (start, end, end, end, end, end, end),
+
+    table.header(strong[Base], strong[Instâncias], strong[Atributos], strong[Classes], strong[Distribuição], strong[%]),
+
+    table.cell(rowspan: 4)[
+      #glossarium.gls("genis")
+    ],
+    table.cell(rowspan: 4)[
+      368.556
+    ],
+    table.cell(rowspan: 4)[
+      122
+    ],
+    table.cell(rowspan: 1)[
+      benign
+    ],
+    table.cell(rowspan: 1)[
+      27150
+    ],
+    table.cell(rowspan: 1)[
+      7,37%
+    ],
+
+    table.cell(rowspan: 1)[
+      bruteforce
+    ],
+    table.cell(rowspan: 1)[
+      18033
+    ],
+    table.cell(rowspan: 1)[
+      4,89%
+    ],
+
+    table.cell(rowspan: 1)[
+      dos
+    ],
+    table.cell(rowspan: 1)[
+      295640
+    ],
+    table.cell(rowspan: 1)[
+      80,22%
+    ],
+
+    table.cell(rowspan: 1)[
+      recon
+    ],
+    table.cell(rowspan: 1)[
+      27733
+    ],
+    table.cell(rowspan: 1)[
+      7,52%
+    ],
+
+    table.hline(stroke: 2pt),
+
+    table.cell(rowspan: 5)[
+      #glossarium.gls("rosids")
+    ],
+    table.cell(rowspan: 5)[
+      136.681
+    ],
+    table.cell(rowspan: 5)[
+      83
+    ],
+    table.cell(rowspan: 1)[
+      Benign
+    ],
+    table.cell(rowspan: 1)[
+      62511
+    ],
+    table.cell(rowspan: 1)[
+      45,73%
+    ],
+
+    table.cell(rowspan: 1)[
+      DoS
+    ],
+    table.cell(rowspan: 1)[
+      31000
+    ],
+    table.cell(rowspan: 1)[
+      22,68%
+    ],
+    table.cell(rowspan: 1)[
+      Subflood
+    ],
+    table.cell(rowspan: 1)[
+      30064
+    ],
+    table.cell(rowspan: 1)[
+      22,00%
+    ],
+    table.cell(rowspan: 1)[
+      UnauthPub
+    ],
+    table.cell(rowspan: 1)[
+      7817
+    ],
+    table.cell(rowspan: 1)[
+      5,72%
+    ],
+    table.cell(rowspan: 1)[
+      UnauthSub
+    ],
+    table.cell(rowspan: 1)[
+      5289
+    ],
+    table.cell(rowspan: 1)[
+      3,87%
+    ],
+  ),
+)
+
+#colbreak()
+
+#align(
+  center + horizon,
+  table(
+    columns: (auto, auto, auto, 1fr, 1fr, 1fr),
+    align: (start, end, end, end, end, end, end),
+
+    table.header(strong[Base], strong[Instâncias], strong[Atributos], strong[Classes], strong[Distribuição], strong[%]),
+
+    table.cell(rowspan: 7)[
+      #get_term("westermo")
+    ],
+    table.cell(rowspan: 7)[
+      48.657
+    ],
+    table.cell(rowspan: 7)[
+      54
+    ],
+    table.cell(rowspan: 1)[
+      Normal
+    ],
+    table.cell(rowspan: 1)[
+      36727
+    ],
+    table.cell(rowspan: 1)[
+      75,48%
+    ],
+
+    table.cell(rowspan: 1)[
+      Portscan 1
+    ],
+    table.cell(rowspan: 1)[
+      267
+    ],
+    table.cell(rowspan: 1)[
+      0,55%
+    ],
+    table.cell(rowspan: 1)[
+      Portscan 2
+    ],
+    table.cell(rowspan: 1)[
+      2179
+    ],
+    table.cell(rowspan: 1)[
+      4,48%
+    ],
+    table.cell(rowspan: 1)[
+      Bad SSH
+    ],
+    table.cell(rowspan: 1)[
+      2968
+    ],
+    table.cell(rowspan: 1)[
+      6,10%
+    ],
+    table.cell(rowspan: 1)[
+      Bad IP
+    ],
+    table.cell(rowspan: 1)[
+      2677
+    ],
+    table.cell(rowspan: 1)[
+      5,50%
+    ],
+    table.cell(rowspan: 1)[
+      Same IP
+    ],
+    table.cell(rowspan: 1)[
+      3131
+    ],
+    table.cell(rowspan: 1)[
+      6,43%
+    ],
+    table.cell(rowspan: 1)[
+      MITM
+    ],
+    table.cell(rowspan: 1)[
+      708
+    ],
+    table.cell(rowspan: 1)[
+      1,46%
+    ],
+  ),
+)
 
 // == Características
 
