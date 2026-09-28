@@ -595,6 +595,50 @@ Por sua vez, a @tabela:hiperparametros apresenta os hiperparâmetros selecionado
   Descreva os comitês avaliados: hard voting, soft voting, votação ponderada ou outras estratégias.
 ]
 
+Os comitês foram formados pelos três modelos de referência utilizados nos experimentos individuais: #glossarium.gls("decision_tree"), #glossarium.gls("random_forest"), e XGBoost.
+Para cada base de dados, as previsões desses modelos foram combinadas por quatro estratégias: hard voting, hard voting ponderado, soft voting, e soft voting ponderado.
+
+A @tabela:estratégias_de_comitê apresenta as estratégias avaliadas e a forma de combinação das saídas dos classificadores.
+
+#describe_figure(
+  [#figure(
+    caption: [Estratégias de combinação utilizadas nos comitês],
+    format_table(table(
+      columns: (auto, auto, auto),
+
+      [Estratégia], [Saída dos modelos], [Combinação],
+
+      [Hard voting], [Classe prevista], [Classe com maior número de votos],
+
+      [Hard voting ponderado], [Classe prevista], [Classe com maior soma dos votos ponderados],
+
+      [Soft voting], [Probabilidade por classe], [Média das probabilidades],
+
+      [Soft voting ponderado], [Probabilidade por classe], [Média ponderada das probabilidades],
+    )),
+  )<tabela:estratégias_de_comitê>],
+)
+
+Os pesos foram calculados separadamente para cada base de dados a partir dos resultados de validação dos classificadores.
+Para cada modelo, foi recuperada a configuração previamente selecionada com base no Macro F1 médio de validação.
+
+Em seguida, foram obtidos os valores de `mean_macro_f1` dessa configuração para cada #get_term("seed") utilizada no experimento.
+Esses valores foram usamos para produzir um único Macro F1 de validação para cada modelo.
+Assim, o peso de cada modelo foi calculado por
+
+$ w_i = frac(F 1_i, F 1_"DT" + F 1_"RF" + F 1_"XGB"), $
+
+em que $F 1_i$ representa o Macro F1 médio de validação do modelo $i$.
+
+As quatro estratégias de combinação são avaliadas no conjunto de teste para cada #get_term("seed"), utilizando as previsões de classe e, nas estratégias soft, as probabilidades produzidas pelos três classificadores.
+
+Os rótulos reais do conjunto de teste são utilizados apenas após a combinação das previsões, no cálculo das métricas dos comitês e das estatísticas de diversidade e correção.
+Portanto, esses rótulos não participam do cálculo dos pesos nem de qualquer decisão sobre a estratégia de combinação.
+
+Em caso de empate no hard voting, a classe com maior probabilidade média entre os modelos é utilizada como critério de desempate.
+Persistindo o empate, a ordem das classes armazenada nos resultados determina a classe selecionada.
+
+
 == GPT e outras abordagens baseadas em LLMs
 
 #note_from_advisor[
