@@ -4,9 +4,10 @@
 #import "packages.typ": (
   hydra, quati-abnt.article, quati-abnt.bibliography.cite_prose, quati-abnt.common.components,
   quati-abnt.common.components.describe_figure, quati-abnt.common.components.equation,
-  quati-abnt.common.components.format_table, quati-abnt.note.closed_discussion_note, quati-abnt.note.create_status_note,
-  quati-abnt.note.done_note, quati-abnt.note.editor_note, quati-abnt.note.open_discussion_note,
-  quati-abnt.note.progress_note, quati-abnt.note.todo_note,
+  quati-abnt.common.components.foreign_text, quati-abnt.common.components.format_table,
+  quati-abnt.note.closed_discussion_note, quati-abnt.note.create_status_note, quati-abnt.note.done_note,
+  quati-abnt.note.editor_note, quati-abnt.note.open_discussion_note, quati-abnt.note.progress_note,
+  quati-abnt.note.todo_note,
 )
 #import "style/style.typ": large_leading, larger_leading, leading, small_leading, theme_color
 

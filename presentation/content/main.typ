@@ -7,107 +7,119 @@
 
 == Cenário
 
-A estimação da #stress[idade] com base dos *dentes* é comum nas áreas de investigação *forense*, de identificação de pessoas, e de planejamento para tratamento odontológico#footnote[
-  #cite(<lee:2026:machine_learning_adult_age_estimation>, form: "full")
-].
+@Nids são sistemas destinados a #strong[identificar] atividades que possam representar violações da segurança de uma rede de computadores.
 
-As mudanças #stress[características] de idade são mais perceptíveis em crianças e jovens do que em *adultos*, o que dificulta a exatidão da estimativa aferida por técnicos humanos.
+A detecção pode ser realizada por meio de assinaturas de #stress[ataques] conhecidos ou pela análise de padrões presentes no tráfego.
+
+#glossarium.Gls("machine_learning") é utilizadao para construir #strong[modelos de detecção] a partir de características da comunicação em rede #footnote[
+  #cite(<buczak:2016:ml_for_cyber_security>, form: "full")
+].
 
 #pagebreak()
 
-== Técnicas
+== Representação
 
-Em adultos, #stress[características] de interesse incluem:
-- quantidade de dentes presentes e de implantes;
-- nível de *desgaste* e restaurações;
-- condições gerais de saúde.
+O tráfego é representado por meio de #stress[#glossarium.gls("network_flow")].
 
-Métodos #stress[estatísticos] convencionais requerem trabalho de aferência do *técnico* odontológico, e levam a distorções.
+Conjunto de #stress[pacotes] que atravessam um ponto de observação durante determinado #strong[intervalo de tempo].
+
+Podem representar características como: endereços, portas, protocolo, duração, quantidade de pacotes e volume de dados.
+
+Sistemas de #strong[detecção baseados em fluxo] utilizam esses registros como entrada, sem analisar diretamente o conteúdo dos pacotes
+#footnote[
+  #cite(<umer:2017:flow_based_detection>, form: "full")
+].
 
 #pagebreak()
 
 == Objetivo
 
-Empregar métodos de #stress[mineração de dados] para predizer a *idade* de humanos, com foco em *adultos*.
+Quando os dados possuem #stress[rótulos conhecidos], a detecção pode ser formulada como um problema de #glossarium.gls("supervised_learning", link: false) que utiliza o vetor de #strong[características] de um fluxo como preditor.
 
-Utilizar #stress[entradas] de *dados* que requeiram *menor intervenção* física e interpretação por profissionais odontológicos.
+Em uma tarefa de #stress[#glossarium.gls("multiclass_classification", link: false)], o conjunto de rótulos contém múltiplas classes, e cada fluxo é associado a uma delas.
 
-Realizar as manipulações de formas não invasivas, e que permitam *preservar* os dentes.
+Podem representar diferentes tipos de comportamento de rede, incluindo tráfego #strong[benigno] e diferentes #strong[categorias de ataques] (DoS, Recon, #sym.dots).
 
-#title_slide("Base de dados")
+// Empregar métodos de #stress[mineração de dados] para predizer a *idade* de humanos, com foco em *adultos*.
 
-== Coleta
+// Utilizar #stress[entradas] de *dados* que requeiram *menor intervenção* física e interpretação por profissionais odontológicos.
 
-O #glossarium.gls("inredd", link: false) da #glossarium.gls("usp", link: false) Campus Ribeirão Preto montou a base de dados #stress[InReDD-Dataset-PAN924]#footnote[
-  #cite(<costa:2024:dental_digital_dataset_ai>, form: "full")
-].
+// Realizar as manipulações de formas não invasivas, e que permitam *preservar* os dentes.
 
-Ela é composta por #strong[924 imagens] de radiografias panorâmicas da população local.
+// #title_slide("Base de dados")
 
-#pagebreak()
+// == Coleta
 
-== Características
+// O #glossarium.gls("inredd", link: false) da #glossarium.gls("usp", link: false) Campus Ribeirão Preto montou a base de dados #stress[InReDD-Dataset-PAN924]#footnote[
+//   #cite(<costa:2024:dental_digital_dataset_ai>, form: "full")
+// ].
 
-As entradas são compostas por: imagem, sexo, idade, #stress[segmentações].
+// Ela é composta por #strong[924 imagens] de radiografias panorâmicas da população local.
 
-- As segmentações foram realizadas #strong[manualmente] por especialistas:
-  - #strong[Numeração] dos dentes conforme padrão internacional (FDI).
-  - Identificação de #stress[características] de interesse acerca de cada dente presente e da boca por inteiro.
+// #pagebreak()
 
-- Cada segmentação contém a caixa de delimitação na imagem e uma #stress[categoria] associada.
+// == Características
 
-#pagebreak()
+// As entradas são compostas por: imagem, sexo, idade, #stress[segmentações].
 
-#grid(
-  row-gutter: leading / 2,
-  strong("Condição da boca"),
-  pad(
-    left: leading,
-    table(
-      columns: 4,
-      column-gutter: (0pt, small_leading, 0pt),
-      [Ed], [Sem dentes], [De], [Dentes presentes],
-      [Me], [Maxilar sem dentes], [Mne], [mandíbula sem dentes],
-    ),
-  ),
-)
+// - As segmentações foram realizadas #strong[manualmente] por especialistas:
+//   - #strong[Numeração] dos dentes conforme padrão internacional (FDI).
+//   - Identificação de #stress[características] de interesse acerca de cada dente presente e da boca por inteiro.
 
-#grid(
-  row-gutter: leading / 2,
-  strong("Condição de um dente"),
-  pad(
-    left: leading,
-    table(
-      columns: 4,
-      column-gutter: (0pt, 12pt, 0pt),
-      [H], [Saudável], [R], [Restauração],
-      [Di], [Desgaste do incisivo], [C], [Cáries],
-      [I], [Impactado], [Im], [Implante],
-      [M3i], [3º molar impactado], [M3f], [3º molar desenvolvendo],
-      [P], [Pôntico], [Dc], [Coroa destruída],
-      [Te], [Tratamento endodôntico], [TeM], [Tratamento endodôntico misto],
-      [Ri], [Pino intrarradicular], [RiM], [Pino intrarradicular misto],
-      [Cp], [Coroa prostética], [CpuM], [Coroa prostética mista],
-      [Rr], [Raiz residual],
-    ),
-  ),
-)
+// - Cada segmentação contém a caixa de delimitação na imagem e uma #stress[categoria] associada.
 
-#pagebreak()
+// #pagebreak()
 
-== Abordagem
+// #grid(
+//   row-gutter: leading / 2,
+//   strong("Condição da boca"),
+//   pad(
+//     left: leading,
+//     table(
+//       columns: 4,
+//       column-gutter: (0pt, small_leading, 0pt),
+//       [Ed], [Sem dentes], [De], [Dentes presentes],
+//       [Me], [Maxilar sem dentes], [Mne], [mandíbula sem dentes],
+//     ),
+//   ),
+// )
 
-- #stress[Problema:] essas categorizações não estão relacionadas;
-  - não é possível saber que o procedimento #strong[X] foi feito no dente #strong[N].
+// #grid(
+//   row-gutter: leading / 2,
+//   strong("Condição de um dente"),
+//   pad(
+//     left: leading,
+//     table(
+//       columns: 4,
+//       column-gutter: (0pt, 12pt, 0pt),
+//       [H], [Saudável], [R], [Restauração],
+//       [Di], [Desgaste do incisivo], [C], [Cáries],
+//       [I], [Impactado], [Im], [Implante],
+//       [M3i], [3º molar impactado], [M3f], [3º molar desenvolvendo],
+//       [P], [Pôntico], [Dc], [Coroa destruída],
+//       [Te], [Tratamento endodôntico], [TeM], [Tratamento endodôntico misto],
+//       [Ri], [Pino intrarradicular], [RiM], [Pino intrarradicular misto],
+//       [Cp], [Coroa prostética], [CpuM], [Coroa prostética mista],
+//       [Rr], [Raiz residual],
+//     ),
+//   ),
+// )
 
-- #stress[Transformação] dos dados de segmentação.
-  - Condição da boca se tornou um atributo categórico (4 classes).
-  - #strong[Contagem] das ocorrências de cada condição dental em dado\ paciente (17 características).
+// #pagebreak()
 
-- #stress[Classes-objetivo:] transformação da idade em faixas etárias.
-  - 10-19, 20-29, 30-39, 40-49, 50-59, 60-69, 70+
+// == Abordagem
 
-#pagebreak()
+// - #stress[Problema:] essas categorizações não estão relacionadas;
+//   - não é possível saber que o procedimento #strong[X] foi feito no dente #strong[N].
+
+// - #stress[Transformação] dos dados de segmentação.
+//   - Condição da boca se tornou um atributo categórico (4 classes).
+//   - #strong[Contagem] das ocorrências de cada condição dental em dado\ paciente (17 características).
+
+// - #stress[Classes-objetivo:] transformação da idade em faixas etárias.
+//   - 10-19, 20-29, 30-39, 40-49, 50-59, 60-69, 70+
+
+// #pagebreak()
 
 // #grid(
 //   columns: (1fr, auto),

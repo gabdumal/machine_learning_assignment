@@ -27,7 +27,7 @@ Um fluxo é definido como um conjunto de pacotes que atravessam um ponto de obse
 Os registros de fluxo podem representar características como endereços, portas, protocolo, duração, quantidade de pacotes e volume de dados.
 Sistemas de detecção baseados em fluxo utilizam esses registros como entrada, sem analisar diretamente o conteúdo dos pacotes @umer:2017:flow_based_detection.
 
-Quando os dados possuem rótulos conhecidos, a detecção pode ser formulada como um problema de #glossarium.gls("supervised_learning") que utiliza o vetor de características de um fluxo com o preditor.
+Quando os dados possuem rótulos conhecidos, a detecção pode ser formulada como um problema de #glossarium.gls("supervised_learning") que utiliza o vetor de características de um fluxo como preditor.
 Em uma tarefa de #glossarium.gls("multiclass_classification"), o conjunto de rótulos contém múltiplas classes, e cada fluxo é associado a uma delas.
 
 Na detecção de intrusões, essas classes podem representar diferentes tipos de comportamento de rede, incluindo tráfego benigno e diferentes categorias de ataques (DoS, Recon, #sym.dots).

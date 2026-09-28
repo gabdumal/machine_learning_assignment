@@ -1,120 +1,114 @@
-@article{costa:2024:dental_digital_dataset_ai,
-  author    = {Costa, Eliana Dantas
-               and Gaêta-Araujo, Hugo
-               and Carneiro, José Andery
-               and Zancan, Breno Augusto Guerra
-               and Baranauskas, José Augusto
-               and Macedo, Alessandra Alaniz
-               and Tirapelli, Camila},
-  doi       = {10.1016/j.oooo.2023.12.006},
-  journal   = {Oral Surgery, Oral Medicine, Oral Pathology and Oral Radiology},
-  month     = {07},
-  number    = {1},
-  pages     = {205--213},
-  publisher = {Elsevier},
-  title     = {Development of a dental digital data set for research in artificial intelligence: the importance of labeling performed by radiologists},
-  url       = {https://doi.org/10.1016/j.oooo.2023.12.006},
-  volume    = {138},
-  year      = {2024}
+@article{buczak:2016:ml_for_cyber_security,
+  author   = {Buczak, Anna L. and Guven, Erhan},
+  doi      = {https://doi.org/10.1109/COMST.2015.2494502},
+  journal  = {IEEE Communications Surveys & Tutorials},
+  keywords = {IP networks;Protocols;Measurement;Ports (Computers);Data models;Data mining;Computer security;Cyber Analytics;Data Mining;Machine Learning;Cyber analytics;data mining;machine learning},
+  number   = {2},
+  pages    = {1153--1176},
+  title    = {A Survey of Data Mining and Machine Learning Methods for Cyber Security Intrusion Detection},
+  volume   = {18},
+  year     = {2016}
 }
 
-@article{lee:2022:age_group_classification,
-  abstract = {The aim of this study is to investigate the relationship of 18 radiomorphometric parameters of panoramic radiographs based on age, and to estimate the age group of people with permanent dentition in a non-invasive, comprehensive, and accurate manner using five machine learning algorithms. For the study population (209 men and 262 women; mean age, 32.12{\thinspace}{\textpm}{\thinspace}18.71 years), 471 digital panoramic radiographs of Korean individuals were applied. The participants were divided into three groups (with a 20-year age gap) and six groups (with a 10-year age gap), and each age group was estimated using the following five machine learning models: a linear discriminant analysis, logistic regression, kernelized support vector machines, multilayer perceptron, and extreme gradient boosting. Finally, a Fisher discriminant analysis was used to visualize the data configuration. In the prediction of the three age-group classification, the areas under the curve (AUCs) obtained for classifying young ages (10--19 years) ranged from 0.85 to 0.88 for five different machine learning models. The AUC values of the older age group (50--69 years) ranged from 0.82 to 0.88, and those of adults (20--49 years) were approximately 0.73. In the six age-group classification, the best scores were also found in age groups 1 (10--19 years) and 6 (60--69 years), with mean AUCs ranging from 0.85 to 0.87 and 80 to 0.90, respectively. A feature analysis based on LDA weights showed that the L-Pulp Area was important for discriminating young ages (10--49 years), and L-Crown, U-Crown, L-Implant, U-Implant, and Periodontitis were used as predictors for discriminating older ages (50--69 years). We established acceptable linear and nonlinear machine learning models for a dental age group estimation using multiple maxillary and mandibular radiomorphometric parameters. Since certain radiomorphological characteristics of young and the elderly were linearly related to age, young and old groups could be easily distinguished from other age groups with automated machine learning models.},
-  author   = {Lee, Yeon-Hee
-              and Won, Jong Hyun
-              and Auh, Q.-Schick
-              and Noh, Yung-Kyun},
+@article{degirmenci:2023:rosids23_network_intrusion,
+  abstract = {The data described herein pertains to the Robotic Systems Security domain. This data in brief presents the attributes of the ROSIDS23 dataset and its collection process in detail. This dataset comprises Robot Operating System (ROS)-based cyber-attacks to address the emerging need in high fidelity data for robotic system security research. The data was gathered from the IFARLab-DIH environment. IFARLab-DIH is a robotic and factory-level laboratory that includes a ROS-based network and is used to conduct studies up to TRL 5 on robotic systems. ROSIDS23 dataset contains benign and various attack traffic collected from the ROS middleware using the tcpdump network protocol analyser. Then the eighty-two traffic features were extracted from the captured pcap files and converted into CSV format using the CICFlowMeter tool. This dataset can serve as a valuable resource for developing and improving security countermeasures in robotic systems and can help the evolution of resilient robotics infrastructure.},
+  author   = {Elif Değirmenci and Yunus {Sabri Kırca} and İlker Özçelik and Ahmet Yazıcı},
+  doi      = {https://doi.org/10.1016/j.dib.2023.109739},
+  issn     = {2352-3409},
+  journal  = {Data in Brief},
+  keywords = {ROS, Security, Network traffic, Intrusion detection system, Traffic classification, Network monitoring},
+  pages    = {109739},
+  title    = {ROSIDS23: Network intrusion detection dataset for robot operating system},
+  url      = {https://www.sciencedirect.com/science/article/pii/S2352340923008089},
+  volume   = {51},
+  year     = {2023}
+}
+
+@article{mehavilla:2026:llm_flow_intrusion_detection,
+  abstract = {This paper presents the first systematic benchmark evaluating Large Language Models (LLMs), specifically GPT-2, GPT-Neo-125M, and LLaMA-3.2-1B, as standalone classifiers for intrusion detection, covering both binary and multiclass classification tasks, using structured Zeek logs derived from the CIC IoT 2023 dataset. We compare their performance against established and widely used Machine Learning (XGBoost, Random Forest, Decision Tree) and Deep Learning models (MLP, GRU, LeNet-5) across key evaluation metrics: detection effectiveness (precision, recall and F1-score), inference speed, and resource consumption. All models are consistently trained and rigorously evaluated on the CIC IoT 2023 dataset, ensuring fair, reproducible, and transparent comparisons. Our findings indicate that while LLMs achieve strong F1-score exceeding 95\%, and do not fully utilize available GPU resources, they still do not outperform top-performing ML models. Notably XGBoost achieves a higher F1-score of 96.96\%, using only 4\% of the available CPU. These results emphasize the practical trade-offs between detection capability, inference efficiency, and hardware requirements when applying LLMs in flow-based IDS contexts, particularly in resource-constrained environments such as IoT or edge deployments.},
+  author   = {Mehavilla, Lorena
+              and Rodríguez, María
+              and García, José
+              and Alesanco, Álvaro},
   day      = {09},
-  doi      = {10.1038/s41598-022-15691-9},
-  issn     = {2045-2322},
-  journal  = {Scientific Reports},
-  month    = {07},
-  number   = {1},
-  pages    = {11703},
-  title    = {Age group prediction with panoramic radiomorphometric parameters using machine learning algorithms},
-  url      = {https://doi.org/10.1038/s41598-022-15691-9},
-  volume   = {12},
-  year     = {2022}
-}
-
-@article{lee:2026:machine_learning_adult_age_estimation,
-  abstract = {Dental characteristics are increasingly considered valuable indicators for adult age estimation in forensic and clinical contexts, yet conventional methods struggle with complex dental data. Conventional linear regression relies on predefined equations and the number of dental characteristics aggregated across the dentition, which may lead to information loss and reduced accuracy. This study investigated machine learning methods to enhance age estimation using encoded dental characteristics. Panoramic radiographs of 2,415 individuals aged 20 to 89 years were analyzed, and dental characteristics were encoded using a modified one-hot encoding approach that preserved dual-feature information. A numerical study compared linear regression and six machine learning methods, including random forest, extreme gradient boosting, k-nearest neighbors, support vector machine, decision tree, and multi-layer perceptron. Model performance was evaluated using the root mean squared error (RMSE) and R-squared statistic on the test dataset. In the sex-aggregated dataset, linear regression achieved an RMSE of 12.04 years with an R-squared of 0.63, whereas the best-performing machine learning model achieved an RMSE of 10.88 years with an R-squared of 0.70. SHapley Additive exPlanations (SHAP) analysis revealed that sound and missing teeth were the most influential predictors of age estimation. Given the magnitude of prediction error, the proposed models should be interpreted as adjunctive tools for dental age estimation in adults.},
-  author   = {Lee, Donghwan
-              and Oh, Sehyun
-              and Hwang, Seyeon
-              and Park, Jiae
-              and Oh, Yujin
-              and Kumagai, Akiko
-              and Lee, Sang-Seob},
-  day      = {24},
-  doi      = {10.1038/s41598-026-45271-0},
-  issn     = {2045-2322},
-  journal  = {Scientific Reports},
-  month    = {03},
-  number   = {1},
-  pages    = {14401},
-  title    = {Machine learning approach for adult age estimation using dental characteristics on panoramic radiographs},
-  url      = {https://doi.org/10.1038/s41598-026-45271-0},
-  volume   = {16},
+  doi      = {10.1007/s10462-025-11432-2},
+  issn     = {1573-7462},
+  journal  = {Artificial Intelligence Review},
+  month    = {01},
+  number   = {2},
+  pages    = {50},
+  title    = {Evaluating large language models effectiveness for flow-based intrusion detection: a comparative study with ML and DL baselines},
+  url      = {https://doi.org/10.1007/s10462-025-11432-2},
+  volume   = {59},
   year     = {2026}
 }
 
-@inproceedings{oliveira:2026:radiografias_odontologicas_grupos_etarios,
-  address   = {Porto Alegre, RS, Brasil},
-  author    = {Michele Oliveira 
-               and Fischer Jônatas Ferreira
-               and Iális Paula Júnior},
-  booktitle = {Anais do XXVI Simpósio Brasileiro de Computação Aplicada à Saúde},
-  doi       = {10.5753/sbcas.2026.21673},
-  issn      = {2763-8952},
-  keywords  = {},
-  location  = {Ouro Preto/MG},
-  pages     = {1158--1169},
-  publisher = {SBC},
-  title     = {Redes Neurais Profundas para classificar imagens de radiografias odontológicas panorâmicas na perspectiva de grupos etários: Um estudo exploratório},
-  url       = {https://sol.sbc.org.br/index.php/sbcas/article/view/42841},
-  year      = {2026}
+@article{rodriguez:2022:ml_for_flow_based_intrusion,
+  abstract       = {Cybersecurity is one of the great challenges of today’s world. Rapid technological development has allowed society to prosper and improve the quality of life and the world is more dependent on new technologies. Managing security risks quickly and effectively, preventing, identifying, or mitigating them is a great challenge. The appearance of new attacks, and with more frequency, requires a constant update of threat detection methods. Traditional signature-based techniques are effective for known attacks, but they are not able to detect a new attack. For this reason, intrusion detection systems (IDS) that apply machine learning (ML) techniques represent an alternative that is gaining importance today. In this work, we have analyzed different machine learning techniques to determine which ones permit to obtain the best traffic classification results based on classification performance measurements and execution times, which is decisive for further real-time deployments. The CICIDS2017 dataset was selected in this work since it contains bidirectional traffic flows (derived from traffic captures) that include benign traffic and different types of up-to-date attacks. Each traffic flow is characterized by a set of connection-related attributes that can be used to model the traffic and distinguish between attacks and normal flows. The CICIDS2017 also contains the raw network traffic captures collected during the dataset creation in a packet-based format, thus permitting to extract the traffic flows from them. Various classification techniques have been evaluated using the Weka software: naive Bayes, logistic, multilayer perceptron, sequential minimal optimization, k-nearest neighbors, adaptive boosting, OneR, J48, PART, and random forest. As a general result, methods based on decision trees (PART, J48, and random forest) have turned out to be the most efficient with F1 values above 0.999 (average obtained in the complete dataset). Moreover, multiclass classification (distinguishing between different types of attack) and binary classification (distinguishing only between normal traffic and attack) have been compared, and the effect of reducing the number of attributes using the correlation-based feature selection (CFS) technique has been evaluated. By reducing the complexity in binary classification, better results can be obtained, and by selecting a reduced set of the most relevant attributes, less time is required (above 30% of decrease in the time required to test the model) at the cost of a small performance loss. The tree-based techniques with CFS attribute selection (six attributes selected) reached F1 values above 0.990 in the complete dataset. Finally, a conventional tool like Zeek has been used to process the raw traffic captures to identify the traffic flows and to obtain a reduced set of attributes from these flows. The classification results obtained using tree-based techniques (with 14 Zeek-based attributes) were also very high, with F1 above 0.997 (average obtained in the complete dataset) and low execution times (allowing several hundred thousand flows/s to be processed). These classification results obtained on the CICIDS2017 dataset allow us to affirm that the tree-based machine learning techniques may be appropriate in the flow-based intrusion detection problem and that algorithms, such as PART or J48, may offer a faster alternative solution to the RF technique.},
+  article-number = {9326},
+  author         = {Rodríguez, María and Alesanco, Álvaro and Mehavilla, Lorena and García, José},
+  doi            = {https://doi.org/10.3390/s22239326},
+  issn           = {1424-8220},
+  journal        = {Sensors},
+  number         = {23},
+  pubmedid       = {36502028},
+  title          = {Evaluation of Machine Learning Techniques for Traffic Flow-Based Intrusion Detection},
+  url            = {https://www.mdpi.com/1424-8220/22/23/9326},
+  volume         = {22},
+  year           = {2022}
 }
 
-@inproceedings{pacelli:2025:detection_and_segmentation,
-  abstract  = {The age estimation represents a critical component in the forensic identification of individuals and decomposed remains. Dental analysis offers exceptional potential for age determination because teeth are the most durable structures in the human body and exhibit predictable age-related morphological changes. This study presents a comprehensive computer vision approach that uses deep learning models to detect and segment teeth in Cone Beam Computed Tomography images, extracting geometric and deep feature representations for accurate age prediction. Our approach is evaluated on a challenging dataset composed exclusively of adult subjects (ages 18-60), which are typically harder to estimate. Despite this, the method achieves low Mean Absolute Error values, demonstrating competitive performance compared to the existing literature.},
-  author    = {Pacelli, Alexandre Vieira Pereira
-               and Pereira, Davi Magalhães
-               and Junior, William José Lopes
-               and Villela, Saulo Moraes
-               and Bernardino, Heder Soares
-               and Devito, Karina Lopes
-               and Vieira, Marcelo Bernardes},
-  booktitle = {2025 38th SIBGRAPI Conference on Graphics, Patterns and Images (SIBGRAPI)},
-  doi       = {10.1109/SIBGRAPI67909.2025.11223392},
-  issn      = {2377-5416},
-  keywords  = {Graphics;Semantic segmentation;Forensics;Pipelines;Neural networks;Estimation;Teeth;Predictive models;Feature extraction;Dentistry},
-  location  = {Salvador, BA, Brasil},
-  month     = {09},
-  number    = {},
-  pages     = {1-6},
-  publisher = {SIBGRAPI},
-  title     = {Detection and Segmentation of Dental Features from Tomographic Images for Age Estimation},
-  volume    = {},
-  year      = {2025}
-}
-
-@article{pereira:2025:incisor_pulp_chamber_dataset,
-  abstract = {Accurate tooth detection, segmentation, and age estimation are critical tasks in forensic odontology, helping to identify undocumented individuals in immigration cases, unidentified persons, and in the analysis of corpses and body fragments in accidents. This dataset was assembled to support such applications, comprising images of the upper central incisors from a diverse cohort of Brazilian individuals aged 18 to 60 from the Zona da Mata Mineira, obtained using standardized Cone Beam Computed Tomography (CBCT) scanning protocols. Each scan includes both coronal and sagittal views, providing a comprehensive coverage of the tooth structure. The dataset includes bounding box annotations for precise tooth localization. Additionally, the tooth crown and pulp chamber are essential for age estimation, as the crown’s enamel protects the dentin, and the dimensions of the pulp chamber decrease over time due to secondary dentin deposition. Therefore, segmentation annotations are provided for both the crown and pulp chamber to capture these critical structural details. Each image is also labeled with detailed metadata, including age, sex, and tooth number, to support a wide range of research approaches and objectives, maximizing the dataset’s utility and making sure it provides comprehensive information for various analytical needs. In addition, the patient code is present in the images, serving as an identifier. This dataset is a valuable resource for researchers aiming to develop and validate machine learning models for various dental applications. Its versatility supports a wide range of tasks, from automated dental diagnostics to advanced forensic investigations, making it a significant contribution to the field of dental image analysis.},
-  author   = {Davi Magalhães Pereira
-              and Alexandre Vieira Pereira Pacelli
-              and William José {Lopes Junior}
-              and Saulo Moraes Villela
-              and Heder Soares Bernardino
-              and Marcelo Bernardes Vieira
-              and Karina Lopes Devito},
-  doi      = {https://doi.org/10.1016/j.dib.2025.112033},
+@article{silva:2025:genis_network_intrusion,
+  abstract = {The development of artificial intelligence solutions for cyberattack detection and classification require high-quality and representative data. However, there is a scarcity of labelled datasets focused on the cyberattacks that target vulnerable small and medium-sized enterprises. To allow organizations to improve their intrusion detection systems according to their types of users, their active services, and the network protocols they use, it is necessary to provide reliable captures of different types of benign and malicious traffic. The GECAD Network Intrusion Scenarios (GeNIS) dataset contains multiple sequential attack scenarios and different types of realistic normal network activity, recorded during advanced network simulations on the Airbus CyberRange platform. The raw network packets were analyzed to generate labelled network flows, with the computation of statistical features to represent the traffic patterns of local and remote attackers, normal users and administrators, and background traffic of an enterprise computer network. GeNIS follows a modular design, providing raw packet capture next generation (PCAPNG) files with over 37 million packets of each intermediate attack step to enable an i\n-depth analysis with different flow exporters, feature extraction, and feature selection tools, as well as filtered CSV files with over 2.8 million flows created with 5, 10, 30, and 60 s flow intervals. The flows were preprocessed to provide a reliable benchmark dataset with the most relevant features for the training, validation, and testing of robust machine learning and deep learning models.},
+  author   = {Miguel Silva and Daniela Pinto and João Vitorino and José Gonçalves and Eva Maia and Isabel Praça},
+  doi      = {https://doi.org/10.1016/j.dib.2025.111487},
   issn     = {2352-3409},
   journal  = {Data in Brief},
-  keywords = {Forensic science, Tooth aging, Computer vision, Deep learning},
-  pages    = {112033},
-  title    = {Incisor pulp chamber tomographic image dataset for dental age estimation},
-  url      = {https://www.sciencedirect.com/science/article/pii/S2352340925007553},
-  volume   = {62},
+  keywords = {Network flow, Packet capture, Attack classification, Anomaly detection, Machine learning, Cybersecurity, Dataset},
+  pages    = {111487},
+  title    = {GeNIS: A modular dataset for network intrusion detection and classification},
+  url      = {https://www.sciencedirect.com/science/article/pii/S2352340925002197},
+  volume   = {60},
   year     = {2025}
+}
+
+@article{strandberg:2023:westermo_network_traffic,
+  abstract = {There is a growing body of knowledge on network intrusion detection, and several open data sets with network traffic and cyber-security threats have been released in the past decades. However, many data sets have aged, were not collected in a contemporary industrial communication system, or do not easily support research focusing on distributed anomaly detection. This paper presents the Westermo network traffic data set, 1.8 million network packets recorded in over 90 minutes in a network built up of twelve hardware devices. In addition to the raw data in PCAP format, the data set also contains pre-processed data in the form of network flows in CSV files. This data set can support the research community for topics such as intrusion detection, anomaly detection, misconfiguration detection, distributed or federated artificial intelligence, and attack classification. In particular, we aim to use the data set to continue work on resource-constrained distributed artificial intelligence in edge devices. The data set contains six types of events: harmless SSH, bad SSH, misconfigured IP address, duplicated IP address, port scan, and man in the middle attack.},
+  author   = {Per Erik Strandberg and David Söderman and Alireza Dehlaghi-Ghadim and Miguel Leon and Tijana Markovic and Sasikumar Punnekkat and Mahshid Helali Moghadam and David Buffoni},
+  doi      = {https://doi.org/10.1016/j.dib.2023.109512},
+  issn     = {2352-3409},
+  journal  = {Data in Brief},
+  keywords = {Industrial communication system, Cyber-physical systems, Network intrusion detection, Distributed artificial intelligence},
+  pages    = {109512},
+  title    = {The Westermo network traffic data set},
+  url      = {https://www.sciencedirect.com/science/article/pii/S2352340923006121},
+  volume   = {50},
+  year     = {2023}
+}
+
+@article{umer:2017:flow_based_detection,
+  abstract = {Flow-based intrusion detection is an innovative way of detecting intrusions in high-speed networks. Flow-based intrusion detection only inspects the packet header and does not analyze the packet payload. This paper provides a comprehensive survey of current state of the art in flow-based intrusion detection. It also describes the available flow-based datasets used for evaluation of flow-based intrusion detection systems. The paper proposes a taxonomy for flow-based intrusion detection systems on the basis of the technique used for detection of maliciousness in flow records. We review the architecture and evaluation results of available flow-based intrusion detection systems. We also identify important research challenges for future research in the area of flow-based intrusion detection.},
+  author   = {Muhammad Fahad Umer and Muhammad Sher and Yaxin Bi},
+  doi      = {https://doi.org/10.1016/j.cose.2017.05.009},
+  issn     = {0167-4048},
+  journal  = {Computers & Security},
+  keywords = {Network flows, Flow-based intrusion detection, Flow-based datasets, Attack detection, Machine learning},
+  pages    = {238-254},
+  title    = {Flow-based intrusion detection: Techniques and challenges},
+  volume   = {70},
+  year     = {2017}
+}
+
+@article{umer:2018:two_stage_flow_based_intrusion_detection,
+  abstract  = {The next-generation network provides state-of-the-art access-independent services over converged mobile and fixed networks. Security in the converged network environment is a major challenge. Traditional packet and protocol-based intrusion detection techniques cannot be used in next-generation networks due to slow throughput, low accuracy and their inability to inspect encrypted payload. An alternative solution for protection of next-generation networks is to use network flow records for detection of malicious activity in the network traffic. The network flow records are independent of access networks and user applications. In this paper, we propose a two-stage flow-based intrusion detection system for next-generation networks. The first stage uses an enhanced unsupervised one-class support vector machine which separates malicious flows from normal network traffic. The second stage uses a self-organizing map which automatically groups malicious flows into different alert clusters. We validated the proposed approach on two flow-based datasets and obtained promising results.},
+  author    = {Umer, Muhammad Fahad and Sher, Muhammad and Bi, Yaxin},
+  doi       = {https://doi.org/10.1371/journal.pone.0180945},
+  journal   = {PLOS ONE},
+  month     = {01},
+  number    = {1},
+  pages     = {1-20},
+  publisher = {Public Library of Science},
+  title     = {A two-stage flow-based intrusion detection model for next-generation networks},
+  volume    = {13},
+  year      = {2018}
 }
