@@ -276,11 +276,11 @@ Assim, a floresta aleatória oferece o maior desempenho preditivo ao custo compu
 
 == Resultados dos comitês
 
-#note_from_advisor[
+#note_from_advisor(note: done_note)[
   Compare os comitês com os modelos individuais. Analise se a combinação realmente trouxe ganho e procure relacionar o resultado à diversidade/complementaridade dos modelos. Se houver pesos, apresente-os e explique como foram obtidos.
 ]
 
-#note_from_advisor(note: todo_note)[
+#note_from_advisor(note: done_note)[
   Apresente e discuta os resultados dos comitês.
 ]
 
@@ -427,7 +427,7 @@ Isso decorre do uso das probabilidades médias dos classificadores como escores 
 Considerando um cenário de altíssimo risco, em que se deseja minimizar ao máxima a chance de errar, os comitês se mostram uma boa opção.
 Ainda assim, o custo adicional leva a preferir métodos tradicionais em cenários mais comuns.
 
-== Diversidade e complementaridade
+=== Diversidade e complementaridade
 
 A @tabela:comites_diversidade apresenta as medidas de diversidade entre os pares de classificadores que compõem os comitês.
 Foram consideradas a discordância entre as previsões, a ocorrência de erros simultâneos (`Double Fault`) e a similaridade entre os conjuntos de erros, medida pelo coeficiente de Jaccard.
@@ -493,6 +493,35 @@ Ainda assim, a diversidade por si só não determina o desempenho do comitê, po
 #note_from_advisor(note: todo_note)[
   Apresente e discuta a comparação entre GPT/LLM e os métodos clássicos.
 ]
+
+A comparação com o modelo de linguagem foi realizada considerando os protocolos zero-shot e few-shot sobre as mesmas bases de dados utilizadas na avaliação dos métodos de referência.
+Para tornar os resultados comparáveis, ao mesmo tempo em que o experimento possa ser factível nas limitações de poder computacional, a avaliação do modelo de linguagem foi realizada sobre um subconjunto estratificado e determinístico de 2.000 instâncias do conjunto de teste congelado de cada base.
+A @tabela:gpt_resultados_gerais mostra as métricas para as classificações por meio do modelo de linguagem.
+
+
+#describe_figure(
+  [#figure(
+    caption: [Desempenho e custo de inferência do modelo de linguagem],
+    format_table(
+      table(
+        columns: (auto, auto, auto, auto, auto, auto, auto, auto),
+        table.header([Base], [Método], [Accuracy], [Precision], [Recall], [Macro F1], [MCC], [B. Accur.]),
+
+        [GeNIS], [Zero-shot], [0,31550], [0,68153], [0,56070], [0,49126], [0,24113], [0,56070],
+        [GeNIS], [Few-shot], [0,56650], [0,58147], [0,82175], [0,59037], [0,45068], [0,82175],
+        [ROSIDS], [Zero-shot], [0,43700], [0,18993], [0,22740], [0,19311], [0,08680], [0,22740],
+        [ROSIDS], [Few-shot], [0,61500], [0,54943], [0,57854], [0,52129], [0,54393], [0,57854],
+      ),
+    ),
+  ) <tabela:gpt_resultados_gerais>],
+)
+
+Os resultados evidenciam uma melhora consistente do few-shot em relação ao zero-shot nas duas bases, embora com comportamentos distintos. Na GeNIS, a accuracy aumentou de 0,3155 para 0,5665 e o macro F1 de 0,4913 para 0,5904. O maior ganho ocorreu no recall, que passou de 0,5607 para 0,8218, acompanhado, entretanto, por uma redução da precision, de 0,6815 para 0,5815. Esse comportamento indica uma mudança no equilíbrio entre recuperação e precisão: com exemplos no prompt, o modelo passou a identificar uma parcela maior das instâncias relevantes, mas também produziu mais falsos positivos. Apesar dessa troca, o MCC aumentou de 0,2411 para 0,4507, indicando uma melhora geral na qualidade das classificações.
+
+Na ROSIDS, os ganhos proporcionados pelo few-shot foram ainda mais expressivos. A accuracy passou de 0,4370 para 0,6150, o macro F1 de 0,1933 para 0,5213 e o MCC de 0,0868 para 0,5439. Nesse caso, tanto a precision quanto o recall apresentaram aumentos relevantes, passando de 0,1899 para 0,5494 e de 0,2274 para 0,5785, respectivamente. Portanto, diferentemente da GeNIS, a inclusão dos exemplos de referência melhorou simultaneamente a capacidade de identificar as classes e a precisão das decisões do modelo.
+
+A comparação entre as bases também evidencia a sensibilidade do desempenho ao cenário de classificação. No protocolo zero-shot, a GeNIS apresentou macro F1 substancialmente superior ao observado na ROSIDS (0,4913 contra 0,1933). Com a adoção do few-shot, essa diferença diminuiu, com resultados de 0,5904 e 0,5213, respectivamente. Esse resultado sugere que exemplos de classificação fornecidos no prompt podem contribuir para adaptar o comportamento do modelo às características específicas da tarefa, reduzindo parte da dificuldade observada no protocolo zero-shot.
+
 
 == Comparação entre os datasets
 
