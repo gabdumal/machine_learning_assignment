@@ -29,6 +29,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Final, Literal
+from openai.types.chat import ChatCompletionMessageParam
 
 from openai import APIError, OpenAI
 
@@ -653,6 +654,22 @@ def validate_llama_server_model(client: OpenAI, *, model: str) -> None:
     validate_api_model(client, model=model, backend=LLAMA_SERVER_SYCL)
 
 
+def build_chat_messages(
+    *,
+    system_prompt: str,
+    user_prompt: str,
+) -> tuple[ChatCompletionMessageParam, ...]:
+    """Build the two-message chat payload used by local LLM inference."""
+    if not system_prompt.strip():
+        raise ValueError("system_prompt must not be empty.")
+    if not user_prompt.strip():
+        raise ValueError("user_prompt must not be empty.")
+    return (
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": user_prompt},
+    )
+
+
 def request_completion(
     client: OpenAI,
     *,
@@ -680,10 +697,10 @@ def request_completion(
 
         completion = client.chat.completions.create(
             model=model,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt},
-            ],
+            messages=build_chat_messages(
+                system_prompt=system_prompt,
+                user_prompt=user_prompt,
+            ),
             temperature=temperature,
             top_p=top_p,
             max_tokens=max_tokens,
@@ -789,6 +806,7 @@ __all__ = [
     "LM_STUDIO_UNLOAD_TIMEOUT_SECONDS",
     "LM_STUDIO_MODEL_ID",
     "api_backend_configuration",
+    "build_chat_messages",
     "api_configuration",
     "create_api_client",
     "create_llama_server_client",
