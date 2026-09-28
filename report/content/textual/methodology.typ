@@ -467,7 +467,16 @@ Logo, essas entradas foram imputadas com o tipo NaN do `pandas`.
 As transformações foram aplicadas deterministicamente sobre as partições de treino e de teste.
 Dado que nenhuma dessas transformações utilizou informações descobertas na base, o tratamento não configura leakage.
 
-=== #get_term("pipeline", capitalize: true)
+
+== Protocolo experimental
+
+#note_from_advisor[
+  Descreva como treino, validação e teste foram separados. Para classificação, utilize validação cruzada estratificada quando apropriado. Quando houver grupos naturais, mantenha todas as amostras do mesmo grupo na mesma partição. Para séries temporais, preserve a ordem temporal e use validação compatível com previsão. Pré-processamento, seleção de características, balanceamento e ajuste de hiperparâmetros devem ocorrer dentro do pipeline de treinamento. Informe sementes e número de repetições quando houver aleatoriedade relevante. Se usar repeated k-fold, deixe claro como as predições out-of-fold são agregadas e como os resultados entre repetições são resumidos.
+]
+
+#note_from_advisor(note: todo_note)[
+  Descreva detalhadamente o protocolo de validação e comparação.
+]
 
 A etapa de validação cruzada foi estruturada como um #get_term("pipeline") composto por três operações principais: pré-processamento das características, balanceamento das classes e treinamento do classificador.
 O primeiro estágio é realizado por meio de um `ColumnTransformer`, que separa as características numéricas e categóricas e descarta qualquer coluna que não pertença explicitamente a esses grupos.
@@ -587,11 +596,11 @@ Por sua vez, a @tabela:hiperparametros apresenta os hiperparâmetros selecionado
 
 == Comitês de modelos
 
-#note_from_advisor[
+#note_from_advisor(note: done_note)[
   Avalie estratégias de combinação de modelos, incluindo ao menos votação e ponderação quando aplicáveis. Descreva quais modelos participam, como suas saídas são combinadas e como os pesos são definidos. Pesos e demais decisões do comitê devem ser obtidos somente com dados de treinamento/validação, nunca a partir do conjunto de teste. Se explorar especialistas, combinação hierárquica ou outra estratégia, descreva-a com clareza.
 ]
 
-#note_from_advisor(note: todo_note)[
+#note_from_advisor(note: done_note)[
   Descreva os comitês avaliados: hard voting, soft voting, votação ponderada ou outras estratégias.
 ]
 
@@ -641,33 +650,45 @@ Persistindo o empate, a ordem das classes armazenada nos resultados determina a 
 
 == GPT e outras abordagens baseadas em LLMs
 
-#note_from_advisor[
+#note_from_advisor(note: done_note)[
   Para trabalhos de classificação, compare os baselines com pelo menos uma abordagem zero-shot e uma abordagem few-shot usando GPT. Os exemplos few-shot devem vir apenas do treino/validação. Documente o prompt, os rótulos possíveis, a versão/modelo utilizado, parâmetros relevantes e a regra usada para mapear respostas textuais para rótulos válidos. Use exatamente os mesmos subconjuntos de avaliação empregados pelos modelos clássicos. O uso de embeddings com classificador raso é opcional. Para regressão, séries temporais ou agrupamento, adapte esta subseção ao problema conforme orientação do professor.
 ]
 
-#note_from_advisor(note: todo_note)[
+#note_from_advisor(note: done_note)[
   Descreva o modelo, os prompts zero-shot/few-shot, o procedimento de inferência e o mapeamento das respostas.
 ]
 
-== Método adicional ou variação proposta (opcional)
+== GPT e outras abordagens baseadas em LLMs
 
-#note_from_advisor[
-  Caso tenha sido implementado um algoritmo simples, uma variação de método existente ou algum procedimento com comportamento aleatório, descreva-o aqui. Destaque claramente o que foi modificado em relação ao método de referência e qual hipótese essa modificação pretende testar.
-]
+Para comparação com os modelos de referência, foram avaliadas duas abordagens de classificação utilizando o modelo Gemma 4 E2B IT QAT, executado localmente por meio do LM Studio e de sua interface compatível com a API de Chat Completions.
+A inferência foi realizada com `temperature = 0`, `top_p = 1`, `top_k = 1`, `max_tokens = 8192` e raciocínio desabilitado.
+O modelo foi configurado com a semente fixa `27`, mantendo o procedimento determinístico nas condições utilizadas.
 
-#note_from_advisor(note: todo_note)[
-  Remova esta subseção se nenhum método adicional tiver sido proposto.
-]
+Foram considerados os protocolos zero-shot e few-shot.
+Em ambos os casos, o modelo recebe os atributos do fluxo como pares nome-valor, no formato `Feature Name: value`.
+Os nomes legíveis e as descrições das características são incluídos no `system prompt`, juntamente com instruções específicas da base de dados e a relação completa de rótulos permitidos, como se pode ver nos @apêndice:sistema_genis e @apêndice:sistema_rosids.
+O registro destinado à classificação é apresentado na mensagem do usuário, sem incluir seu rótulo real, cujos exemplos estão no @apêndice:usuário_genis e no @apêndice:usuário_rosids.
 
-== Protocolo experimental
+Na abordagem zero-shot, o modelo recebe apenas esse contexto fixo e o registro a ser classificado.
+O contexto específico de cada base também fornece uma descrição dos rótulos e orientações sobre como interpretar conjuntamente as características de tráfego.
 
-#note_from_advisor[
-  Descreva como treino, validação e teste foram separados. Para classificação, utilize validação cruzada estratificada quando apropriado. Quando houver grupos naturais, mantenha todas as amostras do mesmo grupo na mesma partição. Para séries temporais, preserve a ordem temporal e use validação compatível com previsão. Pré-processamento, seleção de características, balanceamento e ajuste de hiperparâmetros devem ocorrer dentro do pipeline de treinamento. Informe sementes e número de repetições quando houver aleatoriedade relevante. Se usar repeated k-fold, deixe claro como as predições out-of-fold são agregadas e como os resultados entre repetições são resumidos.
-]
+Na abordagem few-shot, foram acrescentados ao `system prompt` três exemplos de treinamento para cada classe.
+Os exemplos são selecionados de forma determinística, sem reposição e com o mesmo número de registros por classe, utilizando exclusivamente a partição de treinamento.
+Cada demonstração contém as mesmas características utilizadas no registro de teste e seu respectivo rótulo conhecido.
+Assim, a classificação do novo registro utiliza os exemplos como evidência adicional, mas não inclui qualquer observação do conjunto de teste entre as demonstrações.
 
-#note_from_advisor(note: todo_note)[
-  Descreva detalhadamente o protocolo de validação e comparação.
-]
+Para ambas as abordagens, os valores ausentes são representados pelo token `NA`.
+Após cada resposta, o texto retornado pelo modelo é normalizado removendo espaços excedentes e comparado, sem distinção entre maiúsculas e minúsculas, aos rótulos válidos.
+Somente uma resposta que corresponda exatamente a um dos rótulos é aceita.
+Respostas vazias, rótulos não reconhecidos ou respostas que contenham explicações adicionais são classificadas como inválidas e registradas como predições incorretas.
+
+A avaliação foi realizada sobre uma amostra estratificada proporcional e determinística de 2.000 instâncias do conjunto de teste de cada base de dados.
+A mesma amostra é utilizada pelos protocolos zero-shot e few-shot para uma dada base, permitindo comparar diretamente as duas abordagens.
+Os exemplos few-shot são selecionados antes da inferência a partir exclusivamente do conjunto de treinamento.
+
+As respostas do modelo são categóricas, sem uma distribuição de probabilidades por classe.
+Por esse motivo, ROC-AUC e PR-AUC não são calculadas para essas abordagens, enquanto as demais métricas de classificação são obtidas a partir dos rótulos previstos.
+
 
 == Métricas de avaliação
 

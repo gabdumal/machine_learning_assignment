@@ -22,7 +22,7 @@ record presents one ``Feature Name: value`` pair per line. The target label is
 never included in a test record. Few-shot demonstrations use the same named
 feature-value representation and append their known training label.
 
-The default model is Qwen3.5 4B Q4_K_M. Backend
+The default model is Gemma 4 E4B Q0. Backend
 connection and runtime settings are defined by constants in
 ``pipeline.llm_api``. Both supported backends use an OpenAI-compatible Chat
 Completions endpoint. The variable test record remains at the end of each
