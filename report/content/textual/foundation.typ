@@ -44,11 +44,11 @@ A escolha entre essas formulações depende da definição das classes e da estr
 
 == Bases de dados e benchmarks do domínio
 
-#note_from_advisor[
+#note_from_advisor(note: progress_note)[
   Apresente brevemente 2--3 bases de dados conhecidas ou representativas do problema, mesmo que nem todas sejam usadas nos experimentos. Para cada uma, destaque finalidade, tipo de dado, dimensão aproximada, classes/alvo e particularidades relevantes. Cite a fonte original da base sempre que possível.
 ]
 
-#note_from_advisor(note: todo_note)[
+#note_from_advisor(note: done_note)[
   Descreva bases de dados ou benchmarks relevantes para o tema.
 ]
 
@@ -129,6 +129,7 @@ A @tabela:bases_domínio resume suas principais características.
       ],
       table.cell(rowspan: 5)[
         Rede baseada em ROS.
+        Inclui ROS Master, controlador e braço robótico.
       ],
 
       table.cell(rowspan: 1)[
@@ -237,14 +238,20 @@ No escopo deste relatório, utilizamos os dados processados para fluxos de 60 se
 
 === #glossarium.gls("rosids")
 
-O #glossarium.gls("rosids") foi desenvolvido para representar tráfego de sistemas robóticos baseados em #glossarium.gls("ros").
-A coleta ocorreu no laboratório IFARLab-DIH, em uma infraestrutura robótica utilizada para experimentos.
-O tráfego foi capturado com `tcpdump`, e os arquivos #glossarium.gls("pcap") foram processados pelo programa CICFlowMeter para gerar as características dos fluxos @degirmenci:2023:rosids23_network_intrusion.
+O #glossarium.gls("rosids") foi desenvolvido para investigar a segurança de sistemas robóticos baseados em #glossarium.gls("ros").
+Sua coleta foi realizada no IFARLab-DIH, laboratório da Universidade de Eskişehir Osmangazi dedicado à pesquisa em sistemas robóticos e industriais.
 
-A base possui cinco classes.
-Uma corresponde ao tráfego benigno, ao passo em que as demais representam: ataques de negação de serviço, subscriber flood, publicação não autorizada, e subscrição não autorizada.
-Cada registro contém informações temporais, características de tráfego e o rótulo correspondente à classe.
-O conjunto agregado foi disponibilizado em formato #glossarium.gls("csv").
+Os componentes utilizados no experimento são: um ROS Master, um dispositivo controlador, um dispositivo associado ao braço robótico, um dispositivo responsável pelo registro do tráfego, e um dispositivo atacante.
+O ROS Master coordena o registro dos componentes e a comunicação entre os nós do sistema.
+O dispositivo atacante foi conectado à mesma infraestrutura de rede para produzir o tráfego associado aos cenários de intrusão @degirmenci:2023:rosids23_network_intrusion.
+
+Os ataques considerados exploram mecanismos gerais da rede e características específicas do middleware #glossarium.gls("ros").
+Por exemplo, os ataques de publicação e de subscrição não autorizadas exploram a possibilidade de um nó não autorizado publicar ou acessar dados.
+Por sua vez, o ataque de #foreign_text[subscriber flood] utiliza múltiplas identidades de nós para fazer requisições sucessivas ao ROS Master, aumentando o tráfego maliciosamente.
+
+Durante a coleta, o tráfego normal foi registrado a partir da operação do sistema robótico, e os diferentes cenários de ataque foram executados separadamente.
+Os pacotes foram capturados com a ferramenta `tcpdump` e armazenados em arquivos #glossarium.gls("pcap").
+Então, foi utilizado o programa CICFlowMeter para extrair as características dos fluxos e gerar os dados tabulares em formato #glossarium.gls("csv").
 
 
 === #get_term("westermo")
@@ -271,7 +278,7 @@ Além disso, é salvo qual evento estava sendo executado no momento do rotulamen
 == Métodos e trabalhos relacionados
 
 #note_from_advisor[
-  Discuta trabalhos anteriores que resolvem problemas semelhantes. Dê preferência a estudos recentes e/ou referências clássicas fundamentais. Compare métodos, dados, protocolos e resultados quando houver informação suficiente. O objetivo não é apenas listar artigos, mas mostrar quais abordagens são típicas, quais limitações permanecem e como o seu experimento se relaciona com a literatura. Exemplos de citação: \texttt{\textbackslash parencite\{chawla2002\}} ou \texttt{\textbackslash textcite\{breiman2001\}}. O arquivo \texttt{referencias.bib} inclui apenas entradas de demonstração, como \textcite{breiman2001} e \textcite{chawla2002}; substitua-as pelas referências efetivamente utilizadas no trabalho.
+  Discuta trabalhos anteriores que resolvem problemas semelhantes. Dê preferência a estudos recentes e/ou referências clássicas fundamentais. Compare métodos, dados, protocolos e resultados quando houver informação suficiente. O objetivo não é apenas listar artigos, mas mostrar quais abordagens são típicas, quais limitações permanecem e como o seu experimento se relaciona com a literatura.
 ]
 
 #note_from_advisor(note: todo_note)[
