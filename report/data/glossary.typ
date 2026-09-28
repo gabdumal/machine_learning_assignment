@@ -86,12 +86,6 @@
     group: "Segurança de redes",
   ),
   (
-    key: "pcap",
-    short: "PCAP",
-    long: "Packet Capture",
-    group: "Segurança de redes",
-  ),
-  (
     key: "ros",
     short: "ROS",
     plural: "ROS",
@@ -156,6 +150,13 @@
     plural: "fluxos de rede",
     custom: foreign_text[network flow],
     description: [Representação agregada de uma comunicação de rede, normalmente construída a partir de pacotes que compartilham características de origem, destino e protocolo durante determinado intervalo.],
+    group: "Segurança de redes",
+  ),
+  (
+    key: "pcap",
+    short: "PCAP",
+    plural: "PCAP",
+    description: [API de captura de pacotes de tráfego de rede, que gera arquivos homônimos.],
     group: "Segurança de redes",
   ),
   (
