@@ -519,13 +519,29 @@ Os resultados entre as três #get_term("seed", plural: true) são posteriormente
 
 == Métricas de avaliação
 
-#note_from_advisor[
+#note_from_advisor(note: done_note)[
   Escolha métricas adequadas à tarefa e ao custo dos erros. Para classificação, a descrição do trabalho requer no mínimo acurácia, precisão, revocação, F-scores, AUC-ROC e matriz de confusão, podendo incluir AUC-PR, MCC, balanced accuracy ou outras métricas relevantes. Para regressão, use ao menos MAE e MSE, além de $R^2$ quando apropriado. Para agrupamento, inclua Silhouette e outras medidas justificadas. Use exatamente as mesmas métricas para comparar modelos clássicos e GPT quando a comparação for aplicável.
 ]
 
-#note_from_advisor(note: todo_note)[
+#note_from_advisor(note: done_note)[
   Defina as métricas usadas e justifique sua escolha.
 ]
+
+Foram utilizadas as métricas accuracy, precision, recall, Macro F1, ROC-AUC, PR-AUC, MCC e balanced accuracy.
+A seleção considera a necessidade de avaliar o desempenho global e o comportamento entre as diferentes classes, tendo em vista o desbalanceamento presente nas bases de dados.
+Entre essas métricas, o Macro F1 constitui a principal medida utilizada na etapa de validação, sendo adotado como critério para a seleção das configurações dos modelos clássicos.
+
+A accuracy complementa essa análise como medida geral do desempenho, enquanto precision, recall e Macro F1 permitem considerar as classes individualmente por meio da agregação macro.
+ROC-AUC e PR-AUC foram incluídas para os classificadores que produzem probabilidades por classe.
+MCC e balanced accuracy foram utilizadas como medidas adicionais para a comparação em função do desbalanceamento das classes.
+As métricas são calculadas de forma consistente entre validação e teste para os modelos clássicos.
+
+A matriz de confusão foi utilizada como complemento às métricas agregadas, permitindo analisar os erros de classificação por classe.
+São armazenadas versões em valores absolutos e normalizadas por classe.
+
+Para as abordagens com LLM, são utilizadas as mesmas métricas baseadas em rótulos das demais abordagens.
+ROC-AUC e PR-AUC não são calculadas, pois as respostas do modelo são categóricas e não fornecem probabilidades por classe.
+Respostas inválidas são contabilizadas como classificações incorretas nas métricas principais.
 
 
 == Modelos de referência
