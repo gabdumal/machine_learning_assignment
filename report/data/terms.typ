@@ -119,6 +119,22 @@
     key: "westermo",
     short: [Westermo],
   ),
+  (
+    key: "dos",
+    short: "DoS",
+  ),
+  (
+    key: "recon",
+    short: "Recon",
+  ),
+  (
+    key: "benign",
+    short: "Benign",
+  ),
+  (
+    key: "bruteforce",
+    short: "Bruteforce",
+  ),
 )
 
 

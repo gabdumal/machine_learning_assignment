@@ -3,15 +3,217 @@
 
 = Metodologia <seção:métodos>
 
-#note_from_advisor[
+#note_from_advisor(note: progress_note)[
   Esta seção deve permitir que outra pessoa reproduza o experimento. Descreva dados, preparação, modelos, comitês, abordagem com GPT/LLM quando aplicável, protocolo de avaliação, métricas, software e decisões de implementação. O trabalho exige dois datasets experimentais; datasets adicionais são opcionais. Para classificação, devem ser avaliados pelo menos três modelos clássicos adequados, além dos comitês e da comparação com GPT. Para regressão, séries temporais ou agrupamento, adapte os métodos e a etapa com GPT conforme o problema e, quando necessário, conforme orientação do professor.
 ]
 
+
 == Bases de dados utilizadas
 
-#note_from_advisor[
+#note_from_advisor(note: progress_note)[
   Descreva os dois datasets usados nos experimentos. Informe origem, licença quando disponível, número de instâncias, número e tipo de atributos, classes ou variável-alvo, distribuição das classes, valores ausentes e outras características relevantes. Se houver grupos naturais (pacientes, indivíduos, animais, residências, gravações etc.), deixe isso explícito porque pode alterar o protocolo de validação.
 ]
+
+Foram utilizados dois conjuntos de dados nos experimentos: #glossarium.gls("genis") e #glossarium.gls("rosids").
+Em ambos os casos, foram consideradas apenas as características com papel de previsão e a variável-alvo.
+Assim, foram eliminadas características de metadados, que poderiam identificar a classe-alvo.
+
+
+=== #glossarium.gls("genis")
+
+Os autores da base de dados @silva:2025:genis_network_intrusion disponibilizaram os fluxos de rede já processados e divididos em partições de treino e teste de forma estratificada em proporção de 75% e 25%.
+Esses dados se encontram nos arquivos `genis-60-sec-train.csv` e `genis-60-sec-test.csv`, que correspondem à versão com fluxos agregados em intervalos de 60 segundos.
+
+Extraímos das colunas dos arquivos 68 características preditoras e uma variável-alvo, além de demais atributos de metadados, que foram desconsiderados no experimento.
+A variável-alvo, chamada de #foreign_text[Category Label], é identificada pelo rótulo `category_label` e é do tipo categórico.
+A distribuição de instâncias rotuladas com cada classe é exibida na @tabela:genis_distribuição.
+Por sua vez, as características preditoras, com seus nomes, rótulos e tipos de dado, são listadas na @tabela:genis_características.
+
+#describe_figure(
+  sticky: true,
+  [#figure(
+    caption: [Distribuição de instâncias da base de dados #glossarium.gls-short("genis")],
+    format_table(table(
+      columns: (1fr, 1fr, 1fr, 1fr),
+
+      [Partição], [Classe], [Instâncias], [Proporção],
+
+      table.cell(rowspan: 5)[Treino],
+      table.cell()[#get_term("dos")],
+      table.cell()[236 512],
+      table.cell()[80,21%],
+      table.cell()[#get_term("recon")],
+      table.cell()[22 186],
+      table.cell()[7,52%],
+      table.cell()[#get_term("benign")],
+      table.cell()[21 720],
+      table.cell()[7,37%],
+      table.cell()[#get_term("bruteforce")],
+      table.cell()[14 426],
+      table.cell()[4,90%],
+      table.cell()[*Total*],
+      table.cell()[294 844],
+      table.cell()[100%],
+
+      table.hline(stroke: 0.5pt),
+
+      table.cell(rowspan: 5)[Teste],
+      table.cell()[#get_term("dos")],
+      table.cell()[59 128],
+      table.cell()[80,21%],
+      table.cell()[#get_term("recon")],
+      table.cell()[5 547],
+      table.cell()[7,53%],
+      table.cell()[#get_term("benign")],
+      table.cell()[5 430],
+      table.cell()[7,37%],
+      table.cell()[#get_term("bruteforce")],
+      table.cell()[3 607],
+      table.cell()[4,89%],
+      table.cell()[*Total*],
+      table.cell()[73 712],
+      table.cell()[100%],
+
+      table.hline(stroke: 0.5pt),
+
+      table.cell(rowspan: 5)[Agrupado],
+      table.cell()[#get_term("dos")],
+      table.cell()[295 640],
+      table.cell()[80,22%],
+      table.cell()[#get_term("recon")],
+      table.cell()[27 733],
+      table.cell()[7,52%],
+      table.cell()[#get_term("benign")],
+      table.cell()[27 150],
+      table.cell()[7,37%],
+      table.cell()[#get_term("bruteforce")],
+      table.cell()[18 033],
+      table.cell()[4,89%],
+      table.cell()[*Total*],
+      table.cell()[368 556],
+      table.cell()[100%],
+    )),
+  ) <tabela:genis_distribuição>],
+)
+
+
+#describe_figure(
+  [#figure(
+    caption: [Características selecionadas da base de dados #glossarium.gls("genis")],
+    format_table(
+      table(
+        columns: (2.2fr, 2.5fr, 1fr),
+        align: (start + top, start + top, start + top),
+
+        table.header([Nome], [Rótulo], [Tipo de dado]),
+
+        [Destination Port Category], [destination_port_category], [Categórico],
+        [SYN-ACK Time], [syn_ack_time], [Numérico],
+        [Maximum Duration], [maximum_duration], [Numérico],
+        [Source Hops], [source_hops], [Numérico],
+        [TCP Round-Trip Time], [tcp_rtt], [Numérico],
+        [Minimum Destination Inter-Packet Time], [destination_interpacket_time_minimum], [Numérico],
+        [Mean Duration], [mean_duration], [Numérico],
+        [Destination Packets], [amount_of_destination_packets], [Numérico],
+        [Source TTL], [source_ttl], [Numérico],
+        [Source Port Category], [source_port_category], [Categórico],
+        [Total Bytes], [total_bytes], [Numérico],
+        [Active Destination Inter-Packet Time], [destination_interpacket_time_active], [Numérico],
+        [Destination Loss], [amount_of_destination_package_loss], [Numérico],
+        [Source TCP Window], [source_window_in_bytes], [Numérico],
+        [Source Application Bytes], [source_application_bytes], [Numérico],
+        [Packet Rate], [packet_rate], [Numérico],
+        [Destination Bytes], [destination_bytes], [Numérico],
+        [Source Packets], [amount_of_source_packets], [Numérico],
+        [Minimum Duration], [minimum_duration], [Numérico],
+        [Destination Packet Rate], [destination_packet_rate], [Numérico],
+        [ACK-to-Data Time], [acknowledgement_data_time], [Numérico],
+        [Maximum Source Packet Size], [source_maximum_packet_size], [Numérico],
+        [Maximum Source Inter-Packet Time], [source_interpacket_time_maximum], [Numérico],
+        [Packet Loss], [amount_of_package_loss], [Numérico],
+        [Destination Inter-Packet Time], [destination_interpacket_time], [Numérico],
+        [Source Load], [source_load], [Numérico],
+        [Source Packet Rate], [source_packet_rate], [Numérico],
+        [Maximum Destination Inter-Packet Time], [destination_interpacket_time_maximum], [Numérico],
+        [Source Bytes], [source_bytes], [Numérico],
+        [Total Application Bytes], [total_application_bytes], [Numérico],
+        [Minimum Source Packet Size], [source_minimum_packet_size], [Numérico],
+        [Total Duration], [total_duration], [Numérico],
+        [Minimum Source Inter-Packet Time], [source_interpacket_time_minimum], [Numérico],
+        [Mean Destination Packet Size], [destination_mean_packet_size], [Numérico],
+        [Total Packets], [total_packets], [Numérico],
+        [Source Inter-Packet Time], [source_interpacket_time], [Numérico],
+        [Destination Application Bytes], [destination_application_bytes], [Numérico],
+        [Active Source Inter-Packet Time], [source_interpacket_time_active], [Numérico],
+        [Producer-Consumer Ratio], [producer_consumer_ratio], [Numérico],
+        [Destination TCP Window], [destination_window_in_bytes], [Numérico],
+        [Minimum Destination Packet Size], [destination_minimum_packet_size], [Numérico],
+        [Source Active Jitter], [source_active_jitter], [Numérico],
+        [Maximum Destination Packet Size], [destination_maximum_packet_size], [Numérico],
+        [Mean Source Packet Size], [source_mean_packet_size], [Numérico],
+        [Destination Jitter], [destination_jitter], [Numérico],
+        [Packet Loss Percentage], [packet_loss_percentage], [Numérico],
+        [Source Jitter], [source_jitter], [Numérico],
+        [Record Duration], [duration], [Numérico],
+        [Load], [load], [Numérico],
+        [Active Flow Runtime], [run_time], [Numérico],
+        [Destination Active Jitter], [destination_active_jitter], [Numérico],
+        [Idle Source Inter-Packet Time], [source_interpacket_time_idle], [Numérico],
+        [Source Loss], [amount_of_source_packets_loss], [Numérico],
+        [Destination Load], [destination_load], [Numérico],
+        [Protocol: ARP], [protocol_arp], [Binário],
+        [Protocol: ICMP], [protocol_icmp], [Binário],
+        [Protocol: TCP], [protocol_tcp], [Binário],
+        [Protocol: UDP], [protocol_udp], [Binário],
+        [Flow Flag: E], [flags_e], [Binário],
+        [Flow Flag: E\*], [flags_e_star], [Binário],
+        [Flow Flag: E-S], [flags_e_s], [Binário],
+        [Transaction State: CON], [state_con], [Binário],
+        [Transaction State: ECO], [state_eco], [Binário],
+        [Transaction State: FIN], [state_fin], [Binário],
+        [Transaction State: INT], [state_int], [Binário],
+        [Transaction State: REQ], [state_req], [Binário],
+        [Transaction State: RST], [state_rst], [Binário],
+      ),
+    ),
+  ) <tabela:genis_características>],
+)
+
+A divisão entre treino e teste foi mantida conforme fornecida pelo conjunto de dados, sem redistribuição das instâncias.
+Não foram identificados valores ausentes nem linhas duplicadas nas duas partições.
+
+Muitas características apresentam um comportamento de concentração de valores próximos a zero para uma grande parte das instâncias, mas de limites máximos expressivamente altos.
+Isso faz com que o cuidado com outliers seja fundamental, o que motiva a escolha de métodos de classificação baseados em árvores.
+Um exemplo é a característica #foreign_text[Source Application Bytes], cuja distribuição de valores se verifica nas @figura:boxplot_source_application_bytes e @figura:histograma_source_application_bytes.
+
+#describe_figure(
+  sticky: true,
+  [
+    #figure(
+      caption: [
+        Boxplot da característica Source Application Bytes
+      ],
+      image(
+        "/assets/images/source_application_bytes_boxplot.png",
+      ),
+    )<figura:boxplot_source_application_bytes>
+  ],
+)
+
+#describe_figure(
+  sticky: true,
+  [
+    #figure(
+      caption: [
+        Histograma por classes-alvo da característica Source Application Bytes
+      ],
+      image(
+        "/assets/images/source_application_bytes_histogram.png",
+      ),
+    )<figura:histograma_source_application_bytes>
+  ],
+)
+
 
 == Preparação e pré-processamento
 
