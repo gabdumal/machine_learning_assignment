@@ -10,7 +10,7 @@
 
 == Bases de dados utilizadas
 
-#note_from_advisor(note: progress_note)[
+#note_from_advisor(note: done_note)[
   Descreva os dois datasets usados nos experimentos. Informe origem, licença quando disponível, número de instâncias, número e tipo de atributos, classes ou variável-alvo, distribuição das classes, valores ausentes e outras características relevantes. Se houver grupos naturais (pacientes, indivíduos, animais, residências, gravações etc.), deixe isso explícito porque pode alterar o protocolo de validação.
 ]
 
@@ -402,6 +402,71 @@ A característica #foreign_text[Flow Bytes per Second] serve como exemplo desse 
 #note_from_advisor(note: todo_note)[
   Descreva o pipeline de preparação e pré-processamento dos dados.
 ]
+
+
+=== Seleção de características
+
+Inicialmente, foram consideradas aptas apenas as características com capacidade de predição e a variável-alvo.
+Todas as colunas de identificadores e metadados foram removidas.
+
+Em seguida, cada característica foi analisada em função da quantidade de valores distintos apresentados.
+Para o #glossarium.gls("genis"), as colunas a seguir apresentam o mesmo valor para todas as entradas, o que as fez serem removidas:
++ `flags_e_d`,
++ `flags_e_g`,
++ `flags_e_r`,
++ `flags_e_u`,
++ `state_clo`,
++ `state_nrs`,
++ `state_tst`,
++ `state_urh`, e
++ `state_urhpro`.
+A característica `protocol_ipv6_icmp` apresentou valores positivos em uma quantidade muito pequena de entradas.
+Neste caso, em vez de eliminá-la, ela foi agregada à coluna `protocol_icmp`, que apresenta diversidade adequada.
+
+Tratamento idêntico ocorreu para o #glossarium.gls("rosids") quanto às colunas a seguir, que foram eliminadas por apresentarem o mesmo valor para todas as entradas:
++ `forward_push_flag_count`,
++ `forward_urgent_flag_count`,
++ `backward_urgent_flag_count`,
++ `urg_flag_count`,
++ `cwe_flag_count`,
++ `ece_flag_count`,
++ `forward_bytes_per_block_average`,
++ `forward_packets_per_block_average`,
++ `forward_block_rate_average`,
++ `backward_bytes_per_block_average`,
++ `backward_packets_per_block_average`,
++ `backward_block_rate_average`,
++ `initial_forward_window_bytes`, e
++ `forward_segment_size_minimum`.
+
+Especificamente para o #glossarium.gls("genis"), algumas características apresentaram valores que refletiam muito diretamente o cenário de simulação, de forma a levar ao vazamento da classe-alvo.
+Por esse motivo, foram removidas:
+`destination_tcp_base`, `source_tcp_base`, e `source_tos`.
+
+
+=== Transformação de características
+
+Após a seleção, algumas características foram transformadas para melhorar o aproveitamento de seus valores.
+Algumas portas de rede são alocadas para protocolos específicos, o que as torna mais visadas para ataques.
+Além disso, portas são categorizadas em faixas que representam seu uso esperado, quais sejam: `well_known`, `registered` e `dynamic`, além da categoria `not_applicable` para quando um fluxo de rede não utilizar uma porta.
+
+As portas que apresentavam padrão de acesso específico nos fluxos de rede foram: 21 (FTP), 22 (SSH), 23 (Telnet), 53 (DNS), 80 (HTTP), 137 e 138 (NETBIOS), 443 (HTTPS), 445 (SMB), 587 (SMTPS), 1900 (SSDP), 5353 (mDNS), e 11311 (ROS).
+
+No #glossarium.gls("genis"), as características `destination_port` e `source_port` representavam o número da porta de rede em que o fluxo ocorreu.
+Elas foram convertidas nas colunas `destination_port_category` e `source_port_category` com base nas portas de destaque e, caso o valor não esteja entre elas, nas faixas de uso.
+A mesma transformação foi feita para o #glossarium.gls("rosids") com características homônimas.
+
+Ainda no #glossarium.gls("rosids"), a característica `protocol` apresentava apenas os valores `0`, `6` e `17`, que representam, respectivamente, as categorias `not_applicable`, `tcp` e `udp`.
+Logo, assim foi feita a transformação em dados categóricos.
+
+Também foi identificado que características calculadas com base na razão entre outros valores numéricos podem apresentar valores indeterminados ou infinitos quando o valor daquelas é igual a zero.
+Assim, todos os casos de dados vazios ou inválidos foram imputados como o valor de NaN da biblioteca pandas, de forma que possam ser utilizados nos algoritmos de #glossarium.gls("machine_learning").
+Por fim, na característica `initial_backward_window_bytes`, o valor `-1` é utilizado para representar dados ausentes.
+Logo, essas entradas foram imputadas com o tipo NaN do pandas.
+
+As transformações foram aplicadas deterministicamente sobre as partições de treino e de teste.
+Dado que nenhuma dessas transformações foi descoberta por aprendizado, o tratamento não configura leakage.
+
 
 == Modelos de referência
 
