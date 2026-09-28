@@ -65,10 +65,24 @@
     group: "Avaliação",
   ),
   (
+    key: "genis",
+    short: "GeNIS",
+    long: "GECAD Network Intrusion Scenarios",
+    group: "Segurança de redes",
+  ),
+  (
+    key: "rosids",
+    short: "ROSIDS",
+    long: "Robot Operating System Intrusion Detection Systems",
+    group: "Segurança de redes",
+  ),
+  (
     key: "nids",
     short: "NIDS",
-    long: "Network Intrusion Detection System",
+    long: "Sistema de Detecção de Intrusão de Rede",
     plural: "NIDS",
+    longplural: "Sistemas de Detecção de Intrusão de Rede",
+    description: [Em inglês, #foreign_text[Network Intrusion Detection System].],
     group: "Segurança de redes",
   ),
   (
@@ -80,7 +94,9 @@
   (
     key: "ros",
     short: "ROS",
+    plural: "ROS",
     long: "Robot Operating System",
+    longplural: "Robot Operating Systems",
     group: "Robótica",
   ),
   (
@@ -100,6 +116,20 @@
     short: "AUC-PR",
     long: "Area Under the Precision-Recall Curve",
     group: "Avaliação",
+  ),
+  (
+    key: "svm",
+    short: "SVM",
+    long: "Máquina de vetores de suporte",
+    description: [Em inglês, #foreign_text[Support Vector Machine].],
+    group: "Aprendizado de máquina",
+  ),
+  (
+    key: "som",
+    short: "SOM",
+    long: "Mapa Auto-Organizável",
+    description: [Em inglês, #foreign_text[Self-Organizing Map].],
+    group: "Aprendizado de máquina",
   ),
 )
 

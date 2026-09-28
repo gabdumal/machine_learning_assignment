@@ -2,7 +2,7 @@
 
 #import "./data/terms.typ": get_term
 #import "./packages.typ": (
-  quati-abnt.article.components.print_people, quati-abnt.article.components.print_person,
+  glossarium, quati-abnt.article.components.print_people, quati-abnt.article.components.print_person,
   quati-abnt.bibliography.cite_prose, quati-abnt.common.components.describe_figure,
   quati-abnt.common.components.equation, quati-abnt.common.components.foreign_text,
   quati-abnt.common.components.format_table, quati-abnt.common.components.source_for_content_created_by_authors,

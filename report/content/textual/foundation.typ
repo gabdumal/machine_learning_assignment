@@ -14,11 +14,38 @@ Em seguida, são descritas as bases de dados empregadas, destacando seus context
 Por fim, são discutidos os métodos relacionados ao trabalho, abrangendo os classificadores tradicionais utilizados nos experimentos, a combinação de modelos por meio de comitês e a aplicação de modelos de linguagem de grande porte à classificação de dados tabulares.
 Essa discussão estabelece o contexto para a metodologia apresentada posteriormente e fundamenta a comparação entre as diferentes abordagens consideradas no relatório.
 
+
 == Conceitos e definição do problema
 
 #note_from_advisor(note: done_note)[
   Esta seção deve fornecer o conhecimento necessário para compreender o problema e posicionar o estudo em relação à literatura. O levantamento bibliográfico pode ser sucinto, mas deve conter referências realmente relevantes para o tema. A descrição do trabalho prevê um estado da arte curto, com pelo menos 3--5 referências relevantes, além da apresentação de 2--3 exemplos de bases de dados e soluções típicas do domínio.
 ]
+@Nids:pl são sistemas destinados a identificar atividades que possam representar violações da segurança de uma rede.
+Entre as abordagens utilizadas para essa finalidade estão métodos baseados em assinaturas e métodos baseados na análise de padrões de tráfego.
+A aplicação de técnicas de #glossarium.gls("machine_learning") permite construir modelos capazes de identificar ou classificar comportamentos a partir de características extraídas da comunicação em rede @buczak:2016:ml_for_cyber_security.
+
+Uma forma de representar o tráfego para esse tipo de análise é por meio de #glossarium.gls("network_flow").
+Um fluxo de rede reúne pacotes associados a uma mesma comunicação e pode ser representado por características agregadas, como duração, quantidade de pacotes, volume de dados e informações relacionadas aos protocolos.
+A análise baseada em fluxos utiliza essas características para identificar comportamentos sem depender da inspeção do conteúdo dos pacotes @umer:2017:flow_based_detection.
+
+Quando os dados possuem rótulos conhecidos, a detecção pode ser formulada como um problema de #glossarium.gls("supervised_learning").
+Em uma tarefa de #glossarium.gls("multiclass_classification"), cada fluxo é associado a uma entre múltiplas classes definidas para o problema.
+
+#cite_prose(<umer:2018:two_stage_flow_based_intrusion_detection>) propuseram uma arquitetura de duas etapas para detecção baseada em fluxos.
+A primeira etapa utiliza uma versão aprimorada do `one-class SVM` para separar fluxos maliciosos do tráfego normal sem utilizar rótulos durante o treinamento.
+A segunda, por sua vez, utiliza um #glossarium.gls("som") para agrupar os fluxos maliciosos de acordo com seus padrões de comportamento.
+Dessa forma, a arquitetura separa a identificação de tráfego malicioso em classes de ataque @umer:2018:two_stage_flow_based_intrusion_detection.
+
+Seus experimentos utilizaram características relacionadas à origem e ao destino da comunicação, portas, protocolo, quantidade de pacotes, quantidade de bytes e duração dos fluxos.
+No conjunto de dados composto por tráfego normal, malware e ameaças persistentes avançadas, o `one-class SVM` identificou 94,28% dos fluxos normais utilizados no treinamento como parte do comportamento normal.
+O #glossarium.gls("som") agrupou esses fluxos de acordo com os tipos de ataque presentes no conjunto @umer:2018:two_stage_flow_based_intrusion_detection.
+
+A solução apresentada por #cite_prose(<umer:2018:two_stage_flow_based_intrusion_detection>) ilustra uma abordagem em que a análise do tráfego em nível de fluxo combina detecção e classificação em etapas distintas.
+A separação dessas etapas permite utilizar métodos diferentes para identificar anomalias e organizar os fluxos associados a atividades maliciosas.
+
+A utilização de dados rotulados é também central para a avaliação de métodos de detecção e classificação.
+Foram selecionadas três bases de dados de simulação de fluxos de rede: o projeto #glossarium.gls("genis"), o projeto #glossarium.gls("rosids") e o conjunto de dados de #get_term("westermo").
+As bases diferem quanto ao ambiente de coleta, aos ataques representados, às características extraídas e às estratégias utilizadas para atribuição dos rótulos.
 
 == Bases de dados e benchmarks do domínio
 
@@ -58,7 +85,7 @@ Essa discussão estabelece o contexto para a metodologia apresentada posteriorme
         ],
 
         [
-          #get_term("genis")
+          @genis
           #cite(<silva:2025:genis_network_intrusion>)
         ],
         [
@@ -78,7 +105,7 @@ Essa discussão estabelece o contexto para a metodologia apresentada posteriorme
         ],
 
         [
-          #get_term("rosids")
+          @rosids
           #cite(<degirmenci:2023:rosids23_network_intrusion>)
         ],
         [
@@ -121,10 +148,9 @@ Essa discussão estabelece o contexto para a metodologia apresentada posteriorme
   ),
 )
 
-=== #get_term("genis", capitalize: true)
+=== #glossarium.gls-short("genis")
 
-A base de dados #get_term("genis") (GECAD
-Network Intrusion Scenarios) foi desenvolvida pelo #foreign_text[Research Group on Intelligent Engineering and Computing for Advanced Innovation and Development] da Universidade Técnica de Porto @silva:2025:genis_network_intrusion.
+A base de dados @genis foi desenvolvida pelo #foreign_text[Research Group on Intelligent Engineering and Computing for Advanced Innovation and Development] da Universidade Técnica de Porto @silva:2025:genis_network_intrusion.
 Ela coleta as atividades de diferentes tipos de fluxos de ataques de rede realizados em simulação na plataforma Airbus CyberRange.
 
 A simulação registrou 37.681.001 pacotes de rede organizados nos respectivos passos de ataque.
@@ -137,7 +163,7 @@ Aos fluxos ainda são atribuídas sub-categorias, conforme a tabela @tabela:clas
 #describe_figure(
   source: [#cite_prose(<silva:2025:genis_network_intrusion>).],
   [#figure(
-    caption: [Classes de fluxos de rede na base de dados #get_term("genis")],
+    caption: [Classes de fluxos de rede na base de dados @genis],
     format_table(
       table(
         columns: (1fr, 1fr, 1fr),

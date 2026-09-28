@@ -1,3 +1,15 @@
+@article{buczak:2016:ml_for_cyber_security,
+  author   = {Buczak, Anna L. and Guven, Erhan},
+  doi      = {https://doi.org/10.1109/COMST.2015.2494502},
+  journal  = {IEEE Communications Surveys & Tutorials},
+  keywords = {IP networks;Protocols;Measurement;Ports (Computers);Data models;Data mining;Computer security;Cyber Analytics;Data Mining;Machine Learning;Cyber analytics;data mining;machine learning},
+  number   = {2},
+  pages    = {1153--1176},
+  title    = {A Survey of Data Mining and Machine Learning Methods for Cyber Security Intrusion Detection},
+  volume   = {18},
+  year     = {2016}
+}
+
 @article{degirmenci:2023:rosids23_network_intrusion,
   abstract = {The data described herein pertains to the Robotic Systems Security domain. This data in brief presents the attributes of the ROSIDS23 dataset and its collection process in detail. This dataset comprises Robot Operating System (ROS)-based cyber-attacks to address the emerging need in high fidelity data for robotic system security research. The data was gathered from the IFARLab-DIH environment. IFARLab-DIH is a robotic and factory-level laboratory that includes a ROS-based network and is used to conduct studies up to TRL 5 on robotic systems. ROSIDS23 dataset contains benign and various attack traffic collected from the ROS middleware using the tcpdump network protocol analyser. Then the eighty-two traffic features were extracted from the captured pcap files and converted into CSV format using the CICFlowMeter tool. This dataset can serve as a valuable resource for developing and improving security countermeasures in robotic systems and can help the evolution of resilient robotics infrastructure.},
   author   = {Elif Değirmenci and Yunus {Sabri Kırca} and İlker Özçelik and Ahmet Yazıcı},
@@ -11,7 +23,6 @@
   volume   = {51},
   year     = {2023}
 }
-
 
 @article{silva:2025:genis_network_intrusion,
   abstract = {The development of artificial intelligence solutions for cyberattack detection and classification require high-quality and representative data. However, there is a scarcity of labelled datasets focused on the cyberattacks that target vulnerable small and medium-sized enterprises. To allow organizations to improve their intrusion detection systems according to their types of users, their active services, and the network protocols they use, it is necessary to provide reliable captures of different types of benign and malicious traffic. The GECAD Network Intrusion Scenarios (GeNIS) dataset contains multiple sequential attack scenarios and different types of realistic normal network activity, recorded during advanced network simulations on the Airbus CyberRange platform. The raw network packets were analyzed to generate labelled network flows, with the computation of statistical features to represent the traffic patterns of local and remote attackers, normal users and administrators, and background traffic of an enterprise computer network. GeNIS follows a modular design, providing raw packet capture next generation (PCAPNG) files with over 37 million packets of each intermediate attack step to enable an i\n-depth analysis with different flow exporters, feature extraction, and feature selection tools, as well as filtered CSV files with over 2.8 million flows created with 5, 10, 30, and 60 s flow intervals. The flows were preprocessed to provide a reliable benchmark dataset with the most relevant features for the training, validation, and testing of robust machine learning and deep learning models.},
@@ -39,4 +50,31 @@
   url      = {https://www.sciencedirect.com/science/article/pii/S2352340923006121},
   volume   = {50},
   year     = {2023}
+}
+
+@article{umer:2017:flow_based_detection,
+  abstract = {Flow-based intrusion detection is an innovative way of detecting intrusions in high-speed networks. Flow-based intrusion detection only inspects the packet header and does not analyze the packet payload. This paper provides a comprehensive survey of current state of the art in flow-based intrusion detection. It also describes the available flow-based datasets used for evaluation of flow-based intrusion detection systems. The paper proposes a taxonomy for flow-based intrusion detection systems on the basis of the technique used for detection of maliciousness in flow records. We review the architecture and evaluation results of available flow-based intrusion detection systems. We also identify important research challenges for future research in the area of flow-based intrusion detection.},
+  author   = {Muhammad Fahad Umer and Muhammad Sher and Yaxin Bi},
+  doi      = {https://doi.org/10.1016/j.cose.2017.05.009},
+  issn     = {0167-4048},
+  journal  = {Computers & Security},
+  keywords = {Network flows, Flow-based intrusion detection, Flow-based datasets, Attack detection, Machine learning},
+  pages    = {238-254},
+  title    = {Flow-based intrusion detection: Techniques and challenges},
+  volume   = {70},
+  year     = {2017}
+}
+
+@article{umer:2018:two_stage_flow_based_intrusion_detection,
+  abstract  = {The next-generation network provides state-of-the-art access-independent services over converged mobile and fixed networks. Security in the converged network environment is a major challenge. Traditional packet and protocol-based intrusion detection techniques cannot be used in next-generation networks due to slow throughput, low accuracy and their inability to inspect encrypted payload. An alternative solution for protection of next-generation networks is to use network flow records for detection of malicious activity in the network traffic. The network flow records are independent of access networks and user applications. In this paper, we propose a two-stage flow-based intrusion detection system for next-generation networks. The first stage uses an enhanced unsupervised one-class support vector machine which separates malicious flows from normal network traffic. The second stage uses a self-organizing map which automatically groups malicious flows into different alert clusters. We validated the proposed approach on two flow-based datasets and obtained promising results.},
+  author    = {Umer, Muhammad Fahad and Sher, Muhammad and Bi, Yaxin},
+  doi       = {https://doi.org/10.1371/journal.pone.0180945},
+  journal   = {PLOS ONE},
+  month     = {01},
+  number    = {1},
+  pages     = {1-20},
+  publisher = {Public Library of Science},
+  title     = {A two-stage flow-based intrusion detection model for next-generation networks},
+  volume    = {13},
+  year      = {2018}
 }

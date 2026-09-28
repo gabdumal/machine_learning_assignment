@@ -116,14 +116,6 @@
     short_capitalized: foreign_text[One-hot],
   ),
   (
-    key: "genis",
-    short: [GeNIS],
-  ),
-  (
-    key: "rosids",
-    short: [ROSIDS23],
-  ),
-  (
     key: "westermo",
     short: [Westermo],
   ),
