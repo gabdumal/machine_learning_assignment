@@ -135,6 +135,10 @@
     key: "bruteforce",
     short: "Bruteforce",
   ),
+  (
+    key: "seed",
+    short: foreign_text[seed],
+  ),
 )
 
 

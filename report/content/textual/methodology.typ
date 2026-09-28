@@ -460,12 +460,16 @@ Ainda no #glossarium.gls("rosids"), a característica `protocol` apresentava ape
 Logo, assim foi feita a transformação em dados categóricos.
 
 Também foi identificado que características calculadas com base na razão entre outros valores numéricos podem apresentar valores indeterminados ou infinitos quando o valor daquelas é igual a zero.
-Assim, todos os casos de dados vazios ou inválidos foram imputados como o valor de NaN da biblioteca pandas, de forma que possam ser utilizados nos algoritmos de #glossarium.gls("machine_learning").
+Assim, todos os casos de dados vazios ou inválidos foram imputados como o valor de NaN da biblioteca `pandas`, de forma que possam ser utilizados nos algoritmos de #glossarium.gls("machine_learning").
 Por fim, na característica `initial_backward_window_bytes`, o valor `-1` é utilizado para representar dados ausentes.
-Logo, essas entradas foram imputadas com o tipo NaN do pandas.
+Logo, essas entradas foram imputadas com o tipo NaN do `pandas`.
 
 As transformações foram aplicadas deterministicamente sobre as partições de treino e de teste.
-Dado que nenhuma dessas transformações foi descoberta por aprendizado, o tratamento não configura leakage.
+Dado que nenhuma dessas transformações utilizou informações descobertas na base, o tratamento não configura leakage.
+
+Em relação a métodos de balanceamento das classes-alvo, decidimos aplicar o algoritmo de #foreign_text[Random Over Sampler], disponibilizado pela biblioteca `imblearn`.
+Ele é responsável por selecionar amostras aleatoriamente a partir de uma #get_term("seed") fixa, garantindo uma representação igualitária das classes da variável-alvo.
+Uma vez que o balanceamento pode alterar a seleção dos hiperparâmetros ideais para um modelo, ela foi realizada dentro do #get_term("pipeline") de validação cruzada.
 
 
 == Modelos de referência
