@@ -93,11 +93,6 @@
     short_capitalized: foreign_text[Weighted voting],
   ),
   (
-    key: "gradient_boosting",
-    short: foreign_text[gradient boosting],
-    short_capitalized: foreign_text[Gradient boosting],
-  ),
-  (
     key: "out_of_fold",
     short: foreign_text[out-of-fold],
     short_capitalized: foreign_text[Out-of-fold],

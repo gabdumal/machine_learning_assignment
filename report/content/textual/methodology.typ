@@ -499,13 +499,91 @@ Após a conclusão da validação, a configuração selecionada é ajustada sobr
 
 == Modelos de referência
 
-#note_from_advisor[
+#note_from_advisor(note: done_note)[
   Apresente os modelos clássicos usados como baselines. Para classificação, escolha pelo menos três métodos adequados ao problema, por exemplo: regressão logística, árvore de decisão, floresta aleatória, SVM, Naive Bayes, XGBoost/LightGBM ou outro classificador justificado. Para regressão ou agrupamento, utilize algoritmos correspondentes. Informe hiperparâmetros principais e como eles foram definidos ou ajustados.
 ]
 
-#note_from_advisor(note: todo_note)[
+#note_from_advisor(note: done_note)[
   Descreva os modelos de referência e suas configurações.
 ]
+
+Foram selecionados três modelos de classificação como referência para os experimentos: #glossarium.gls("decision_tree"), floresta aleatória, e XGBoost.
+Todos os modelos têm significativa capacidade de lidar com valores em escalas distintas e com outliers.
+
+A #glossarium.gls("decision_tree") foi selecionada como #get_term("baseline") por apresentar uma única estrutura de decisão.
+A floresta aleatória foi utilizada para representar a combinação de múltiplas árvores em um #glossarium.gls("model_ensemble").
+O XGBoost foi selecionado para representar uma abordagem de #glossarium.gls("gradient_boosting") baseada em árvores.
+
+Os hiperparâmetros de cada modelo foram definidos a partir de grades de valores avaliadas durante os experimentos (GridSearch).
+A @tabela:grade-hiperparâmetros apresenta as configurações consideradas para cada modelo.
+Cada uma foi testada com e sem balanceamento.
+Por sua vez, a @tabela:hiperparametros apresenta os hiperparâmetros selecionados para cada modelo em cada base de dados. Percebe-se que o balanceamento não foi considerado vantajoso.
+
+#describe_figure(
+  [#figure(
+    caption: [Grades de hiperparâmetros utilizadas nos modelos de referência],
+    format_table(table(
+      columns: (1fr, 1fr, 1fr),
+
+      table.header([Modelo], [Hiperparâmetro], [Valores avaliados]),
+
+      [Árvore de decisão], [criterion], [`gini`, `entropy`],
+      [Árvore de decisão], [max_depth], [`10`, `20`, `None`],
+      [Árvore de decisão], [min_samples_split], [`2`, `5`, `10`],
+      [Árvore de decisão], [min_samples_leaf], [`1`, `5`],
+
+      table.hline(stroke: 0.5pt),
+
+      [Floresta aleatória], [n_estimators], [`100`, `200`],
+      [Floresta aleatória], [max_depth], [`10`, `20`, `None`],
+      [Floresta aleatória], [min_samples_split], [`2`, `5`, `10`],
+      [Floresta aleatória], [min_samples_leaf], [`1`, `5`],
+
+      table.hline(stroke: 0.5pt),
+
+      [XGBoost], [n_estimators], [`100`, `200`],
+      [XGBoost], [max_depth], [`3`, `6`],
+      [XGBoost], [learning_rate], [`0.05`, `0.1`],
+      [XGBoost], [min_child_weight], [`1`, `5`],
+      [XGBoost], [subsample], [`0.8`, `1.0`],
+    )),
+  ) <tabela:grade-hiperparâmetros>],
+)
+
+#describe_figure(
+  [#figure(
+    caption: [Hiperparâmetros selecionados para os modelos de referência],
+    format_table(table(
+      columns: (1fr, 1fr, 1fr, 1fr),
+
+      table.header([Modelo], [Hiperparâmetro], [#glossarium.gls-short("genis")], [#glossarium.gls-short("rosids")]),
+
+      [Árvore de decisão], [sampler], [`passthrough`], [`passthrough`],
+      [Árvore de decisão], [criterion], [`gini`], [`entropy`],
+      [Árvore de decisão], [max_depth], [`20`], [`20`],
+      [Árvore de decisão], [min_samples_split], [`2`], [`10`],
+      [Árvore de decisão], [min_samples_leaf], [`1`], [`1`],
+
+      table.hline(stroke: 0.5pt),
+
+      [Floresta aleatória], [sampler], [`passthrough`], [`passthrough`],
+      [Floresta aleatória], [n_estimators], [`200`], [`200`],
+      [Floresta aleatória], [max_depth], [`None`], [`20`],
+      [Floresta aleatória], [min_samples_split], [`2`], [`5`],
+      [Floresta aleatória], [min_samples_leaf], [`1`], [`1`],
+
+      table.hline(stroke: 0.5pt),
+
+      [XGBoost], [sampler], [`passthrough`], [`passthrough`],
+      [XGBoost], [n_estimators], [`200`], [`200`],
+      [XGBoost], [max_depth], [`6`], [`6`],
+      [XGBoost], [learning_rate], [`0.1`], [`0.1`],
+      [XGBoost], [min_child_weight], [`1`], [`1`],
+      [XGBoost], [subsample], [`0.8`], [`0.8`],
+    )),
+  ) <tabela:hiperparametros>],
+)
+
 
 == Comitês de modelos
 
