@@ -3,14 +3,14 @@
 
 = Resultados e discussão <seção:resultados>
 
-#note_from_advisor[
+#note_from_advisor(note: progress_note)[
   Não se limite a apresentar tabelas. Compare os métodos, quantifique diferenças e interprete os resultados à luz das características dos datasets. Discuta casos em que um método funciona melhor ou pior, classes ou regiões difíceis, complementaridade entre modelos, efeito dos comitês, comportamento do GPT, custo computacional e limitações. Diferencie claramente observações suportadas pelos experimentos de hipóteses ou especulações.
 ]
 
 
 == Resultados dos modelos de referência
 
-#note_from_advisor[
+#note_from_advisor(note: done_note)[
   Apresente os resultados dos modelos clássicos de forma comparável. Sempre indique se os valores correspondem a uma única avaliação, a predições out-of-fold agregadas ou ao resumo de múltiplas execuções/repetições. Evite escolher apenas a melhor métrica para cada modelo.
 ]
 
@@ -283,6 +283,206 @@ Assim, a floresta aleatória oferece o maior desempenho preditivo ao custo compu
 #note_from_advisor(note: todo_note)[
   Apresente e discuta os resultados dos comitês.
 ]
+
+=== Configuração e pesos
+
+Os comitês foram construídos a partir dos três modelos de referência: #glossarium.gls("decision_tree"), #glossarium.gls("random_forest"), e XGBoost.
+Para cada base de dados, foram avaliadas as quatro estratégias definidas na metodologia: votação majoritária, votação majoritária ponderada, votação por média das probabilidades e votação por média das probabilidades ponderada.
+As estratégias ponderadas utilizaram como peso de cada modelo o desempenho médio em Macro F1 obtido na validação, calculado a partir das três sementes utilizadas no experimento.
+Os rótulos do conjunto de teste permaneceram restritos à avaliação final dos comitês, não sendo utilizados na definição dos pesos ou na escolha das estratégias.
+
+A @tabela:comites_pesos apresenta os valores utilizados para cada base.
+No GeNIS, os três modelos apresentaram Macro F1 de validação muito próximos, resultando em pesos praticamente uniformes.
+A maior diferença ocorre para a árvore de decisão, enquanto a floresta aleatória e o XGBoost recebem diferem em 0,00001.
+No ROSIDS, a distribuição também permanece próxima da uniformidade, embora o XGBoost apresente o maior peso, seguido pela floresta aleatória e pela árvore de decisão.
+
+#describe_figure(
+  [#figure(
+    caption: [Macro F1 médio na validação e pesos utilizados nos comitês.],
+    format_table(
+      table(
+        columns: (auto, auto, auto, auto),
+        table.header([Base], [Modelo], [Macro F1 na validação], [Peso]),
+        table.cell(rowspan: 3)[GeNIS], [Árvore de decisão], [0,99984], [0,33332],
+        [Floresta aleatória], [0,99993], [0,33335],
+        [XGBoost], [0,99990], [0,33334],
+        table.hline(stroke: 0.5pt),
+        table.cell(rowspan: 3)[ROSIDS], [Árvore de decisão], [0,94202], [0,33085],
+        [Floresta aleatória], [0,95197], [0,33435],
+        [XGBoost], [0,95326], [0,33480],
+      ),
+    ),
+  ) <tabela:comites_pesos>],
+)
+
+
+=== GeNIS
+
+A @tabela:genis_comites_resultados apresenta os resultados das quatro estratégias de comitê no conjunto de teste do GeNIS, considerando as três sementes utilizadas no experimento.
+O hard voting e sua versão ponderada apresentaram os mesmos resultados em todas as métricas, sem cometer erros.
+As estratégias baseadas em soft voting também apresentaram desempenho excepcional, mas com pequenas variações.
+
+#describe_figure(
+  [#figure(
+    caption: [Desempenho dos comitês no conjunto de teste do GeNIS.],
+    format_table(
+      table(
+        columns: (auto, auto, auto, auto, auto, auto, auto),
+        align: start,
+
+        table.header([Estratégia], [Acurácia], [Precisão], [Recall], [Macro F1], [ROC-AUC], [PR-AUC]),
+
+        [Hard voting],
+        [1,00000 ± 0,00000],
+        [1,00000 ± 0,00000],
+        [1,00000 ± 0,00000],
+        [1,00000 ± 0,00000],
+        [1,00000 ± 0,00000],
+
+        [1,00000 ± 0,00000], [Hard voting ponderada],
+
+        [1,00000 ± 0,00000],
+        [1,00000 ± 0,00000],
+        [1,00000 ± 0,00000],
+        [1,00000 ± 0,00000],
+        [1,00000 ± 0,00000],
+        [1,00000 ± 0,00000],
+
+        [Soft voting], [1,00000 ± 0,00001], [1,00000 ± 0,00000], [0,99998 ± 0,00003],
+
+        [0,99999 ± 0,00001], [1,00000 ± 0,00000], [1,00000 ± 0,00000], [Soft voting ponderada], [1,00000 ± 0,00001],
+
+        [1,00000 ± 0,00000], [0,99998 ± 0,00003], [0,99999 ± 0,00001], [1,00000 ± 0,00000], [1,00000 ± 0,00000],
+      ),
+    ),
+  ) <tabela:genis_comites_resultados>],
+)
+
+Considerando o Macro F1, o hard voting alcançou o mesmo valor obtido pela floresta aleatória e pelo XGBoost, que predizem perfeitamente.
+Em relação à árvore de decisão, cujo Macro F1 médio foi de 0,99987, ambas as estratégias de votação majoritária apresentaram um aumento de desempenho, dado que pararam de cometer os erros.
+As duas estratégias baseadas em probabilidades, por outro lado, apresentaram Macro F1 de 0,99999, uma vez que permitiram que a árvore de decisão levasse a um erro.
+
+As pequenas diferenças observadas entre as estratégias indicam que, para essa base, a agregação das previsões não produz ganho relevante sobre os melhores modelos individuais, mas apenas incorre em maior custo computacional.
+
+
+=== ROSIDS
+
+A @tabela:rosids_comites_resultados apresenta os resultados das quatro estratégias de comitê no conjunto de teste do ROSIDS, considerando as três sementes do experimento.
+O hard voting apresentou Macro F1 médio de 0,95606, tendo sido ligeiramente melhor que os outros métodos de comitê e tradicionais.
+
+#describe_figure(
+  [#figure(
+    caption: [Desempenho dos comitês no conjunto de teste do ROSIDS.],
+    format_table(
+      table(
+        columns: (auto, auto, auto, auto, auto, auto, auto),
+        align: start,
+
+        table.header([Estratégia], [Acurácia], [Precisão], [Recall], [Macro F1], [ROC-AUC], [PR-AUC]),
+
+        [Hard voting],
+        [0,97831 ± 0,00019],
+        [0,95694 ± 0,00037],
+        [0,95537 ± 0,00038],
+        [0,95606 ± 0,00030],
+        [0,97825 ± 0,00003],
+        [0,93324 ± 0,00020],
+
+        [Hard voting\ ponderado],
+        [0,97837 ± 0,00014],
+        [0,95732 ± 0,00021],
+        [0,95496 ± 0,00033],
+        [0,95604 ± 0,00017],
+        [0,97826 ± 0,00003],
+        [0,93347 ± 0,00018],
+
+        [Soft voting],
+        [0,97799 ± 0,00002],
+        [0,95526 ± 0,00021],
+        [0,95471 ± 0,00003],
+        [0,95491 ± 0,00011],
+        [0,99658 ± 0,00004],
+        [0,97398 ± 0,00015],
+
+        [Soft voting\ ponderado],
+        [0,97800 ± 0,00004],
+        [0,95531 ± 0,00025],
+        [0,95472 ± 0,00002],
+        [0,95494 ± 0,00013],
+        [0,99658 ± 0,00004],
+        [0,97398 ± 0,00016],
+      ),
+    ),
+  ) <tabela:rosids_comites_resultados>],
+)
+
+Em comparação com os modelos individuais, o hard voting apresentou Macro F1 médio 0,00093 superior ao da floresta aleatória, que obteve 0,95513, e 0,00218 superior ao do XGBoost, com 0,95388.
+Em relação à árvore de decisão, a diferença foi de 0,00974.
+A versão ponderada fez pouca diferença no resultado.
+
+As métricas baseadas nas probabilidades apresentam comportamento diferente das métricas de classificação.
+O soft voting e sua versão ponderada alcançaram ROC-AUC médio de 0,99658 e PR-AUC de aproximadamente 0,97398, valores superiores aos observados no hard voting.
+Isso decorre do uso das probabilidades médias dos classificadores como escores dessas estratégias, enquanto a votação majoritária utiliza a proporção de votos para produzir seus escores.
+
+Considerando um cenário de altíssimo risco, em que se deseja minimizar ao máxima a chance de errar, os comitês se mostram uma boa opção.
+Ainda assim, o custo adicional leva a preferir métodos tradicionais em cenários mais comuns.
+
+== Diversidade e complementaridade
+
+A @tabela:comites_diversidade apresenta as medidas de diversidade entre os pares de classificadores que compõem os comitês.
+Foram consideradas a discordância entre as previsões, a ocorrência de erros simultâneos (`Double Fault`) e a similaridade entre os conjuntos de erros, medida pelo coeficiente de Jaccard.
+Valores menores de discordância indicam previsões mais semelhantes, enquanto valores menores de Jaccard indicam menor sobreposição entre os erros dos dois classificadores.
+
+#describe_figure(
+  [#figure(
+    caption: [Medidas de diversidade entre os classificadores dos comitês.],
+    format_table(
+      table(
+        align: start + horizon,
+        columns: (auto, auto, auto, auto, auto),
+
+        table.header([Base], [Par de classificadores], [Discordância], [Double Fault], [Jaccard dos erros]),
+
+        table.cell(rowspan: 3)[GeNIS],
+        [Árvore de decisão\ × Floresta aleatória],
+        [0,00005 ± 0,00002],
+        [0,00000 ± 0,00000],
+        [0,00000 ± 0,00000],
+
+        [Árvore de decisão\ × XGBoost], [0,00005 ± 0,00002], [0,00000 ± 0,00000], [0,00000 ± 0,00000],
+        [Floresta aleatória\ × XGBoost], [0,00000 ± 0,00000], [0,00000 ± 0,00000], [1,00000 ± 0,00000],
+
+        table.hline(stroke: 0.5pt),
+
+        table.cell(rowspan: 3)[ROSIDS],
+        [Árvore de decisão\ × Floresta aleatória],
+        [0,01036 ± 0,00018],
+        [0,01947 ± 0,00021],
+        [0,66793 ± 0,00705],
+
+        [Árvore de decisão\ × XGBoost], [0,01347 ± 0,00008], [0,01845 ± 0,00014], [0,59778 ± 0,00276],
+        [Floresta aleatória\ × XGBoost], [0,00718 ± 0,00040], [0,01922 ± 0,00027], [0,74842 ± 0,01600],
+      ),
+    ),
+  ) <tabela:comites_diversidade>],
+)
+
+No GeNIS, a discordância entre os classificadores foi praticamente nula.
+Árvore de decisão e floresta aleatória, assim como árvore de decisão e XGBoost, apresentaram discordância média de 0,00005, enquanto floresta aleatória e XGBoost não apresentaram discordâncias nas previsões.
+O `Double Fault` foi nulo em todos os pares.
+Nos dois pares que envolvem a árvore de decisão, o Jaccard dos conjuntos de erros também foi nulo, indicando que os erros observados não foram compartilhados entre esses classificadores.
+Entretanto, como a quantidade total de erros é muito pequena nessa base, essa diferença entre os padrões de erro ocorre em uma quantidade reduzida de instâncias.
+Para a floresta aleatória e o XGBoost, o Jaccard igual a 1,00000 decorre da coincidência completa entre seus conjuntos de erros, que são ambos vazios.
+
+No ROSIDS, as diferenças entre os classificadores são mais pronunciadas.
+O maior nível de discordância ocorre entre a árvore de decisão e o XGBoost, com 0,01347, seguido pelo par entre árvore de decisão e floresta aleatória, com 0,01036.
+A menor discordância ocorre entre floresta aleatória e XGBoost, com 0,00718.
+O mesmo padrão aparece na similaridade dos conjuntos de erros: árvore de decisão e XGBoost apresentam o menor Jaccard, 0,59778, enquanto floresta aleatória e XGBoost apresentam o maior, 0,74842.
+
+Esses resultados indicam que os classificadores do ROSIDS não produzem exatamente os mesmos erros, o que fornece um cenário mais propício à complementaridade entre os componentes do comitê.
+A árvore de decisão apresenta as maiores diferenças em relação aos demais modelos, enquanto floresta aleatória e XGBoost possuem padrões de erro mais semelhantes.
+Ainda assim, a diversidade por si só não determina o desempenho do comitê, pois o efeito da combinação depende de como essas previsões diferentes são agregadas.
+
 
 == Comparação com GPT
 
