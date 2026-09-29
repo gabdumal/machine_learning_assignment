@@ -33,6 +33,8 @@
 
   show heading: set block(above: larger_leading, below: leading)
 
+  set table(inset: 6pt)
+
   set page(
     paper: "presentation-16-9",
     margin: (y: larger_leading, x: leading),

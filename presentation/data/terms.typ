@@ -26,6 +26,10 @@
     short: foreign_text[web],
   ),
   (
+    key: "api",
+    short: [API],
+  ),
+  (
     key: "dataset",
     short: foreign_text[dataset],
     short_capitalized: foreign_text[Dataset],
@@ -115,29 +119,79 @@
     short: [Westermo],
   ),
   (
-    key: "dos",
-    short: "DoS",
-  ),
-  (
-    key: "recon",
-    short: "Recon",
-  ),
-  (
-    key: "benign",
-    short: "Benign",
-  ),
-  (
-    key: "bruteforce",
-    short: "Bruteforce",
-  ),
-  (
     key: "seed",
     short: foreign_text[seed],
+    plural: foreign_text[seeds],
   ),
   (
     key: "fold",
     short: foreign_text[fold],
     plural: foreign_text[folds],
+  ),
+  (
+    key: "outlier",
+    short: foreign_text[outlier],
+    plural: foreign_text[outliers],
+  ),
+  (
+    key: "accuracy",
+    short: foreign_text[accuracy],
+    short_capitalized: foreign_text[Accuracy],
+  ),
+  (
+    key: "balanced_accuracy",
+    short: foreign_text[balanced accuracy],
+    short_capitalized: foreign_text[Balanced accuracy],
+  ),
+  (
+    key: "precision",
+    short: foreign_text[precision],
+    short_capitalized: foreign_text[Precision],
+  ),
+  (
+    key: "recall",
+    short: foreign_text[recall],
+    short_capitalized: foreign_text[Recall],
+  ),
+  (
+    key: "f1",
+    short: [F1],
+  ),
+  (
+    key: "macro_f1",
+    short: [Macro F1],
+  ),
+  (
+    key: "roc_auc",
+    short: [ROC-AUC],
+  ),
+  (
+    key: "pr_auc",
+    short: [PR-AUC],
+  ),
+  (
+    key: "mcc",
+    short: [MCC],
+  ),
+  (
+    key: "hard_voting",
+    short: foreign_text[hard voting],
+    short_capitalized: foreign_text[Hard voting],
+  ),
+  (
+    key: "hard_voting_ponderado",
+    short: [#foreign_text[hard voting] ponderado],
+    short_capitalized: [#foreign_text[Hard voting] ponderado],
+  ),
+  (
+    key: "soft_voting",
+    short: foreign_text[soft voting],
+    short_capitalized: foreign_text[Soft voting],
+  ),
+  (
+    key: "soft_voting_ponderado",
+    short: [#foreign_text[soft voting] ponderado],
+    short_capitalized: [#foreign_text[Soft voting] ponderado],
   ),
 )
 

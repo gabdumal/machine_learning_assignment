@@ -494,14 +494,14 @@ Foram realizadas três repetições do procedimento, utilizando as #get_term("se
 Assim, cada configuração é avaliada em nove configurações ao todo, correspondentes aos três #get_term("fold", plural: true) de cada uma das três #get_term("seed", plural: true).
 
 Em cada execução, uma fração da partição de treinamento é separada para ser utilizada exclusivamente como validação.
-A fração restante (#get_term("out_of_fold")) é utilizada para treinar o classificador.
+A fração restante é utilizada para treinar o classificador.
 A proporção dessa divisão foi mantida como padrão da biblioteca.
 
 As transformações descritas no #get_term("pipeline") são aplicadas somente sobre a partição de treinamento.
 Ele é composto pelas etapas de: pré-processamento das características, balanceamento das classes, e treinamento do classificador.
 
 O pré-processamento é realizado por meio de um `ColumnTransformer`.
-Para as características numéricas, valores infinitos são convertidos para `NaN` e os valores ausentes são substituídos pela mediana calculada nos dados de treinamento.
+Para as características numéricas, valores ausentes são substituídos pela mediana calculada nos dados de treinamento.
 Não é aplicada normalização ou padronização, dado que os métodos baseados em árvore não requerem esse tratamento.
 Em relação às características categóricas, não foram encontrados valores ausentes.
 Para manter a padronização com as bases de dados, as categorias são transformadas por #glossarium.gls("one_hot").
@@ -563,6 +563,10 @@ Respostas inválidas dos #glossarium.gls("llm", plural: true, link: false), são
 
 #note_from_advisor(note: done_note)[
   Descreva os modelos de referência e suas configurações.
+]
+
+#note_from_gabriel(note: todo_note)[
+  Listar parâmetros selecionados
 ]
 
 Foram selecionados três modelos de #glossarium.gls("classificação_multiclasse") como referência para os experimentos: #glossarium.gls("decision_tree"), #glossarium.gls("random_forest"), e #glossarium.gls("xgboost").
