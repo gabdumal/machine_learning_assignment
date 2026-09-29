@@ -205,7 +205,7 @@ As diferenças entre os modelos também são observadas nas demais métricas, co
 
 #describe_figure(
   [#figure(
-    caption: [Resultados dos modelos de referência na base de dados ROSIDS],
+    caption: [Resultados dos modelos de referência na base de dados #glossarium.gls-short("rosids")],
     format_table(
       table(
         columns: (auto, 1fr, 1fr, 1fr),
@@ -241,7 +241,7 @@ As classes `Benign` e `Subflood` apresentam desempenho intermediário, com difer
 
 #describe_figure(
   [#figure(
-    caption: [Métricas por classe dos modelos de referência na base de dados ROSIDS],
+    caption: [Métricas por classe dos modelos de referência na base de dados #glossarium.gls-short("rosids")],
     format_table(
       table(
         columns: (auto, auto, 1fr, 1fr, 1fr),
@@ -371,28 +371,26 @@ Por outro lado, a #glossarium.gls("random_forest", link: false) mostrou uma dist
 
 === Configuração e pesos
 
-Os comitês foram construídos a partir dos três modelos de referência: #glossarium.gls("decision_tree"), #glossarium.gls("random_forest"), e XGBoost.
-Para cada base de dados, foram avaliadas as quatro estratégias definidas na metodologia: votação majoritária, votação majoritária ponderada, votação por média das probabilidades e votação por média das probabilidades ponderada.
-As estratégias ponderadas utilizaram como peso de cada modelo o desempenho médio em Macro F1 obtido na validação, calculado a partir das três sementes utilizadas no experimento.
-Os rótulos do conjunto de teste permaneceram restritos à avaliação final dos comitês, não sendo utilizados na definição dos pesos ou na escolha das estratégias.
+Os comitês foram construídos a partir dos três modelos de referência: #glossarium.gls("decision_tree"), #glossarium.gls("random_forest"), e #glossarium.gls("xgboost").
+Para cada base de dados, foram avaliadas quatro estratégias: #get_term("hard_voting"), #get_term("hard_voting_ponderado"), #get_term("soft_voting"), e #get_term("soft_voting_ponderado").
 
 A @tabela:comites_pesos apresenta os valores utilizados para cada base.
-No #glossarium.gls("genis"), os três modelos apresentaram Macro F1 de validação muito próximos, resultando em pesos praticamente uniformes.
-A maior diferença ocorre para a árvore de decisão, enquanto a floresta aleatória e o XGBoost recebem diferem em 0,00001.
-No ROSIDS, a distribuição também permanece próxima da uniformidade, embora o XGBoost apresente o maior peso, seguido pela floresta aleatória e pela árvore de decisão.
+Na base #glossarium.gls("genis"), os três algoritmos apresentaram #get_term("macro_f1") de validação muito próximos, resultando em pesos praticamente uniformes.
+A maior diferença ocorre para a #glossarium.gls("decision_tree", link: false), enquanto a #glossarium.gls("random_forest", link: false) e o #glossarium.gls("xgboost", link: false) recebem diferem em 0,00001.
+No #glossarium.gls("rosids", link: false), a distribuição também permanece próxima da uniformidade, embora o #glossarium.gls("xgboost", link: false) apresente o maior peso, seguido pela #glossarium.gls("random_forest", link: false) e pela #glossarium.gls("decision_tree", link: false).
 
 #describe_figure(
   [#figure(
-    caption: [Macro F1 médio na validação e pesos utilizados nos comitês.],
+    caption: [#get_term("macro_f1") médio na validação e pesos utilizados nos comitês],
     format_table(
       table(
         columns: (auto, auto, auto, auto),
-        table.header([Base], [Modelo], [Macro F1 na validação], [Peso]),
+        table.header([Base], [Modelo], [#get_term("macro_f1") na validação], [Peso]),
         table.cell(rowspan: 3)[#glossarium.gls("genis", link: false)], [Árvore de decisão], [0,99984], [0,33332],
         [Floresta aleatória], [0,99993], [0,33335],
         [XGBoost], [0,99990], [0,33334],
         table.hline(stroke: 0.5pt),
-        table.cell(rowspan: 3)[ROSIDS], [Árvore de decisão], [0,94202], [0,33085],
+        table.cell(rowspan: 3)[#glossarium.gls("rosids", link: false)], [Árvore de decisão], [0,94202], [0,33085],
         [Floresta aleatória], [0,95197], [0,33435],
         [XGBoost], [0,95326], [0,33480],
       ),
@@ -403,9 +401,9 @@ No ROSIDS, a distribuição também permanece próxima da uniformidade, embora o
 
 === #glossarium.gls-short("genis")
 
-A @tabela:genis_comites_resultados apresenta os resultados das quatro estratégias de comitê no conjunto de teste do #glossarium.gls("genis"), considerando as três sementes utilizadas no experimento.
-O hard voting e sua versão ponderada apresentaram os mesmos resultados em todas as métricas, sem cometer erros.
-As estratégias baseadas em soft voting também apresentaram desempenho excepcional, mas com pequenas variações.
+A @tabela:genis_comites_resultados apresenta os resultados das quatro estratégias de comitê no conjunto de teste do #glossarium.gls("genis"), considerando as três #get_term("seed", plural: true) utilizadas no experimento.
+O #get_term("hard_voting") e sua versão ponderada apresentaram os mesmos resultados em todas as métricas, sem cometer erros.
+As estratégias baseadas em #get_term("soft_voting") também apresentaram desempenho excepcional, mas com pequenas variações.
 
 #describe_figure(
   [#figure(
@@ -415,112 +413,139 @@ As estratégias baseadas em soft voting também apresentaram desempenho excepcio
         columns: (auto, auto, auto, auto, auto, auto, auto),
         align: start,
 
-        table.header([Estratégia], [Acurácia], [Precisão], [Recall], [Macro F1], [ROC-AUC], [PR-AUC]),
+        table.header(
+          [Estratégia],
+          [#get_term("accuracy", capitalize: true)],
+          [#get_term("precision", capitalize: true)],
+          [#get_term("recall", capitalize: true)],
+          [#get_term("macro_f1")],
+          [#get_term("roc_auc")],
+          [#get_term("pr_auc")],
+        ),
 
-        [Hard voting],
-        [1,00000 ± 0,00000],
-        [1,00000 ± 0,00000],
-        [1,00000 ± 0,00000],
-        [1,00000 ± 0,00000],
-        [1,00000 ± 0,00000],
+        [#get_term("hard_voting", capitalize: true)],
+        strong[1,00000\ ± 0,00000],
+        strong[1,00000\ ± 0,00000],
+        strong[1,00000\ ± 0,00000],
+        strong[1,00000\ ± 0,00000],
+        strong[1,00000\ ± 0,00000],
+        strong[1,00000\ ± 0,00000],
 
-        [1,00000 ± 0,00000], [Hard voting ponderada],
+        [#get_term("hard_voting_ponderado", capitalize: true)],
+        strong[1,00000\ ± 0,00000],
+        strong[1,00000\ ± 0,00000],
+        strong[1,00000\ ± 0,00000],
+        strong[1,00000\ ± 0,00000],
+        strong[1,00000\ ± 0,00000],
 
-        [1,00000 ± 0,00000],
-        [1,00000 ± 0,00000],
-        [1,00000 ± 0,00000],
-        [1,00000 ± 0,00000],
-        [1,00000 ± 0,00000],
-        [1,00000 ± 0,00000],
+        strong[1,00000\ ± 0,00000],
 
-        [Soft voting], [1,00000 ± 0,00001], [1,00000 ± 0,00000], [0,99998 ± 0,00003],
+        [#get_term("soft_voting", capitalize: true)],
+        [1,00000\ ± 0,00001],
+        strong[1,00000\ ± 0,00000],
+        [0,99998\ ± 0,00003],
+        [0,99999\ ± 0,00001],
+        strong[1,00000\ ± 0,00000],
+        strong[1,00000\ ± 0,00000],
 
-        [0,99999 ± 0,00001], [1,00000 ± 0,00000], [1,00000 ± 0,00000], [Soft voting ponderada], [1,00000 ± 0,00001],
-
-        [1,00000 ± 0,00000], [0,99998 ± 0,00003], [0,99999 ± 0,00001], [1,00000 ± 0,00000], [1,00000 ± 0,00000],
+        [#get_term("soft_voting_ponderado", capitalize: true)],
+        [1,00000\ ± 0,00001],
+        strong[1,00000\ ± 0,00000],
+        [0,99998\ ± 0,00003],
+        [0,99999\ ± 0,00001],
+        strong[1,00000\ ± 0,00000],
+        strong[1,00000\ ± 0,00000],
       ),
     ),
   ) <tabela:genis_comites_resultados>],
 )
 
-Considerando o Macro F1, o hard voting alcançou o mesmo valor obtido pela floresta aleatória e pelo XGBoost, que predizem perfeitamente.
-Em relação à árvore de decisão, cujo Macro F1 médio foi de 0,99987, ambas as estratégias de votação majoritária apresentaram um aumento de desempenho, dado que pararam de cometer os erros.
-As duas estratégias baseadas em probabilidades, por outro lado, apresentaram Macro F1 de 0,99999, uma vez que permitiram que a árvore de decisão levasse a um erro.
+Considerando o #get_term("macro_f1"), o #get_term("hard_voting") alcançou o mesmo valor obtido pela #glossarium.gls("random_forest", link: false) e pelo #glossarium.gls("xgboost", link: false), que predizem perfeitamente.
+Em relação à #glossarium.gls("decision_tree", link: false), cujo #get_term("macro_f1") médio foi de 0,99987, ambas as estratégias de votação majoritária apresentaram um aumento de desempenho, dado que pararam de cometer os erros.
+As duas estratégias baseadas em probabilidades, por outro lado, apresentaram #get_term("macro_f1") de 0,99999, uma vez que permitiram que a #glossarium.gls("decision_tree", link: false) levasse a um erro.
 
-As pequenas diferenças observadas entre as estratégias indicam que, para essa base, a agregação das previsões não produz ganho relevante sobre os melhores modelos individuais, mas apenas incorre em maior custo computacional.
+As pequenas diferenças observadas entre as estratégias indicam que, para essa base, os comitês não produzem ganho relevante sobre os melhores modelos individuais, mas apenas incorrem em maior custo computacional.
 
 
-=== ROSIDS
+=== #glossarium.gls-short("rosids")
 
-A @tabela:rosids_comites_resultados apresenta os resultados das quatro estratégias de comitê no conjunto de teste do ROSIDS, considerando as três sementes do experimento.
-O hard voting apresentou Macro F1 médio de 0,95606, tendo sido ligeiramente melhor que os outros métodos de comitê e tradicionais.
+A @tabela:rosids_comites_resultados apresenta os resultados das quatro estratégias de comitê no conjunto de teste do #glossarium.gls("rosids", link: false), considerando as três #get_term("seed", plural: true) do experimento.
+O #get_term("hard_voting") apresentou #get_term("macro_f1") médio de 0,95606, tendo sido ligeiramente melhor que os outros métodos de comitê e tradicionais.
 
 #describe_figure(
   [#figure(
-    caption: [Desempenho dos comitês no conjunto de teste do ROSIDS.],
+    caption: [Desempenho dos comitês no conjunto de teste do #glossarium.gls-short("rosids")],
     format_table(
       table(
         columns: (auto, auto, auto, auto, auto, auto, auto),
         align: start,
 
-        table.header([Estratégia], [Acurácia], [Precisão], [Recall], [Macro F1], [ROC-AUC], [PR-AUC]),
+        table.header(
+          [Estratégia],
+          [#get_term("accuracy", capitalize: true)],
+          [#get_term("precision", capitalize: true)],
+          [#get_term("recall", capitalize: true)],
+          [#get_term("macro_f1")],
+          [#get_term("roc_auc")],
+          [#get_term("pr_auc")],
+        ),
 
-        [Hard voting],
-        [0,97831 ± 0,00019],
-        [0,95694 ± 0,00037],
-        [0,95537 ± 0,00038],
-        [0,95606 ± 0,00030],
-        [0,97825 ± 0,00003],
-        [0,93324 ± 0,00020],
+        [#get_term("hard_voting", capitalize: true)],
+        [0,97831\ ± 0,00019],
+        [0,95694\ ± 0,00037],
+        strong[0,95537\ ± 0,00038],
+        strong[0,95606\ ± 0,00030],
+        [0,97825\ ± 0,00003],
+        [0,93324\ ± 0,00020],
 
-        [Hard voting\ ponderado],
-        [0,97837 ± 0,00014],
-        [0,95732 ± 0,00021],
-        [0,95496 ± 0,00033],
-        [0,95604 ± 0,00017],
-        [0,97826 ± 0,00003],
-        [0,93347 ± 0,00018],
+        [#get_term("hard_voting_ponderado", capitalize: true)],
+        strong[0,97837\ ± 0,00014],
+        strong[0,95732\ ± 0,00021],
+        [0,95496\ ± 0,00033],
+        [0,95604\ ± 0,00017],
+        [0,97826\ ± 0,00003],
+        [0,93347\ ± 0,00018],
 
-        [Soft voting],
-        [0,97799 ± 0,00002],
-        [0,95526 ± 0,00021],
-        [0,95471 ± 0,00003],
-        [0,95491 ± 0,00011],
-        [0,99658 ± 0,00004],
-        [0,97398 ± 0,00015],
+        [#get_term("soft_voting", capitalize: true)],
+        [0,97799\ ± 0,00002],
+        [0,95526\ ± 0,00021],
+        [0,95471\ ± 0,00003],
+        [0,95491\ ± 0,00011],
+        strong[0,99658\ ± 0,00004],
+        strong[0,97398\ ± 0,00015],
 
-        [Soft voting\ ponderado],
-        [0,97800 ± 0,00004],
-        [0,95531 ± 0,00025],
-        [0,95472 ± 0,00002],
-        [0,95494 ± 0,00013],
-        [0,99658 ± 0,00004],
-        [0,97398 ± 0,00016],
+        [#get_term("soft_voting_ponderado", capitalize: true)],
+        [0,97800\ ± 0,00004],
+        [0,95531\ ± 0,00025],
+        [0,95472\ ± 0,00002],
+        [0,95494\ ± 0,00013],
+        strong[0,99658\ ± 0,00004],
+        [0,97398\ ± 0,00016],
       ),
     ),
   ) <tabela:rosids_comites_resultados>],
 )
 
-Em comparação com os modelos individuais, o hard voting apresentou Macro F1 médio 0,00093 superior ao da floresta aleatória, que obteve 0,95513, e 0,00218 superior ao do XGBoost, com 0,95388.
-Em relação à árvore de decisão, a diferença foi de 0,00974.
-A versão ponderada fez pouca diferença no resultado.
+Em comparação com os modelos individuais, o #get_term("hard_voting") apresentou #get_term("macro_f1") médio 0,00093 superior ao da #glossarium.gls("random_forest", link: false), que obteve 0,95513, e 0,00218 superior ao do XGBoost, com 0,95388.
+Em relação à #glossarium.gls("decision_tree", link: false), a diferença foi de 0,00974.
+A versão ponderada fez pouca diferença no resultado, obtendo menor desvio-padrão.
 
 As métricas baseadas nas probabilidades apresentam comportamento diferente das métricas de classificação.
-O soft voting e sua versão ponderada alcançaram ROC-AUC médio de 0,99658 e PR-AUC de aproximadamente 0,97398, valores superiores aos observados no hard voting.
+O #get_term("soft_voting") e sua versão ponderada alcançaram #get_term("roc_auc") médio de 0,99658 e #get_term("pr_auc") de aproximadamente 0,97398, valores superiores aos observados no #get_term("hard_voting").
 Isso decorre do uso das probabilidades médias dos classificadores como escores dessas estratégias, enquanto a votação majoritária utiliza a proporção de votos para produzir seus escores.
 
-Considerando um cenário de altíssimo risco, em que se deseja minimizar ao máxima a chance de errar, os comitês se mostram uma boa opção.
+Considerando um cenário de altíssimo risco, em que se deseja absolutamente minimizar a chance de erro, os comitês se mostram uma boa opção.
 Ainda assim, o custo adicional leva a preferir métodos tradicionais em cenários mais comuns.
 
 === Diversidade e complementaridade
 
 A @tabela:comites_diversidade apresenta as medidas de diversidade entre os pares de classificadores que compõem os comitês.
-Foram consideradas a discordância entre as previsões, a ocorrência de erros simultâneos (`Double Fault`) e a similaridade entre os conjuntos de erros, medida pelo coeficiente de Jaccard.
+Foram consideradas a discordância entre as previsões, a ocorrência de erros simultâneos (#foreign_text[Double Fault]) e a similaridade entre os conjuntos de erros, medida pelo coeficiente de Jaccard.
 Valores menores de discordância indicam previsões mais semelhantes, enquanto valores menores de Jaccard indicam menor sobreposição entre os erros dos dois classificadores.
 
 #describe_figure(
   [#figure(
-    caption: [Medidas de diversidade entre os classificadores dos comitês.],
+    caption: [Medidas de diversidade entre os classificadores dos comitês],
     format_table(
       table(
         align: start + horizon,
@@ -530,22 +555,22 @@ Valores menores de discordância indicam previsões mais semelhantes, enquanto v
 
         table.cell(rowspan: 3)[#glossarium.gls("genis", link: false)],
         [Árvore de decisão\ × Floresta aleatória],
-        [0,00005 ± 0,00002],
+        strong[0,00005 ± 0,00002],
         [0,00000 ± 0,00000],
         [0,00000 ± 0,00000],
 
-        [Árvore de decisão\ × XGBoost], [0,00005 ± 0,00002], [0,00000 ± 0,00000], [0,00000 ± 0,00000],
+        [Árvore de decisão\ × XGBoost], strong[0,00005 ± 0,00002], [0,00000 ± 0,00000], [0,00000 ± 0,00000],
         [Floresta aleatória\ × XGBoost], [0,00000 ± 0,00000], [0,00000 ± 0,00000], [1,00000 ± 0,00000],
 
         table.hline(stroke: 0.5pt),
 
-        table.cell(rowspan: 3)[ROSIDS],
+        table.cell(rowspan: 3)[#glossarium.gls("rosids", link: false)],
         [Árvore de decisão\ × Floresta aleatória],
         [0,01036 ± 0,00018],
-        [0,01947 ± 0,00021],
+        strong[0,01947 ± 0,00021],
         [0,66793 ± 0,00705],
 
-        [Árvore de decisão\ × XGBoost], [0,01347 ± 0,00008], [0,01845 ± 0,00014], [0,59778 ± 0,00276],
+        [Árvore de decisão\ × XGBoost], strong[0,01347 ± 0,00008], [0,01845 ± 0,00014], strong[0,59778 ± 0,00276],
         [Floresta aleatória\ × XGBoost], [0,00718 ± 0,00040], [0,01922 ± 0,00027], [0,74842 ± 0,01600],
       ),
     ),
@@ -553,20 +578,19 @@ Valores menores de discordância indicam previsões mais semelhantes, enquanto v
 )
 
 No #glossarium.gls("genis", link: false), a discordância entre os classificadores foi praticamente nula.
-Árvore de decisão e floresta aleatória, assim como árvore de decisão e XGBoost, apresentaram discordância média de 0,00005, enquanto floresta aleatória e XGBoost não apresentaram discordâncias nas previsões.
+Árvore de decisão e #glossarium.gls("random_forest", link: false), assim como #glossarium.gls("decision_tree", link: false) e #glossarium.gls("xgboost", link: false), apresentaram discordância média de 0,00005, enquanto #glossarium.gls("random_forest", link: false) e #glossarium.gls("xgboost", link: false) não apresentaram discordâncias nas previsões.
 O `Double Fault` foi nulo em todos os pares.
-Nos dois pares que envolvem a árvore de decisão, o Jaccard dos conjuntos de erros também foi nulo, indicando que os erros observados não foram compartilhados entre esses classificadores.
+Nos dois pares que envolvem a #glossarium.gls("decision_tree", link: false), o Jaccard dos conjuntos de erros também foi nulo, indicando que os erros observados não foram compartilhados entre esses classificadores.
 Entretanto, como a quantidade total de erros é muito pequena nessa base, essa diferença entre os padrões de erro ocorre em uma quantidade reduzida de instâncias.
-Para a floresta aleatória e o XGBoost, o Jaccard igual a 1,00000 decorre da coincidência completa entre seus conjuntos de erros, que são ambos vazios.
+Para a #glossarium.gls("random_forest", link: false) e o #glossarium.gls("xgboost", link: false), o Jaccard igual a 1,00000 decorre da coincidência completa entre seus conjuntos de erros, que são ambos vazios.
 
-No ROSIDS, as diferenças entre os classificadores são mais pronunciadas.
-O maior nível de discordância ocorre entre a árvore de decisão e o XGBoost, com 0,01347, seguido pelo par entre árvore de decisão e floresta aleatória, com 0,01036.
-A menor discordância ocorre entre floresta aleatória e XGBoost, com 0,00718.
-O mesmo padrão aparece na similaridade dos conjuntos de erros: árvore de decisão e XGBoost apresentam o menor Jaccard, 0,59778, enquanto floresta aleatória e XGBoost apresentam o maior, 0,74842.
+No #glossarium.gls("rosids", link: false), as diferenças entre os classificadores são mais pronunciadas.
+O maior nível de discordância ocorre entre a #glossarium.gls("decision_tree", link: false) e o #glossarium.gls("xgboost", link: false), com 0,01347, seguido pelo par entre #glossarium.gls("decision_tree", link: false) e #glossarium.gls("random_forest", link: false), com 0,01036.
+A menor discordância ocorre entre #glossarium.gls("random_forest", link: false) e #glossarium.gls("xgboost", link: false), com 0,00718.
+O mesmo padrão aparece na similaridade dos conjuntos de erros: #glossarium.gls("decision_tree", link: false) e #glossarium.gls("xgboost", link: false) apresentam o menor Jaccard, 0,59778, enquanto #glossarium.gls("random_forest", link: false) e #glossarium.gls("xgboost", link: false) apresentam o maior, 0,74842.
 
-Esses resultados indicam que os classificadores do ROSIDS não produzem exatamente os mesmos erros, o que fornece um cenário mais propício à complementaridade entre os componentes do comitê.
-A árvore de decisão apresenta as maiores diferenças em relação aos demais modelos, enquanto floresta aleatória e XGBoost possuem padrões de erro mais semelhantes.
-Ainda assim, a diversidade por si só não determina o desempenho do comitê, pois o efeito da combinação depende de como essas previsões diferentes são agregadas.
+Esses resultados indicam que os classificadores do #glossarium.gls("rosids", link: false) não produzem exatamente os mesmos erros, o que fornece um cenário mais propício à complementaridade entre os componentes do comitê.
+A #glossarium.gls("decision_tree", link: false) apresenta as maiores diferenças em relação aos demais modelos, enquanto #glossarium.gls("random_forest", link: false) e #glossarium.gls("xgboost", link: false) possuem padrões de erro mais semelhantes.
 
 
 == Comparação com GPT
@@ -579,10 +603,11 @@ Ainda assim, a diversidade por si só não determina o desempenho do comitê, po
   Apresente e discuta a comparação entre GPT/LLM e os métodos clássicos.
 ]
 
-A comparação com o modelo de linguagem foi realizada considerando os protocolos zero-shot e few-shot sobre as mesmas bases de dados utilizadas na avaliação dos métodos de referência.
-Para tornar os resultados comparáveis, ao mesmo tempo em que o experimento possa ser factível nas limitações de poder computacional, a avaliação do modelo de linguagem foi realizada sobre um subconjunto estratificado e determinístico de 2.000 instâncias do conjunto de teste congelado de cada base.
-A @tabela:gpt_resultados_gerais mostra as métricas para as classificações por meio do modelo de linguagem.
+A comparação com o #glossarium.gls("llm") foi realizada considerando os protocolos #get_term("zero_shot") e #get_term("few_shot") sobre as mesmas bases de dados utilizadas na avaliação dos métodos de referência.
+Para tornar os resultados comparáveis, ao mesmo tempo em que o experimento possa ser factível nas limitações de poder computacional, a avaliação do modelo de linguagem foi realizada sobre um subconjunto estratificado e determinístico de 2.000 instâncias do conjunto de teste exclusivo de cada base.
 
+A @tabela:gpt_resultados_gerais mostra as métricas para as classificações por meio do modelo de linguagem.
+Os resultados evidenciam uma melhora consistente do #get_term("few_shot") em relação ao #get_term("zero_shot") nas duas bases, embora com comportamentos distintos.
 
 #describe_figure(
   [#figure(
@@ -590,12 +615,21 @@ A @tabela:gpt_resultados_gerais mostra as métricas para as classificações por
     format_table(
       table(
         columns: (auto, auto, auto, auto, auto, auto, auto, auto),
-        table.header([Base], [Método], [Accuracy], [Precision], [Recall], [Macro F1], [MCC], [B. Accur.]),
+        table.header(
+          [Base],
+          [Método],
+          [#get_term("accuracy", capitalize: true)],
+          [#get_term("precision", capitalize: true)],
+          [#get_term("recall", capitalize: true)],
+          [#get_term("macro_f1")],
+          [#get_term("mcc")],
+          [#foreign_text[B. Accur.]],
+        ),
 
         [#glossarium.gls("genis", link: false)],
         [Zero-shot],
         [0,31550],
-        [0,68153],
+        strong[0,68153],
         [0,56070],
         [0,49126],
         [0,24113],
@@ -603,25 +637,41 @@ A @tabela:gpt_resultados_gerais mostra as métricas para as classificações por
 
         [#glossarium.gls("genis", link: false)],
         [Few-shot],
-        [0,56650],
+        strong[0,56650],
         [0,58147],
-        [0,82175],
-        [0,59037],
-        [0,45068],
-        [0,82175],
+        strong[0,82175],
+        strong[0,59037],
+        strong[0,45068],
+        strong[0,82175],
+
+        table.hline(stroke: 0.5pt),
 
         [ROSIDS], [Zero-shot], [0,43700], [0,18993], [0,22740], [0,19311], [0,08680], [0,22740],
-        [ROSIDS], [Few-shot], [0,61500], [0,54943], [0,57854], [0,52129], [0,54393], [0,57854],
+        [ROSIDS],
+        [Few-shot],
+        strong[0,61500],
+        strong[0,54943],
+        strong[0,57854],
+        strong[0,52129],
+        strong[0,54393],
+        strong[0,57854],
       ),
     ),
   ) <tabela:gpt_resultados_gerais>],
 )
 
-Os resultados evidenciam uma melhora consistente do few-shot em relação ao zero-shot nas duas bases, embora com comportamentos distintos. Na #glossarium.gls("genis", link: false), a accuracy aumentou de 0,3155 para 0,5665 e o macro F1 de 0,4913 para 0,5904. O maior ganho ocorreu no recall, que passou de 0,5607 para 0,8218, acompanhado, entretanto, por uma redução da precision, de 0,6815 para 0,5815. Esse comportamento indica uma mudança no equilíbrio entre recuperação e precisão: com exemplos no prompt, o modelo passou a identificar uma parcela maior das instâncias relevantes, mas também produziu mais falsos positivos. Apesar dessa troca, o MCC aumentou de 0,2411 para 0,4507, indicando uma melhora geral na qualidade das classificações.
+No #glossarium.gls("genis", link: false), a #get_term("accuracy") aumentou de 0,3155 para 0,5665 e o #get_term("macro_f1") de 0,4913 para 0,5904.
+O maior ganho ocorreu no #get_term("recall"), que passou de 0,5607 para 0,8218, acompanhado, entretanto, por uma redução da #get_term("precision"), de 0,6815 para 0,5815.
+Esse comportamento indica uma mudança no equilíbrio entre recuperação e precisão: com exemplos no prompt, o modelo passou a identificar uma parcela maior das instâncias relevantes, mas também produziu mais falsos positivos. Apesar dessa troca, o #get_term("mcc") aumentou de 0,2411 para 0,4507, indicando uma melhora geral na qualidade das classificações.
 
-Na ROSIDS, os ganhos proporcionados pelo few-shot foram ainda mais expressivos. A accuracy passou de 0,4370 para 0,6150, o macro F1 de 0,1933 para 0,5213 e o MCC de 0,0868 para 0,5439. Nesse caso, tanto a precision quanto o recall apresentaram aumentos relevantes, passando de 0,1899 para 0,5494 e de 0,2274 para 0,5785, respectivamente. Portanto, diferentemente da #glossarium.gls("genis", link: false), a inclusão dos exemplos de referência melhorou simultaneamente a capacidade de identificar as classes e a precisão das decisões do modelo.
+No #glossarium.gls("rosids", link: false), os ganhos proporcionados pelo #get_term("few_shot") foram ainda mais expressivos.
+A #get_term("accuracy") passou de 0,4370 para 0,6150, o #get_term("macro_f1") de 0,1933 para 0,5213 e o #get_term("mcc") de 0,0868 para 0,5439.
+Nesse caso, tanto a #get_term("precision") quanto o #get_term("recall") apresentaram aumentos relevantes, passando de 0,1899 para 0,5494 e de 0,2274 para 0,5785, respectivamente.
+Portanto, diferentemente da #glossarium.gls("genis", link: false), a inclusão dos exemplos de referência melhorou simultaneamente a capacidade de identificar as classes e a precisão das decisões do modelo.
 
-A comparação entre as bases também evidencia a sensibilidade do desempenho ao cenário de classificação. No protocolo zero-shot, a #glossarium.gls("genis", link: false) apresentou macro F1 substancialmente superior ao observado na ROSIDS (0,4913 contra 0,1933). Com a adoção do few-shot, essa diferença diminuiu, com resultados de 0,5904 e 0,5213, respectivamente. Esse resultado sugere que exemplos de classificação fornecidos no prompt podem contribuir para adaptar o comportamento do modelo às características específicas da tarefa, reduzindo parte da dificuldade observada no protocolo zero-shot.
+A comparação entre as bases também evidencia a sensibilidade do desempenho ao cenário de classificação.
+No protocolo #get_term("zero_shot"), a #glossarium.gls("genis", link: false) apresentou #get_term("macro_f1") substancialmente superior ao observado na #glossarium.gls("rosids", link: false) (0,4913 contra 0,1933). Com a adoção do #get_term("few_shot"), essa diferença diminuiu, com resultados de 0,5904 e 0,5213, respectivamente.
+Esse resultado sugere que exemplos de classificação fornecidos no prompt podem contribuir para adaptar o comportamento do modelo às características específicas da tarefa, reduzindo parte da dificuldade observada no protocolo #get_term("zero_shot").
 
 
 == Comparação entre os datasets
