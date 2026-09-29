@@ -1214,3 +1214,253 @@ Transformações aplicadas apenas sobre a fração de #stress[treinamento].
     [0,97398\ ± 0,00016],
   )
 ]
+
+=== Modelo de linguagem
+
+- Executado o #stress[Gemma 4 E2B IT QAT]
+  - localmente, por meio da API do LM Studio, com
+  - raciocínio desativado, e
+  - #get_term("seed") fixa: 27.
+
+- Necessário fazer amostragem estratificada de 2.000 instâncias de cada base de dados.
+
+- Cada base foi classificada pelos métodos de #get_term("zero_shot") e #get_term("few_shot").
+
+#colbreak()
+
+- No campo de #foreign_text[System Prompt], foi descrito:
+  - a atividade e a forma de saída,
+  - descrição geral da base de dados,
+  - lista de #strong[características] e suas descrições,
+  - relação de #strong[rótulos] permitidos,
+  - #stress[3 exemplos] de cada classe-alvo no #get_term("few_shot").
+
+- No campo de #foreign_text[User Prompt], foram listadas as características no formato:
+  - `Nome: Valor <quebra de linha>`
+
+- Valores ausentes foram codificados pelo token `NA`.
+
+- A resposta apenas é considerada válida se corresponde exatamente ao nome de um dos rótulos.
+
+#pagebreak()
+
+== Resultados
+
+#align(center + horizon)[
+  #set text(size: 18pt)
+
+  #table(
+    inset: 8pt,
+    columns: (auto, auto, auto, auto, auto, auto, auto, auto),
+    table.header(
+      strong[Base],
+      strong[Método],
+      strong[#get_term("accuracy", capitalize: true)],
+      strong[#get_term("precision", capitalize: true)],
+      strong[#get_term("recall", capitalize: true)],
+      strong[#get_term("macro_f1")],
+      strong[#get_term("mcc")],
+      strong[#foreign_text[B. Accur.]],
+    ),
+
+    table.cell(rowspan: 5)[#glossarium.gls("genis", link: false)],
+    [#get_term("zero_shot", capitalize: true)],
+    [0,31550],
+    strong[0,68153],
+    [0,56070],
+    [0,49126],
+    [0,24113],
+    [0,56070],
+
+    [#get_term("few_shot", capitalize: true)],
+    strong[0,56650],
+    [0,58147],
+    strong[0,82175],
+    strong[0,59037],
+    strong[0,45068],
+    strong[0,82175],
+
+    table.hline(stroke: 0.25pt),
+
+    [Árvore de decisão],
+    [1,00000],
+    [1,00000],
+    [1,00000],
+    [1,00000],
+    [1,00000],
+    [1,00000],
+
+    [Floresta aleatória],
+    [1,00000],
+    [1,00000],
+    [1,00000],
+    [1,00000],
+    [1,00000],
+    [1,00000],
+
+    [XGBoost],
+    [1,00000],
+    [1,00000],
+    [1,00000],
+    [1,00000],
+    [1,00000],
+    [1,00000],
+
+    table.hline(stroke: 0.5pt),
+
+    table.cell(rowspan: 5)[#glossarium.gls("rosids", link: false)],
+    [#get_term("zero_shot", capitalize: true)], [0,43700], [0,18993], [0,22740], [0,19311], [0,08680], [0,22740],
+
+    [#get_term("few_shot", capitalize: true)],
+    strong[0,61500],
+    strong[0,54943],
+    strong[0,57854],
+    strong[0,52129],
+    strong[0,54393],
+    strong[0,57854],
+
+    table.hline(stroke: 0.25pt),
+
+    [Árvore de decisão],
+    [0,97217],
+    [0,94960],
+    [0,94797],
+    [0,94864],
+    [0,95943],
+    [0,94797],
+
+    [Floresta aleatória],
+    [0,97750],
+    [0,96465],
+    [0,96038],
+    [0,96208],
+    [0,96722],
+    [0,96038],
+
+    [XGBoost],
+    [0,97750],
+    [0,96208],
+    [0,95790],
+    [0,95947],
+    [0,96722],
+    [0,95790],
+  )
+]
+
+== Matrizes de confusão
+
+=== #glossarium.gls("genis", link: false)
+
+#align(center + horizon)[
+  #set text(size: 18pt)
+
+  #table(
+    inset: 7pt,
+    columns: (auto, auto, 1fr, 1fr, 1fr, 1fr),
+    align: end,
+
+    table.cell(rowspan: 2, align: horizon)[Protocolo],
+    table.cell(rowspan: 2, align: horizon)[#strong[Classe real]],
+    table.cell(colspan: 4, align: center)[#strong[Classe predita]],
+
+    [benign], [bruteforce], [dos], [recon],
+
+    table.hline(stroke: 2pt),
+
+    table.cell(rowspan: 4)[#get_term("zero_shot", capitalize: true)],
+    [benign], [70,75], [0], [27,89], [1,36],
+    [bruteforce], [45,45], [54,55], [0], [0],
+    [dos], [75,69], [0,06], [22,32], [1,93],
+    [recon], [22,00], [0], [1,33], [76,67],
+
+    table.hline(stroke: 1.5pt),
+
+    table.cell(rowspan: 4)[#get_term("few_shot", capitalize: true)],
+    [benign], [83,67], [0,68], [0], [15,65],
+    [bruteforce], [0], [100,00], [0], [0],
+    [dos], [43,14], [6,86], [47,69], [2,31],
+    [recon], [0], [0], [2,67], [97,33],
+  )]
+
+
+=== #glossarium.gls("rosids", link: false)
+
+#align(center + horizon)[
+  #set text(size: 18pt)
+
+  #table(
+    inset: 7pt,
+    columns: (auto, auto, 1fr, 1fr, 1fr, 1fr, 1fr),
+    align: end,
+
+    table.cell(rowspan: 2, align: horizon)[Protocolo],
+    table.cell(rowspan: 2, align: horizon)[#strong[Classe real]],
+    table.cell(colspan: 5, align: center)[#strong[Classe predita]],
+
+    [Benign], [DoS], [Subflood], [UnauthPub], [UnauthSub],
+
+    table.hline(stroke: 2pt),
+
+    table.cell(rowspan: 5)[#get_term("zero_shot", capitalize: true)],
+    [Benign], [82,71], [0], [7,77], [0], [9,52],
+    [DoS], [86,97], [0], [13,02], [0], [0],
+    [Subflood], [61,99], [0], [25,79], [0], [12,22],
+    [UnauthPub], [92,10], [0], [0], [0], [7,89],
+    [UnauthSub], [81,82], [0], [12,99], [0], [5,19],
+
+    table.hline(stroke: 1.5pt),
+
+    table.cell(rowspan: 5)[#get_term("few_shot", capitalize: true)],
+    [Benign], [34,46], [1,75], [19,15], [12,80], [31,84],
+    [DoS], [0], [100,00], [0], [0], [0],
+    [Subflood], [1,36], [1,13], [90,27], [2,71], [4,52],
+    [UnauthPub], [23,68], [0], [12,28], [35,96], [28,07],
+    [UnauthSub], [31,17], [0], [35,06], [5,19], [28,57],
+  )]
+
+
+== Custo de execução
+#align(center + horizon)[
+  #set text(size: 20pt)
+
+  #table(
+    columns: (auto, 1fr, 1fr, 1fr, 1fr, 1fr),
+
+    table.header(
+      strong[Base],
+      strong[Método],
+      strong[Tempo total (min)],
+      strong[Tempo / 100 amostras (s)],
+      strong[Tokens totais],
+      strong[Tokens / s],
+    ),
+
+    table.cell(rowspan: 2)[#glossarium.gls("genis", link: false)],
+    [#get_term("zero_shot", capitalize: true)],
+    [96,73],
+    [290,21],
+    [4.312.875],
+    [742,11],
+
+    [#get_term("few_shot", capitalize: true)],
+    [127,33],
+    [381,99],
+    [20.088.759],
+    [2.629,52],
+
+    table.hline(stroke: 0.5pt),
+
+    table.cell(rowspan: 2)[#glossarium.gls("rosids", link: false)],
+    [#get_term("zero_shot", capitalize: true)],
+    [106,31],
+    [318,92],
+    [4.667.364],
+    [731,76],
+
+    [#get_term("few_shot", capitalize: true)],
+    [155,94],
+    [467,81],
+    [26.143.275],
+    [2.794,21],
+  )
+]
