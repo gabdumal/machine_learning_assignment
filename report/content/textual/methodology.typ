@@ -565,17 +565,17 @@ Respostas inválidas dos #glossarium.gls("llm", plural: true, link: false), são
   Descreva os modelos de referência e suas configurações.
 ]
 
-Foram selecionados três modelos de classificação como referência para os experimentos: #glossarium.gls("decision_tree"), floresta aleatória, e XGBoost.
+Foram selecionados três modelos de #glossarium.gls("classificação_multiclasse") como referência para os experimentos: #glossarium.gls("decision_tree"), #glossarium.gls("random_forest"), e #glossarium.gls("xgboost").
 Todos os modelos têm significativa capacidade de lidar com valores em escalas distintas e com #get_term("outlier", plural: true).
 
-A #glossarium.gls("decision_tree") foi selecionada como #get_term("baseline") por apresentar uma única estrutura de decisão.
-A floresta aleatória foi utilizada para representar a combinação de múltiplas árvores em um comitê de modelos.
-O XGBoost foi selecionado para representar uma abordagem de #glossarium.gls("gradient_boosting") baseada em árvores.
+A #glossarium.gls("decision_tree", link: false) foi selecionada como #get_term("baseline") por apresentar uma única estrutura de decisão.
+A #glossarium.gls("random_forest", link: false) foi utilizada para representar a combinação de múltiplas árvores em um comitê de modelos.
+O #glossarium.gls("xgboost", link: false) foi selecionado para representar uma abordagem de #glossarium.gls("gradient_boosting") baseada em árvores.
 
-Os hiperparâmetros de cada modelo foram definidos a partir de grades de valores avaliadas durante os experimentos (GridSearch).
+Os hiperparâmetros de cada modelo foram definidos a partir de grades de valores avaliadas durante os experimentos (#foreign_text[Grid Search]).
 A @tabela:grade-hiperparâmetros apresenta as configurações consideradas para cada modelo.
 Cada uma foi testada com e sem balanceamento.
-Por sua vez, a @tabela:hiperparametros apresenta os hiperparâmetros selecionados para cada modelo em cada base de dados. Percebe-se que o balanceamento não foi considerado vantajoso.
+Por sua vez, a @tabela:hiperparametros apresenta os hiperparâmetros selecionados para cada modelo em cada base de dados. Percebe-se que o balanceamento não foi considerado vantajoso para o objetivo.
 
 #describe_figure(
   [#figure(
@@ -653,9 +653,8 @@ Por sua vez, a @tabela:hiperparametros apresenta os hiperparâmetros selecionado
   Descreva os comitês avaliados: hard voting, soft voting, votação ponderada ou outras estratégias.
 ]
 
-Os comitês foram formados pelos três modelos de referência utilizados nos experimentos individuais: #glossarium.gls("decision_tree"), #glossarium.gls("random_forest"), e XGBoost.
-Para cada base de dados, as previsões desses modelos foram combinadas por quatro estratégias: hard voting, hard voting ponderado, soft voting, e soft voting ponderado.
-
+Os comitês foram formados pelos três modelos de referência utilizados nos experimentos individuais: #glossarium.gls("decision_tree"), #glossarium.gls("random_forest"), e #glossarium.gls("xgboost").
+Para cada base de dados, as previsões desses modelos foram combinadas por quatro estratégias: #get_term("hard_voting"), #get_term("hard_voting_ponderado"), #get_term("soft_voting"), e #get_term("soft_voting_ponderado").
 A @tabela:estratégias_de_comitê apresenta as estratégias avaliadas e a forma de combinação das saídas dos classificadores.
 
 #describe_figure(
@@ -664,36 +663,41 @@ A @tabela:estratégias_de_comitê apresenta as estratégias avaliadas e a forma 
     format_table(table(
       columns: (auto, auto, auto),
 
-      [Estratégia], [Saída dos modelos], [Combinação],
+      table.header([Estratégia], [Saída dos modelos], [Combinação]),
 
-      [Hard voting], [Classe prevista], [Classe com maior número de votos],
+      [#get_term("hard_voting", capitalize: true)], [Classe prevista], [Classe com maior número de votos],
 
-      [Hard voting ponderado], [Classe prevista], [Classe com maior soma dos votos ponderados],
+      [#get_term("hard_voting_ponderado", capitalize: true)],
+      [Classe prevista],
+      [Classe com maior soma dos votos ponderados],
 
-      [Soft voting], [Probabilidade por classe], [Média das probabilidades],
+      [#get_term("soft_voting", capitalize: true)], [Probabilidade por classe], [Média das probabilidades],
 
-      [Soft voting ponderado], [Probabilidade por classe], [Média ponderada das probabilidades],
+      [#get_term("soft_voting_ponderado", capitalize: true)],
+      [Probabilidade por classe],
+      [Média ponderada das probabilidades],
     )),
   )<tabela:estratégias_de_comitê>],
 )
 
-Os pesos foram calculados separadamente para cada base de dados a partir dos resultados de validação dos classificadores.
-Para cada modelo, foi recuperada a configuração previamente selecionada com base no Macro F1 médio de validação.
+Os pesos foram calculados separadamente para cada base de dados a partir dos resultados salvos da fase de validação dos classificadores.
+Dessa forma, o ajuste dos pesos no comitê não leva em conta informações da partição exclusiva de teste.
 
-Em seguida, foram obtidos os valores de `mean_macro_f1` dessa configuração para cada #get_term("seed") utilizada no experimento.
-Esses valores foram usamos para produzir um único Macro F1 de validação para cada modelo.
-Assim, o peso de cada modelo foi calculado por
+Para cada algoritmo de classificação $A$, o método de ajuste de pesos recupera a configuração de hiperparâmetros ideal $H_A$, que foi selecionada ao final da fase de validação.
 
-$ w_i = frac(F 1_i, F 1_"DT" + F 1_"RF" + F 1_"XGB"), $
+Então, o método busca, no histórico da fase de validação, os registros da iteração $S(H_A)$, que representa a #get_term("seed") $S$ executando a configuração $H_A$.
+Um dos resultados registrados é o #get_term("macro_f1") médio ($F 1_S$), compilado a partir do #get_term("macro_f1") de cada #get_term("fold") executado.
 
-em que $F 1_i$ representa o Macro F1 médio de validação do modelo $i$.
+Calcula-se a média entre as #get_term("seed", plural: true) $overline(F 1)_A = sum_(S=1)^3 F 1_S$, que compila um valor de #get_term("macro_f1") para o algoritmo $A$.
+Assim, o peso de cada algoritmo no comitê pôde ser calculado por:
+$ w_A = frac(overline(F 1)_A, overline(F 1)_"DT" + overline(F 1)_"RF" + overline(F 1)_"XGB") $
 
-As quatro estratégias de combinação são avaliadas no conjunto de teste para cada #get_term("seed"), utilizando as previsões de classe e, nas estratégias soft, as probabilidades produzidas pelos três classificadores.
+Em relação à avaliação dos comitês, as quatro estratégias de combinação são executadas nas #get_term("seed", plural: true): 27, 32, e 59.
+As entradas são classificadas apenas a partir do conjunto de teste.
 
-Os rótulos reais do conjunto de teste são utilizados apenas após a combinação das previsões, no cálculo das métricas dos comitês e das estatísticas de diversidade e correção.
-Portanto, esses rótulos não participam do cálculo dos pesos nem de qualquer decisão sobre a estratégia de combinação.
+Então, são calculadas as métricas dos comitês e as estatísticas de diversidade e correção para cada combinação de estratégia e #get_term("seed"), que resultam em 12 execuções.
 
-Em caso de empate no hard voting, a classe com maior probabilidade média entre os modelos é utilizada como critério de desempate.
+Em caso de empate no #get_term("hard_voting"), a classe com maior probabilidade média entre os modelos é utilizada como critério de desempate.
 Persistindo o empate, a ordem das classes armazenada nos resultados determina a classe selecionada.
 
 
@@ -709,34 +713,34 @@ Persistindo o empate, a ordem das classes armazenada nos resultados determina a 
 
 == GPT e outras abordagens baseadas em LLMs
 
-Para comparação com os modelos de referência, foram avaliadas duas abordagens de classificação utilizando o modelo Gemma 4 E2B IT QAT, executado localmente por meio do LM Studio e de sua interface compatível com a API de Chat Completions.
+Para comparação com os modelos de referência, foram avaliadas duas abordagens de #glossarium.gls("classificação_multiclasse") utilizando o modelo `Gemma 4 E2B IT QAT`, executado localmente por meio do LM Studio e de sua interface compatível com a #get_term("api") de #foreign_text[Chat Completions].
+
 A inferência foi realizada com `temperature = 0`, `top_p = 1`, `top_k = 1`, `max_tokens = 8192` e raciocínio desabilitado.
-O modelo foi configurado com a semente fixa `27`, mantendo o procedimento determinístico nas condições utilizadas.
+O modelo foi configurado com a #get_term("seed") fixa `27`, mantendo o procedimento determinístico nas condições utilizadas.
 
-Foram considerados os protocolos zero-shot e few-shot.
-Em ambos os casos, o modelo recebe os atributos do fluxo como pares nome-valor, no formato `Feature Name: value`.
-Os nomes legíveis e as descrições das características são incluídos no `system prompt`, juntamente com instruções específicas da base de dados e a relação completa de rótulos permitidos, como se pode ver nos @apêndice:sistema_genis e @apêndice:sistema_rosids.
-O registro destinado à classificação é apresentado na mensagem do usuário, sem incluir seu rótulo real, cujos exemplos estão no @apêndice:usuário_genis e no @apêndice:usuário_rosids.
+Foram considerados os protocolos #get_term("zero_shot") e #get_term("few_shot").
+Em ambos os casos, os nomes legíveis e as descrições das características são incluídos no #foreign_text[system prompt], juntamente com instruções específicas da base de dados e a relação completa de rótulos permitidos, como se pode ver nos @apêndice:sistema_genis e @apêndice:sistema_rosids.
 
-Na abordagem zero-shot, o modelo recebe apenas esse contexto fixo e o registro a ser classificado.
-O contexto específico de cada base também fornece uma descrição dos rótulos e orientações sobre como interpretar conjuntamente as características de tráfego.
+Então, o modelo recebe no #foreign_text[user prompt] o registro destinado à classificação.
+Seus atributos são informados como pares nome-valor, no formato `Feature Name: value`, sem incluir seu rótulo real, cujos exemplos estão no @apêndice:usuário_genis e no @apêndice:usuário_rosids.
 
-Na abordagem few-shot, foram acrescentados ao `system prompt` três exemplos de treinamento para cada classe.
-Os exemplos são selecionados de forma determinística, sem reposição e com o mesmo número de registros por classe, utilizando exclusivamente a partição de treinamento.
-Cada demonstração contém as mesmas características utilizadas no registro de teste e seu respectivo rótulo conhecido.
+Na abordagem #get_term("few_shot"), foram acrescidos ao #foreign_text[system prompt] três exemplos de treinamento para cada classe.
+Eles são selecionados de forma determinística, sem reposição, utilizando exclusivamente a partição de treinamento.
+Cada um contém apresenta as características no mesmo formato que especificado para o #foreign_text[user prompt], mas incluso o respectivo rótulo conhecido.
 Assim, a classificação do novo registro utiliza os exemplos como evidência adicional, mas não inclui qualquer observação do conjunto de teste entre as demonstrações.
 
 Para ambas as abordagens, os valores ausentes são representados pelo token `NA`.
-Após cada resposta, o texto retornado pelo modelo é normalizado removendo espaços excedentes e comparado, sem distinção entre maiúsculas e minúsculas, aos rótulos válidos.
+Após cada resposta, o texto retornado pelo modelo é normalizado, removendo espaços excedentes.
+Então é comparado, sem distinção entre maiúsculas e minúsculas, aos rótulos válidos.
+
 Somente uma resposta que corresponda exatamente a um dos rótulos é aceita.
 Respostas vazias, rótulos não reconhecidos ou respostas que contenham explicações adicionais são classificadas como inválidas e registradas como predições incorretas.
 
-A avaliação foi realizada sobre uma amostra estratificada proporcional e determinística de 2.000 instâncias do conjunto de teste de cada base de dados.
-A mesma amostra é utilizada pelos protocolos zero-shot e few-shot para uma dada base, permitindo comparar diretamente as duas abordagens.
-Os exemplos few-shot são selecionados antes da inferência a partir exclusivamente do conjunto de treinamento.
+A avaliação foi realizada sobre uma amostra estratificada e determinística de 2.000 instâncias do conjunto de teste de cada base de dados.
+A mesma amostra é utilizada pelos protocolos #get_term("zero_shot") e #get_term("few_shot") para uma dada base, permitindo comparar diretamente as duas abordagens.
 
 As respostas do modelo são categóricas, sem uma distribuição de probabilidades por classe.
-Por esse motivo, ROC-AUC e PR-AUC não são calculadas para essas abordagens, enquanto as demais métricas de classificação são obtidas a partir dos rótulos previstos.
+Por esse motivo, #get_term("roc_auc") e #get_term("pr_auc") não são calculadas para essas abordagens, enquanto as demais métricas de classificação são obtidas a partir dos rótulos previstos.
 
 
 == Implementação e reprodutibilidade
@@ -746,7 +750,7 @@ Por esse motivo, ROC-AUC e PR-AUC não são calculadas para essas abordagens, en
 ]
 
 Os experimentos foram implementados em Python e executados em um único ambiente computacional.
-As principais informações necessárias para reproduzir os experimentos são apresentadas na @tabela:reprodutibilidade, incluindo as dependências utilizadas, as sementes dos experimentos, o hardware empregado e a configuração adotada para as inferências com o modelo de linguagem.
+As principais informações necessárias para reproduzir os experimentos são apresentadas na @tabela:reprodutibilidade, incluindo as dependências utilizadas, as #get_term("seed", plural: true) dos experimentos, o hardware empregado e a configuração adotada para as inferências com o modelo de linguagem.
 
 #describe_figure(
   [#figure(
@@ -761,9 +765,9 @@ As principais informações necessárias para reproduzir os experimentos são ap
         [Linguagem], [Python 3.14],
 
         [Bibliotecas],
-        [imbalanced-learn>=0.14.2; ipython>=9.17.1; matplotlib>=3.11.2;\ numpy>=2.5.3; openai>=3.19.2; pandas>=3.0.6; scikit-learn>=1.9.1;\ seaborn>=0.13.2; xgboost>=3.4.1; ],
+        [imbalanced-learn>=0.14.2; ipython>=9.17.1; matplotlib>=3.11.2;\ numpy>=2.5.3; openai>=3.19.2; pandas>=3.0.6; scikit-learn>=1.9.1;\ seaborn>=0.13.2; xgboost>=3.4.1 ],
 
-        [Semente(s)], [27, 32 e 59],
+        [Semente(s)], [27, 32, 59],
 
         [Hardware], [AMD Ryzen 5 5600G with Radeon Graphics × 12;\ 32 GB de memória RAM a 3200 MHz],
 

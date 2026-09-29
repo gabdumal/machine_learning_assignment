@@ -26,6 +26,10 @@
     short: foreign_text[web],
   ),
   (
+    key: "api",
+    short: [API],
+  ),
+  (
     key: "dataset",
     short: foreign_text[dataset],
     short_capitalized: foreign_text[Dataset],
@@ -160,6 +164,26 @@
   (
     key: "mcc",
     short: [MCC],
+  ),
+  (
+    key: "hard_voting",
+    short: foreign_text[hard voting],
+    short_capitalized: foreign_text[Hard voting],
+  ),
+  (
+    key: "hard_voting_ponderado",
+    short: [#foreign_text[hard voting] ponderado],
+    short_capitalized: [#foreign_text[Hard voting] ponderado],
+  ),
+  (
+    key: "soft_voting",
+    short: foreign_text[soft voting],
+    short_capitalized: foreign_text[Soft voting],
+  ),
+  (
+    key: "soft_voting_ponderado",
+    short: [#foreign_text[soft voting] ponderado],
+    short_capitalized: [#foreign_text[Soft voting] ponderado],
   ),
 )
 

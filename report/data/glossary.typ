@@ -189,6 +189,7 @@
   (
     key: "decision_tree",
     short: "árvore de decisão",
+    sort: "arvore de decisao",
     plural: "árvores de decisão",
     custom: foreign_text[decision tree],
     description: [Modelo de aprendizado que representa decisões por meio de uma estrutura hierárquica de divisões sucessivas do espaço de características.],
@@ -204,7 +205,7 @@
   ),
   (
     key: "gradient_boosting",
-    short: "gradient boosting",
+    short: foreign_text[gradient boosting],
     custom: foreign_text[gradient boosting],
     description: [Método de comitê que adiciona modelos sequencialmente, buscando reduzir os erros acumulados pelos modelos anteriores.],
     // group: "Aprendizado de máquina",

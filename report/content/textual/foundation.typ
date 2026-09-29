@@ -295,7 +295,7 @@ Foram comparados métodos de #glossarium.gls("random_forest"), #foreign_text[Nai
 Os resultados mostram desempenho superior dos métodos baseados em árvores nos experimentos de #glossarium.gls("classificação_binária").
 Ainda assim, erros foram mais frequentes na #glossarium.gls("classificação_multiclasse"), indicando dificuldade para distinguir tipos específicos de intrusão.
 
-#cite_prose(<mehavilla:2026:llm_flow_intrusion_detection>) realizaram uma comparação entre #glossarium.gls("llm", plural: true, link: false), métodos clássicos --- #glossarium.gls("decision_tree"), #glossarium.gls("random_forest", link: false) e XGBoost ---, e modelos de aprendizado profundo.
+#cite_prose(<mehavilla:2026:llm_flow_intrusion_detection>) realizaram uma comparação entre #glossarium.gls("llm", plural: true, link: false), métodos clássicos --- #glossarium.gls("decision_tree"), #glossarium.gls("random_forest", link: false) e #glossarium.gls("xgboost") ---, e modelos de aprendizado profundo.
 Os experimentos incluíram binária e multiclasse, além de análise de tempo de inferência e de consumo de recursos.
 Os #glossarium.gls("llm", plural: true) avaliados apresentaram F1 superior a 0,95, mas não superaram os métodos clássicos de #glossarium.gls("machine_learning"), que requerem menor custo computacional.
 
