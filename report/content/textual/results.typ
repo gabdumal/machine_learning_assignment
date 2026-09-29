@@ -14,95 +14,135 @@
   Apresente os resultados dos modelos clássicos de forma comparável. Sempre indique se os valores correspondem a uma única avaliação, a predições out-of-fold agregadas ou ao resumo de múltiplas execuções/repetições. Evite escolher apenas a melhor métrica para cada modelo.
 ]
 
-=== GeNIS
+=== #glossarium.gls-short("genis")
 
-Os resultados dos modelos de referência na base de dados GeNIS são apresentados na @tabela:genis_métodos_clássicos_resultados.
-Os valores correspondem à média e ao desvio-padrão obtidos nas três sementes utilizadas no experimento, considerando a avaliação dos modelos finais sobre o conjunto de teste congelado.
+Os resultados dos modelos de referência na base de dados #glossarium.gls("genis") são apresentados na @tabela:genis_métodos_clássicos_resultados.
+Os valores correspondem à média e ao desvio-padrão obtidos nas três #get_term("seed", plural: true) utilizadas no experimento, considerando a avaliação dos modelos finais sobre o conjunto de teste exclusivo.
 
 Os três modelos apresentaram desempenho elevado em todas as métricas.
-A floresta aleatória e o XGBoost obtiveram valores iguais a 1 em todas as métricas apresentadas, indicando que não foram observados erros de classificação no conjunto de teste para essas execuções.
-A árvore de decisão apresentou valores ligeiramente inferiores, embora também próximos do máximo.
+A #glossarium.gls("random_forest") e o #glossarium.gls("xgboost") obtiveram valores iguais a 1 em todas as métricas apresentadas, indicando que não foram observados erros de classificação no conjunto de teste para essas execuções.
+A #glossarium.gls("decision_tree") apresentou valores ligeiramente inferiores, embora também próximos do máximo.
 
 #describe_figure(
   [#figure(
-    caption: [Resultados dos modelos de referência na base de dados GeNIS],
+    caption: [Resultados dos modelos de referência na base de dados #glossarium.gls-short("genis")],
     format_table(
       table(
         columns: (auto, 1fr, 1fr, 1fr),
 
-        [Métrica], [Árvore de decisão], [Floresta aleatória], [XGBoost],
+        table.header([Métrica], [Árvore de decisão], [Floresta aleatória], [XGBoost]),
 
-        [Accuracy], [0.99995 ± 0.00002], [1.00000 ± 0.00000], [1.00000 ± 0.00000],
+        [#get_term("accuracy", capitalize: true)],
+        [0.99995 ± 0.00002],
+        strong[1.00000 ± 0.00000],
+        strong[1.00000 ± 0.00000],
 
-        [Precision], [0.99986 ± 0.00005], [1.00000 ± 0.00000], [1.00000 ± 0.00000],
+        [#get_term("precision", capitalize: true)],
+        [0.99986 ± 0.00005],
+        strong[1.00000 ± 0.00000],
+        strong[1.00000 ± 0.00000],
 
-        [Recall], [0.99989 ± 0.00004], [1.00000 ± 0.00000], [1.00000 ± 0.00000],
+        [#get_term("recall", capitalize: true)],
+        [0.99989 ± 0.00004],
+        strong[1.00000 ± 0.00000],
+        strong[1.00000 ± 0.00000],
 
-        [Macro F1], [0.99987 ± 0.00004], [1.00000 ± 0.00000], [1.00000 ± 0.00000],
+        [#get_term("macro_f1")], [0.99987 ± 0.00004], strong[1.00000 ± 0.00000], strong[1.00000 ± 0.00000],
 
-        [ROC-AUC], [0.99993 ± 0.00002], [1.00000 ± 0.00000], [1.00000 ± 0.00000],
+        [#get_term("roc_auc")], [0.99993 ± 0.00002], strong[1.00000 ± 0.00000], strong[1.00000 ± 0.00000],
 
-        [PR-AUC], [0.99976 ± 0.00007], [1.00000 ± 0.00000], [1.00000 ± 0.00000],
+        [#get_term("pr_auc")], [0.99976 ± 0.00007], strong[1.00000 ± 0.00000], strong[1.00000 ± 0.00000],
 
-        [MCC], [0.99987 ± 0.00006], [1.00000 ± 0.00000], [1.00000 ± 0.00000],
+        [#get_term("mcc")], [0.99987 ± 0.00006], strong[1.00000 ± 0.00000], strong[1.00000 ± 0.00000],
 
-        [Balanced accuracy], [0.99989 ± 0.00004], [1.00000 ± 0.00000], [1.00000 ± 0.00000],
+        [#get_term("balanced_accuracy", capitalize: true)],
+        [0.99989 ± 0.00004],
+        strong[1.00000 ± 0.00000],
+        strong[1.00000 ± 0.00000],
       ),
     ),
   ) <tabela:genis_métodos_clássicos_resultados>],
 )
 
-A tabela @tabela:genis_métodos_clássicos_resultados_por_classe mostra que as diferenças entre os modelos se concentram nas classes `Benign` e `Bruteforce`, nas quais a árvore de decisão apresenta os únicos desvios observados em relação aos demais modelos.
+A @tabela:genis_métodos_clássicos_resultados_por_classe mostra que as diferenças entre os modelos se concentram nas classes `benign` e `bruteforce`, nas quais a #glossarium.gls("decision_tree", link: false) apresenta os únicos desvios observados em relação aos demais modelos.
 
 #describe_figure(
   [#figure(
-    caption: [Métricas por classe dos modelos de referência na base de dados GeNIS],
+    caption: [Métricas por classe dos modelos de referência na base de dados #glossarium.gls-short("genis")],
     format_table(
       table(
         columns: (auto, auto, 1fr, 1fr, 1fr),
 
-        [Classe], [Métrica], [Árvore de decisão], [Floresta aleatória], [XGBoost],
+        table.header([Classe], [Métrica], [Árvore de decisão], [Floresta aleatória], [XGBoost]),
 
-        table.cell(rowspan: 3)[Benign], [Precision], [0.99945 ± 0.00018], [1.00000 ± 0.00000], [1.00000 ± 0.00000],
+        table.cell(rowspan: 3)[benign],
+        [#get_term("precision", capitalize: true)],
+        [0.99945 ± 0.00018],
+        strong[1.00000 ± 0.00000],
+        strong[1.00000 ± 0.00000],
 
-        [Recall], [0.99994 ± 0.00011], [1.00000 ± 0.00000], [1.00000 ± 0.00000],
+        [#get_term("recall", capitalize: true)],
+        [0.99994 ± 0.00011],
+        strong[1.00000 ± 0.00000],
+        strong[1.00000 ± 0.00000],
 
-        [F1], [0.99969 ± 0.00014], [1.00000 ± 0.00000], [1.00000 ± 0.00000],
-
-        table.hline(stroke: 0.5pt),
-
-        table.cell(rowspan: 3)[Bruteforce], [Precision], [1.00000 ± 0.00000], [1.00000 ± 0.00000], [1.00000 ± 0.00000],
-
-        [Recall], [0.99963 ± 0.00016], [1.00000 ± 0.00000], [1.00000 ± 0.00000],
-
-        [F1], [0.99982 ± 0.00008], [1.00000 ± 0.00000], [1.00000 ± 0.00000],
-
-        table.hline(stroke: 0.5pt),
-
-        table.cell(rowspan: 3)[DoS], [Precision], [0.99999 ± 0.00001], [1.00000 ± 0.00000], [1.00000 ± 0.00000],
-
-        [Recall], [0.99997 ± 0.00002], [1.00000 ± 0.00000], [1.00000 ± 0.00000],
-
-        [F1], [0.99998 ± 0.00002], [1.00000 ± 0.00000], [1.00000 ± 0.00000],
+        [#get_term("f1")], [0.99969 ± 0.00014], strong[1.00000 ± 0.00000], strong[1.00000 ± 0.00000],
 
         table.hline(stroke: 0.5pt),
 
-        table.cell(rowspan: 3)[Recon], [Precision], [1.00000 ± 0.00000], [1.00000 ± 0.00000], [1.00000 ± 0.00000],
+        table.cell(rowspan: 3)[bruteforce],
+        [#get_term("precision", capitalize: true)],
+        strong[1.00000 ± 0.00000],
+        strong[1.00000 ± 0.00000],
+        strong[1.00000 ± 0.00000],
 
-        [Recall], [1.00000 ± 0.00000], [1.00000 ± 0.00000], [1.00000 ± 0.00000],
+        [#get_term("recall", capitalize: true)],
+        [0.99963 ± 0.00016],
+        strong[1.00000 ± 0.00000],
+        strong[1.00000 ± 0.00000],
 
-        [F1], [1.00000 ± 0.00000], [1.00000 ± 0.00000], [1.00000 ± 0.00000],
+        [#get_term("f1")], [0.99982 ± 0.00008], strong[1.00000 ± 0.00000], strong[1.00000 ± 0.00000],
+
+        table.hline(stroke: 0.5pt),
+
+        table.cell(rowspan: 3)[dos],
+        [#get_term("precision", capitalize: true)],
+        [0.99999 ± 0.00001],
+        strong[1.00000 ± 0.00000],
+        strong[1.00000 ± 0.00000],
+
+        [#get_term("recall", capitalize: true)],
+        [0.99997 ± 0.00002],
+        strong[1.00000 ± 0.00000],
+        strong[1.00000 ± 0.00000],
+
+        [#get_term("f1")], [0.99998 ± 0.00002], strong[1.00000 ± 0.00000], strong[1.00000 ± 0.00000],
+
+        table.hline(stroke: 0.5pt),
+
+        table.cell(rowspan: 3)[recon],
+        [#get_term("precision", capitalize: true)],
+        strong[1.00000 ± 0.00000],
+        strong[1.00000 ± 0.00000],
+        strong[1.00000 ± 0.00000],
+
+        [#get_term("recall", capitalize: true)],
+        strong[1.00000 ± 0.00000],
+        strong[1.00000 ± 0.00000],
+        strong[1.00000 ± 0.00000],
+
+        [#get_term("f1")], strong[1.00000 ± 0.00000], strong[1.00000 ± 0.00000], strong[1.00000 ± 0.00000],
       ),
     ),
   )<tabela:genis_métodos_clássicos_resultados_por_classe>],
 )
 
-A @figura:genis_métodos_clássicos_matrizes_de_confusão mostra as matrizes de confusão de cada um dos modelos.
-O único que apresentou erros foi a árvore de decisão, que rotulou como `Benign` uma instância que era `DoS`, e outra que era `Bruteforce`.
+A @figura:genis_métodos_clássicos_matrizes_de_confusão mostra as matrizes de confusão de cada um dos modelos na #get_term("seed") 27.
+O único que apresentou erros foi a #glossarium.gls("decision_tree", link: false), que rotulou como `benign` uma instância que era `dos`, e outra que era `bruteforce`.
 
 #describe_figure(
   [#figure(
-    caption: [Matrizes de confusão dos métodos clássicos na base de dados GeNIS],
+    caption: [Matrizes de confusão dos métodos clássicos na base de dados #glossarium.gls-short("genis")],
     [
       #image("/assets/images/genis_decision_tree_confusion_matrix.png")
       #image("/assets/images/genis_random_forest_confusion_matrix.png")
@@ -112,21 +152,22 @@ O único que apresentou erros foi a árvore de decisão, que rotulou como `Benig
 )
 
 A @tabela:genis_métodos_clássicos_tempos compara o tempo dispendido no treinamento de dado modelo, e na inferência de todas as instâncias da base de dados, além dessa métrica para cada 100 entradas.
-Percebe-se que a floresta aleatória gasta 10x mais tempo no treinamento que a árvore de decisão, e 4,5x mais que o XGBoost.
-Quanto ao tempo de inferência, ela demora quase 3x o tempo da árvore de decisão para fazer a classificação, sendo apenas um pouco mais lenta que o XGBoost.
-Conclui-se que o XGBoost domina a floresta aleatória, dado que ele faz as mesmas predições com um custo menor.
-Por outro lado, a árvore de decisão apresenta melhor desempenho computacional ao custo de 2 erros na base de dados, o que justifica sua seleção.
+Percebe-se que a #glossarium.gls("random_forest", link: false) gasta 10x mais tempo no treinamento que a #glossarium.gls("decision_tree", link: false), e 4,5x mais que o #glossarium.gls("xgboost", link: false).
+Quanto ao tempo de inferência, ela demora quase 3x o tempo da #glossarium.gls("decision_tree", link: false) para fazer a classificação, sendo apenas um pouco mais lenta que o #glossarium.gls("xgboost", link: false).
+
+Conclui-se que o #glossarium.gls("xgboost", link: false) domina a #glossarium.gls("random_forest", link: false), dado que ele faz as mesmas predições com um custo menor.
+Por outro lado, a #glossarium.gls("decision_tree", link: false) apresenta melhor desempenho computacional ao custo de 2 erros na base de dados, o que justifica sua seleção.
 
 #describe_figure(
   [#figure(
-    caption: [Tempos de treinamento e inferência dos modelos de referência na base de dados GeNIS],
+    caption: [Tempos de treinamento e inferência dos modelos de referência na base de dados #glossarium.gls-short("genis")],
     format_table(
       table(
         columns: (auto, 1fr, 1fr, 1fr),
 
-        [Modelo], [Treinamento (s)], [Inferência (s)], [Inferência por 100 instâncias (s)],
+        table.header([Modelo], [Treinamento (s)], [Inferência (s)], [Inferência por 100 instâncias (s)]),
 
-        [Árvore de decisão], [11.6581 ± 0.1602], [0.4750 ± 0.0130], [0.000644 ± 0.000018],
+        [Árvore de decisão], strong[11.6581 ± 0.1602], strong[0.4750 ± 0.0130], strong[0.000644 ± 0.000018],
 
         [Floresta aleatória], [135.4474 ± 5.6204], [1.2795 ± 0.0077], [0.001736 ± 0.000010],
 
@@ -137,14 +178,30 @@ Por outro lado, a árvore de decisão apresenta melhor desempenho computacional 
 )
 
 
-=== ROSIDS
+Finalmente, a @figura:genis_métodos_clássicos_características permite visualizar a importância das características para cada algoritmo.
+Percebe-se que a porta de destino do fluxo, que foi transformada em uma característica categórica, assume 30,37% de importância para o #glossarium.gls("xgboost", link: false), o que ressalta que determinados tipos de ataques são direcionados para um conjunto pequeno de portas.
+Ao mesmo tempo, a #glossarium.gls("decision_tree", link: false) priorizou a demora máxima entre pacotes no tráfego de origem.
+Por outro lado, a #glossarium.gls("random_forest", link: false) mostrou uma distribuição muito mais balanceada entre as características; alcançando o melhor desempenho juntamente com o #glossarium.gls("xgboost", link: false).
 
-Os resultados dos modelos de referência na base de dados ROSIDS são apresentados na @tabela:rosids_métodos_clássicos_resultados.
-Os valores correspondem à média e ao desvio-padrão obtidos nas três sementes utilizadas no experimento, considerando a avaliação dos modelos finais sobre o conjunto de teste congelado.
+#describe_figure(
+  placement: auto,
+  [#figure(
+    caption: [Matrizes de confusão dos métodos clássicos na base de dados genis],
+    [
+      #image("/assets/images/genis_feature_importance_heatmap.png")
+    ],
+  ) <figura:genis_métodos_clássicos_características>],
+)
 
-Os três modelos apresentaram desempenho inferior ao observado no GeNIS, com valores de Macro F1 entre 0.94632 e 0.95513.
-A floresta aleatória apresentou o maior Macro F1 médio, seguida pelo XGBoost e pela árvore de decisão.
-As diferenças entre os modelos também são observadas nas demais métricas, com a árvore de decisão apresentando os menores valores médios em todas as métricas consideradas.
+
+=== #glossarium.gls-short("rosids")
+
+Os resultados dos modelos de referência na base de dados #glossarium.gls("rosids") são apresentados na @tabela:rosids_métodos_clássicos_resultados.
+Os valores correspondem à média e ao desvio-padrão obtidos nas três #get_term("seed", plural: true) utilizadas no experimento, considerando a avaliação dos modelos finais sobre o conjunto de teste congelado.
+
+Os três modelos apresentaram desempenho inferior ao observado no #glossarium.gls("genis"), com valores de #get_term("macro_f1") entre 0.94632 e 0.95513.
+A #glossarium.gls("random_forest") apresentou o maior #get_term("macro_f1") médio, seguida pelo #glossarium.gls("xgboost") e pela #glossarium.gls("decision_tree").
+As diferenças entre os modelos também são observadas nas demais métricas, com a #glossarium.gls("decision_tree", link: false) apresentando os menores valores médios em todas as métricas consideradas.
 
 #describe_figure(
   [#figure(
@@ -153,31 +210,33 @@ As diferenças entre os modelos também são observadas nas demais métricas, co
       table(
         columns: (auto, 1fr, 1fr, 1fr),
 
-        [Métrica], [Árvore de decisão], [Floresta aleatória], [XGBoost],
+        table.header([Métrica], [Árvore de decisão], [Floresta aleatória], [XGBoost]),
 
-        [Accuracy], [0.97348 ± 0.00018], [0.97789 ± 0.00020], [0.97721 ± 0.00011],
+        [#get_term("accuracy", capitalize: true)], [0.97348 ± 0.00018], strong[0.97789 ± 0.00020], [0.97721 ± 0.00011],
 
-        [Precision], [0.94650 ± 0.00060], [0.95714 ± 0.00056], [0.95520 ± 0.00044],
+        [#get_term("precision", capitalize: true)], [0.94650 ± 0.00060], strong[0.95714 ± 0.00056], [0.95520 ± 0.00044],
 
-        [Recall], [0.94620 ± 0.00015], [0.95337 ± 0.00050], [0.95274 ± 0.00045],
+        [#get_term("recall", capitalize: true)], [0.94620 ± 0.00015], strong[0.95337 ± 0.00050], [0.95274 ± 0.00045],
 
-        [Macro F1], [0.94632 ± 0.00026], [0.95513 ± 0.00042], [0.95388 ± 0.00043],
+        [#get_term("macro_f1")], [0.94632 ± 0.00026], strong[0.95513 ± 0.00042], [0.95388 ± 0.00043],
 
-        [ROC-AUC], [0.98471 ± 0.00007], [0.99610 ± 0.00004], [0.99658 ± 0.00004],
+        [#get_term("roc_auc")], [0.98471 ± 0.00007], [0.99610 ± 0.00004], strong[0.99658 ± 0.00004],
 
-        [PR-AUC], [0.94496 ± 0.00040], [0.97187 ± 0.00014], [0.97351 ± 0.00036],
+        [#get_term("pr_auc")], [0.94496 ± 0.00040], [0.97187 ± 0.00014], strong[0.97351 ± 0.00036],
 
-        [MCC], [0.96134 ± 0.00026], [0.96777 ± 0.00029], [0.96677 ± 0.00016],
+        [#get_term("mcc")], [0.96134 ± 0.00026], strong[0.96777 ± 0.00029], [0.96677 ± 0.00016],
 
-        [Balanced accuracy], [0.94620 ± 0.00015], [0.95337 ± 0.00050], [0.95274 ± 0.00045],
+        [#get_term("balanced_accuracy", capitalize: true)],
+        [0.94620 ± 0.00015],
+        strong[0.95337 ± 0.00050],
+        [0.95274 ± 0.00045],
       ),
     ),
   ) <tabela:rosids_métodos_clássicos_resultados>],
 )
 
 A @tabela:rosids_métodos_clássicos_resultados_por_classe mostra que as maiores diferenças entre os modelos ocorrem nas classes `UnauthPub` e `UnauthSub`.
-A classe `DoS` apresenta F1 próximo de 1 nos três modelos, enquanto `UnauthSub` apresenta os menores valores, com 0.85995 para a árvore de decisão, 0.88282 para a floresta aleatória e 0.87524 para o XGBoost.
-Para `UnauthPub`, os valores de F1 variam de 0.91712 a 0.93347.
+A classe majoritária `DoS` apresenta #get_term("f1") próximo de 1 nos três modelos, enquanto `UnauthSub` apresenta os menores valores, com 0.85995 para a #glossarium.gls("decision_tree", link: false), 0.88282 para a #glossarium.gls("random_forest", link: false) e 0.87524 para o #glossarium.gls("xgboost", link: false).
 As classes `Benign` e `Subflood` apresentam desempenho intermediário, com diferenças menores entre os modelos.
 
 #describe_figure(
@@ -187,53 +246,64 @@ As classes `Benign` e `Subflood` apresentam desempenho intermediário, com difer
       table(
         columns: (auto, auto, 1fr, 1fr, 1fr),
 
-        [Classe], [Métrica], [Árvore de decisão], [Floresta aleatória], [XGBoost],
+        table.header([Classe], [Métrica], [Árvore de decisão], [Floresta aleatória], [XGBoost]),
 
-        table.cell(rowspan: 3)[Benign], [Precision], [0.97105 ± 0.00011], [0.97396 ± 0.00020], [0.97319 ± 0.00009],
+        table.cell(rowspan: 3)[Benign],
+        [#get_term("precision", capitalize: true)], [0.97105 ± 0.00011], strong[0.97396 ± 0.00020], [0.97319 ± 0.00009],
 
-        [Recall], [0.97555 ± 0.00049], [0.98105 ± 0.00040], [0.98030 ± 0.00026],
+        [#get_term("recall", capitalize: true)], [0.97555 ± 0.00049], strong[0.98105 ± 0.00040], [0.98030 ± 0.00026],
 
-        [F1], [0.97330 ± 0.00023], [0.97749 ± 0.00021], [0.97673 ± 0.00012],
-
-        table.hline(stroke: 0.5pt),
-
-        table.cell(rowspan: 3)[DoS], [Precision], [0.99941 ± 0.00019], [1.00000 ± 0.00000], [1.00000 ± 0.00000],
-
-        [Recall], [0.99968 ± 0.00000], [0.99968 ± 0.00000], [0.99968 ± 0.00000],
-
-        [F1], [0.99954 ± 0.00009], [0.99984 ± 0.00000], [0.99984 ± 0.00000],
+        [#get_term("f1")], [0.97330 ± 0.00023], strong[0.97749 ± 0.00021], [0.97673 ± 0.00012],
 
         table.hline(stroke: 0.5pt),
 
-        table.cell(rowspan: 3)[Subflood], [Precision], [0.98798 ± 0.00035], [0.99252 ± 0.00019], [0.99228 ± 0.00039],
+        table.cell(rowspan: 3)[DoS],
+        [#get_term("precision", capitalize: true)],
+        [0.99941 ± 0.00019],
+        strong[1.00000 ± 0.00000],
+        strong[1.00000 ± 0.00000],
 
-        [Recall], [0.97544 ± 0.00010], [0.97772 ± 0.00017], [0.97611 ± 0.00053],
+        [#get_term("recall", capitalize: true)],
+        strong[0.99968 ± 0.00000],
+        strong[0.99968 ± 0.00000],
+        strong[0.99968 ± 0.00000],
 
-        [F1], [0.98167 ± 0.00014], [0.98506 ± 0.00017], [0.98413 ± 0.00027],
+        [#get_term("f1")], [0.99954 ± 0.00009], strong[0.99984 ± 0.00000], strong[0.99984 ± 0.00000],
 
         table.hline(stroke: 0.5pt),
 
-        table.cell(rowspan: 3)[UnauthPub], [Precision], [0.90820 ± 0.00121], [0.91802 ± 0.00170], [0.92164 ± 0.00033],
+        table.cell(rowspan: 3)[Subflood],
+        [#get_term("precision", capitalize: true)], [0.98798 ± 0.00035], strong[0.99252 ± 0.00019], [0.99228 ± 0.00039],
 
-        [Recall], [0.92621 ± 0.00037], [0.94327 ± 0.00074], [0.94562 ± 0.00000],
+        [#get_term("recall", capitalize: true)], [0.97544 ± 0.00010], strong[0.97772 ± 0.00017], [0.97611 ± 0.00053],
 
-        [F1], [0.91712 ± 0.00076], [0.93047 ± 0.00065], [0.93347 ± 0.00017],
+        [#get_term("f1")], [0.98167 ± 0.00014], strong[0.98506 ± 0.00017], [0.98413 ± 0.00027],
 
         table.hline(stroke: 0.5pt),
 
-        table.cell(rowspan: 3)[UnauthSub], [Precision], [0.86586 ± 0.00208], [0.90121 ± 0.00119], [0.88889 ± 0.00196],
+        table.cell(rowspan: 3)[UnauthPub],
+        [#get_term("precision", capitalize: true)], [0.90820 ± 0.00121], [0.91802 ± 0.00170], strong[0.92164 ± 0.00033],
 
-        [Recall], [0.85413 ± 0.00144], [0.86515 ± 0.00273], [0.86200 ± 0.00250],
+        [#get_term("recall", capitalize: true)], [0.92621 ± 0.00037], [0.94327 ± 0.00074], strong[0.94562 ± 0.00000],
 
-        [F1], [0.85995 ± 0.00087], [0.88282 ± 0.00185], [0.87524 ± 0.00214],
+        [#get_term("f1")], [0.91712 ± 0.00076], [0.93047 ± 0.00065], strong[0.93347 ± 0.00017],
+
+        table.hline(stroke: 0.5pt),
+
+        table.cell(rowspan: 3)[UnauthSub],
+        [#get_term("precision", capitalize: true)], [0.86586 ± 0.00208], strong[0.90121 ± 0.00119], [0.88889 ± 0.00196],
+
+        [#get_term("recall", capitalize: true)], [0.85413 ± 0.00144], strong[0.86515 ± 0.00273], [0.86200 ± 0.00250],
+
+        [#get_term("f1")], [0.85995 ± 0.00087], strong[0.88282 ± 0.00185], [0.87524 ± 0.00214],
       ),
     ),
   ) <tabela:rosids_métodos_clássicos_resultados_por_classe>],
 )
 
-A @figura:rosids_métodos_clássicos_matrizes_de_confusão mostra as matrizes de confusão dos três modelos para a semente 27.
+A @figura:rosids_métodos_clássicos_matrizes_de_confusão mostra as matrizes de confusão dos três modelos para a #get_term("seed") 27.
 As principais ocorrências fora da diagonal correspondem às classes `UnauthSub` e `UnauthPub`, que são frequentemente classificadas como `Benign`.
-Para `UnauthSub`, essa confusão corresponde a 146 instâncias na árvore de decisão, 133 na floresta aleatória e 138 no XGBoost.
+Para `UnauthSub`, essa confusão corresponde a 146 instâncias na #glossarium.gls("decision_tree", link: false), 133 na #glossarium.gls("random_forest", link: false) e 138 no XGBoost.
 Para `UnauthPub`, são 55, 64 e 81 instâncias, respectivamente.
 A classe `DoS` apresenta apenas uma instância classificada incorretamente por cada modelo, enquanto `Subflood` também apresenta parte dos erros associada à classificação como `Benign`.
 
@@ -248,11 +318,12 @@ A classe `DoS` apresenta apenas uma instância classificada incorretamente por c
   ) <figura:rosids_métodos_clássicos_matrizes_de_confusão>],
 )
 
-A @tabela:rosids_métodos_clássicos_tempos evidencia um compromisso entre custo computacional e desempenho preditivo.
-A árvore de decisão apresenta o menor custo tanto no treinamento quanto na inferência, mas obtém o menor Macro F1 entre os três modelos.
-A floresta aleatória alcança o maior Macro F1, porém requer aproximadamente 8,8 vezes o tempo de treinamento da árvore e 4,5 vezes o tempo de inferência.
-O XGBoost apresenta desempenho muito próximo ao da floresta aleatória, com diferença de apenas 0,00125 no Macro F1 médio, mas reduz o custo em relação a ela, principalmente no treinamento.
-Assim, a floresta aleatória oferece o maior desempenho preditivo ao custo computacional mais elevado, enquanto o XGBoost ocupa uma posição intermediária entre desempenho e custo, e a árvore de decisão privilegia a velocidade em detrimento de parte do desempenho, o que deve ser vantajoso em um cenário de enorme vazão de fluxos de rede.
+A @tabela:rosids_métodos_clássicos_tempos evidencia uma relação entre custo computacional e desempenho preditivo.
+A #glossarium.gls("decision_tree", link: false) apresenta o menor custo tanto no treinamento quanto na inferência, mas obtém o menor #get_term("macro_f1") entre os três modelos.
+A #glossarium.gls("random_forest", link: false) alcança o maior #get_term("macro_f1"), porém requer aproximadamente 8,8 vezes o tempo de treinamento da árvore e 4,5 vezes o tempo de inferência.
+O #glossarium.gls("xgboost", link: false) apresenta desempenho muito próximo ao da #glossarium.gls("random_forest", link: false), com diferença de apenas 0,00125 no #get_term("macro_f1") médio, mas reduz o custo em relação a ela, principalmente no treinamento.
+
+Assim, a #glossarium.gls("random_forest", link: false) oferece o maior desempenho preditivo ao custo computacional mais elevado, enquanto o #glossarium.gls("xgboost", link: false) ocupa uma posição intermediária entre desempenho e custo, e a #glossarium.gls("decision_tree", link: false) privilegia a velocidade em um pequeno detrimento do desempenho, o que pode ser vantajoso em um cenário de enorme vazão de fluxos de rede.
 
 #describe_figure(
   [#figure(
@@ -261,9 +332,9 @@ Assim, a floresta aleatória oferece o maior desempenho preditivo ao custo compu
       table(
         columns: (auto, 1fr, 1fr, 1fr),
 
-        [Modelo], [Treinamento (s)], [Inferência (s)], [Inferência por 100 instâncias (s)],
+        table.header([Modelo], [Treinamento (s)], [Inferência (s)], [Inferência por 100 instâncias (s)]),
 
-        [Árvore de decisão], [2.7532 ± 0.0080], [0.1613 ± 0.0042], [0.000590 ± 0.000015],
+        [Árvore de decisão], strong[2.7532 ± 0.0080], strong[0.1613 ± 0.0042], strong[0.000590 ± 0.000015],
 
         [Floresta aleatória], [24.2634 ± 0.2256], [0.7219 ± 0.0045], [0.002641 ± 0.000016],
 
@@ -271,6 +342,20 @@ Assim, a floresta aleatória oferece o maior desempenho preditivo ao custo compu
       ),
     ),
   ) <tabela:rosids_métodos_clássicos_tempos>],
+)
+
+Finalmente, a @figura:rosids_métodos_clássicos_características permite visualizar a importância das características para cada algoritmo.
+Percebe-se que a porta de destino do fluxo, que foi transformada em uma característica categórica, assume 40,56% de importância para a #glossarium.gls("decision_tree", link: false), e 59,57% para o #glossarium.gls("xgboost", link: false), o que mostra uma dominação da capacidade de predição, e ressalta que determinados tipos de ataques são direcionados para um conjunto pequeno de portas.
+Por outro lado, a #glossarium.gls("random_forest", link: false) mostrou uma distribuição muito mais balanceada entre as características; alcançando o melhor desempenho.
+
+#describe_figure(
+  placement: auto,
+  [#figure(
+    caption: [Matrizes de confusão dos métodos clássicos na base de dados ROSIDS],
+    [
+      #image("/assets/images/rosids_feature_importance_heatmap.png")
+    ],
+  ) <figura:rosids_métodos_clássicos_características>],
 )
 
 
@@ -292,7 +377,7 @@ As estratégias ponderadas utilizaram como peso de cada modelo o desempenho méd
 Os rótulos do conjunto de teste permaneceram restritos à avaliação final dos comitês, não sendo utilizados na definição dos pesos ou na escolha das estratégias.
 
 A @tabela:comites_pesos apresenta os valores utilizados para cada base.
-No GeNIS, os três modelos apresentaram Macro F1 de validação muito próximos, resultando em pesos praticamente uniformes.
+No #glossarium.gls("genis"), os três modelos apresentaram Macro F1 de validação muito próximos, resultando em pesos praticamente uniformes.
 A maior diferença ocorre para a árvore de decisão, enquanto a floresta aleatória e o XGBoost recebem diferem em 0,00001.
 No ROSIDS, a distribuição também permanece próxima da uniformidade, embora o XGBoost apresente o maior peso, seguido pela floresta aleatória e pela árvore de decisão.
 
@@ -303,7 +388,7 @@ No ROSIDS, a distribuição também permanece próxima da uniformidade, embora o
       table(
         columns: (auto, auto, auto, auto),
         table.header([Base], [Modelo], [Macro F1 na validação], [Peso]),
-        table.cell(rowspan: 3)[GeNIS], [Árvore de decisão], [0,99984], [0,33332],
+        table.cell(rowspan: 3)[#glossarium.gls("genis", link: false)], [Árvore de decisão], [0,99984], [0,33332],
         [Floresta aleatória], [0,99993], [0,33335],
         [XGBoost], [0,99990], [0,33334],
         table.hline(stroke: 0.5pt),
@@ -316,15 +401,15 @@ No ROSIDS, a distribuição também permanece próxima da uniformidade, embora o
 )
 
 
-=== GeNIS
+=== #glossarium.gls-short("genis")
 
-A @tabela:genis_comites_resultados apresenta os resultados das quatro estratégias de comitê no conjunto de teste do GeNIS, considerando as três sementes utilizadas no experimento.
+A @tabela:genis_comites_resultados apresenta os resultados das quatro estratégias de comitê no conjunto de teste do #glossarium.gls("genis"), considerando as três sementes utilizadas no experimento.
 O hard voting e sua versão ponderada apresentaram os mesmos resultados em todas as métricas, sem cometer erros.
 As estratégias baseadas em soft voting também apresentaram desempenho excepcional, mas com pequenas variações.
 
 #describe_figure(
   [#figure(
-    caption: [Desempenho dos comitês no conjunto de teste do GeNIS.],
+    caption: [Desempenho dos comitês no conjunto de teste do #glossarium.gls-short("genis")],
     format_table(
       table(
         columns: (auto, auto, auto, auto, auto, auto, auto),
@@ -443,7 +528,7 @@ Valores menores de discordância indicam previsões mais semelhantes, enquanto v
 
         table.header([Base], [Par de classificadores], [Discordância], [Double Fault], [Jaccard dos erros]),
 
-        table.cell(rowspan: 3)[GeNIS],
+        table.cell(rowspan: 3)[#glossarium.gls("genis", link: false)],
         [Árvore de decisão\ × Floresta aleatória],
         [0,00005 ± 0,00002],
         [0,00000 ± 0,00000],
@@ -467,7 +552,7 @@ Valores menores de discordância indicam previsões mais semelhantes, enquanto v
   ) <tabela:comites_diversidade>],
 )
 
-No GeNIS, a discordância entre os classificadores foi praticamente nula.
+No #glossarium.gls("genis", link: false), a discordância entre os classificadores foi praticamente nula.
 Árvore de decisão e floresta aleatória, assim como árvore de decisão e XGBoost, apresentaram discordância média de 0,00005, enquanto floresta aleatória e XGBoost não apresentaram discordâncias nas previsões.
 O `Double Fault` foi nulo em todos os pares.
 Nos dois pares que envolvem a árvore de decisão, o Jaccard dos conjuntos de erros também foi nulo, indicando que os erros observados não foram compartilhados entre esses classificadores.
@@ -507,8 +592,24 @@ A @tabela:gpt_resultados_gerais mostra as métricas para as classificações por
         columns: (auto, auto, auto, auto, auto, auto, auto, auto),
         table.header([Base], [Método], [Accuracy], [Precision], [Recall], [Macro F1], [MCC], [B. Accur.]),
 
-        [GeNIS], [Zero-shot], [0,31550], [0,68153], [0,56070], [0,49126], [0,24113], [0,56070],
-        [GeNIS], [Few-shot], [0,56650], [0,58147], [0,82175], [0,59037], [0,45068], [0,82175],
+        [#glossarium.gls("genis", link: false)],
+        [Zero-shot],
+        [0,31550],
+        [0,68153],
+        [0,56070],
+        [0,49126],
+        [0,24113],
+        [0,56070],
+
+        [#glossarium.gls("genis", link: false)],
+        [Few-shot],
+        [0,56650],
+        [0,58147],
+        [0,82175],
+        [0,59037],
+        [0,45068],
+        [0,82175],
+
         [ROSIDS], [Zero-shot], [0,43700], [0,18993], [0,22740], [0,19311], [0,08680], [0,22740],
         [ROSIDS], [Few-shot], [0,61500], [0,54943], [0,57854], [0,52129], [0,54393], [0,57854],
       ),
@@ -516,11 +617,11 @@ A @tabela:gpt_resultados_gerais mostra as métricas para as classificações por
   ) <tabela:gpt_resultados_gerais>],
 )
 
-Os resultados evidenciam uma melhora consistente do few-shot em relação ao zero-shot nas duas bases, embora com comportamentos distintos. Na GeNIS, a accuracy aumentou de 0,3155 para 0,5665 e o macro F1 de 0,4913 para 0,5904. O maior ganho ocorreu no recall, que passou de 0,5607 para 0,8218, acompanhado, entretanto, por uma redução da precision, de 0,6815 para 0,5815. Esse comportamento indica uma mudança no equilíbrio entre recuperação e precisão: com exemplos no prompt, o modelo passou a identificar uma parcela maior das instâncias relevantes, mas também produziu mais falsos positivos. Apesar dessa troca, o MCC aumentou de 0,2411 para 0,4507, indicando uma melhora geral na qualidade das classificações.
+Os resultados evidenciam uma melhora consistente do few-shot em relação ao zero-shot nas duas bases, embora com comportamentos distintos. Na #glossarium.gls("genis", link: false), a accuracy aumentou de 0,3155 para 0,5665 e o macro F1 de 0,4913 para 0,5904. O maior ganho ocorreu no recall, que passou de 0,5607 para 0,8218, acompanhado, entretanto, por uma redução da precision, de 0,6815 para 0,5815. Esse comportamento indica uma mudança no equilíbrio entre recuperação e precisão: com exemplos no prompt, o modelo passou a identificar uma parcela maior das instâncias relevantes, mas também produziu mais falsos positivos. Apesar dessa troca, o MCC aumentou de 0,2411 para 0,4507, indicando uma melhora geral na qualidade das classificações.
 
-Na ROSIDS, os ganhos proporcionados pelo few-shot foram ainda mais expressivos. A accuracy passou de 0,4370 para 0,6150, o macro F1 de 0,1933 para 0,5213 e o MCC de 0,0868 para 0,5439. Nesse caso, tanto a precision quanto o recall apresentaram aumentos relevantes, passando de 0,1899 para 0,5494 e de 0,2274 para 0,5785, respectivamente. Portanto, diferentemente da GeNIS, a inclusão dos exemplos de referência melhorou simultaneamente a capacidade de identificar as classes e a precisão das decisões do modelo.
+Na ROSIDS, os ganhos proporcionados pelo few-shot foram ainda mais expressivos. A accuracy passou de 0,4370 para 0,6150, o macro F1 de 0,1933 para 0,5213 e o MCC de 0,0868 para 0,5439. Nesse caso, tanto a precision quanto o recall apresentaram aumentos relevantes, passando de 0,1899 para 0,5494 e de 0,2274 para 0,5785, respectivamente. Portanto, diferentemente da #glossarium.gls("genis", link: false), a inclusão dos exemplos de referência melhorou simultaneamente a capacidade de identificar as classes e a precisão das decisões do modelo.
 
-A comparação entre as bases também evidencia a sensibilidade do desempenho ao cenário de classificação. No protocolo zero-shot, a GeNIS apresentou macro F1 substancialmente superior ao observado na ROSIDS (0,4913 contra 0,1933). Com a adoção do few-shot, essa diferença diminuiu, com resultados de 0,5904 e 0,5213, respectivamente. Esse resultado sugere que exemplos de classificação fornecidos no prompt podem contribuir para adaptar o comportamento do modelo às características específicas da tarefa, reduzindo parte da dificuldade observada no protocolo zero-shot.
+A comparação entre as bases também evidencia a sensibilidade do desempenho ao cenário de classificação. No protocolo zero-shot, a #glossarium.gls("genis", link: false) apresentou macro F1 substancialmente superior ao observado na ROSIDS (0,4913 contra 0,1933). Com a adoção do few-shot, essa diferença diminuiu, com resultados de 0,5904 e 0,5213, respectivamente. Esse resultado sugere que exemplos de classificação fornecidos no prompt podem contribuir para adaptar o comportamento do modelo às características específicas da tarefa, reduzindo parte da dificuldade observada no protocolo zero-shot.
 
 
 == Comparação entre os datasets

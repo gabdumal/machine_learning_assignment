@@ -136,18 +136,26 @@
   (
     key: "accuracy",
     short: foreign_text[accuracy],
+    short_capitalized: foreign_text[Accuracy],
   ),
   (
     key: "balanced_accuracy",
     short: foreign_text[balanced accuracy],
+    short_capitalized: foreign_text[Balanced accuracy],
   ),
   (
     key: "precision",
     short: foreign_text[precision],
+    short_capitalized: foreign_text[Precision],
   ),
   (
     key: "recall",
     short: foreign_text[recall],
+    short_capitalized: foreign_text[Recall],
+  ),
+  (
+    key: "f1",
+    short: [F1],
   ),
   (
     key: "macro_f1",
