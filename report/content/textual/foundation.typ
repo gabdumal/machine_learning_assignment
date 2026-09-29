@@ -7,7 +7,6 @@
   Esta seção deve fornecer o conhecimento necessário para compreender o problema e posicionar o estudo em relação à literatura. O levantamento bibliográfico pode ser sucinto, mas deve conter referências realmente relevantes para o tema. A descrição do trabalho prevê um estado da arte curto, com pelo menos 3--5 referências relevantes, além da apresentação de 2--3 exemplos de bases de dados e soluções típicas do domínio.
 ]
 
-
 Este estudo busca abordar o problema de detecção de intrusões em redes de computadores, comparando diferentes métodos de solução.
 Esta seção apresenta o domínio e os fundamentos do problema, além de elencar bases de dados relevantes e trabalhos relacionados.
 
@@ -22,20 +21,20 @@ Esta seção apresenta o domínio e os fundamentos do problema, além de elencar
 A detecção pode ser realizada por meio de assinaturas de ataques conhecidos ou pela análise de padrões presentes no tráfego.
 Nesse contexto, técnicas de #glossarium.gls("machine_learning") são utilizadas para construir modelos a partir de características extraídas da comunicação em rede @buczak:2016:ml_for_cyber_security.
 
-Uma forma de representar o tráfego para esse tipo de análise é por meio de #glossarium.gls("network_flow").
-Um fluxo é definido como um conjunto de pacotes que atravessam um ponto de observação durante determinado intervalo e compartilham propriedades de comunicação.
-Os registros de fluxo podem representar características como endereços, portas, protocolo, duração, quantidade de pacotes e volume de dados.
+Uma forma de representar o tráfego para esse tipo de análise é por meio de fluxos de rede.
+Um fluxo é definido como um conjunto de pacotes que atravessam um ponto de observação durante determinado intervalo de tempo, e que compartilham propriedades de comunicação.
+Os registros de fluxo podem representar características como: endereços, portas, protocolo, duração, quantidade de pacotes, e volume de dados.
 Sistemas de detecção baseados em fluxo utilizam esses registros como entrada, sem analisar diretamente o conteúdo dos pacotes @umer:2017:flow_based_detection.
 
-Quando os dados possuem rótulos conhecidos, a detecção pode ser formulada como um problema de #glossarium.gls("supervised_learning") que utiliza o vetor de características de um fluxo como preditor.
-Em uma tarefa de #glossarium.gls("multiclass_classification"), o conjunto de rótulos contém múltiplas classes, e cada fluxo é associado a uma delas.
+Quando os dados possuem rótulos conhecidos, a detecção pode ser formulada como um problema de #glossarium.gls("aprendizado_supervisionado"), que utiliza o vetor de características de um fluxo como preditor.
+Em uma tarefa de #glossarium.gls("classificação_multiclasse"), o conjunto de rótulos contém múltiplas classes, e cada fluxo é associado a uma delas.
 
-Na detecção de intrusões, essas classes podem representar diferentes tipos de comportamento de rede, incluindo tráfego benigno e diferentes categorias de ataques (DoS, Recon, #sym.dots).
-A variável-alvo, portanto, corresponde à categoria atribuída a cada fluxo, enquanto as demais características utilizadas pelo modelo descrevem o comportamento observado na comunicação.
+Na detecção de intrusões, essas classes podem representar diferentes tipos de comportamento de rede, incluindo tráfego benigno e diferentes categorias de ataques (#glossarium.gls("dos"), reconhecimento, inundação, entre outras).
+Nesse contexto, a variável-alvo corresponde à categoria atribuída a cada fluxo, enquanto as demais características utilizadas pelo modelo descrevem o comportamento observado na comunicação.
 
 A classificação de intrusões em nível de fluxo pode ser organizada em diferentes etapas.
 Uma abordagem pode primeiro distinguir tráfego benigno de tráfego malicioso e, posteriormente, determinar a categoria do comportamento identificado.
-Também é possível formular diretamente o problema como uma classificação multiclasse, atribuindo cada fluxo a uma das categorias definidas para o conjunto de dados.
+Também é possível formular diretamente o problema como uma #glossarium.gls("classificação_multiclasse"), atribuindo cada fluxo a uma das categorias definidas para o conjunto de dados.
 A escolha entre essas formulações depende da definição das classes e da estratégia de detecção adotada.
 
 
@@ -49,12 +48,13 @@ A escolha entre essas formulações depende da definição das classes e da estr
   Descreva bases de dados ou benchmarks relevantes para o tema.
 ]
 
-As bases de dados utilizadas em pesquisas de detecção de intrusões diferem quanto ao ambiente representado, à forma de coleta, às características extraídas e às classes consideradas.
-Esta seção apresenta três bases representativas de diferentes contextos: o #glossarium.gls("genis"), voltado a redes corporativas, o #glossarium.gls("rosids"), voltado a sistemas baseados em #glossarium.gls("ros"), e o conjunto de dados de #get_term("westermo"), voltado a redes de comunicação industrial.
+As bases de dados utilizadas em pesquisas de detecção de intrusões diferem quanto ao ambiente representado, à forma de coleta, às características extraídas, e às classes consideradas.
+Esta seção apresenta três bases representativas de diferentes contextos: o #glossarium.gls("genis"), voltado a redes corporativas; o #glossarium.gls("rosids"), voltado a sistemas baseados em #glossarium.gls("ros"); e o conjunto de dados de #get_term("westermo"), voltado a redes de comunicação industrial.
 A @tabela:bases_domínio resume suas principais características.
 
 #describe_figure(
   sticky: true,
+  placement: auto,
   [#figure(
     caption: "Bases de dados exploradas",
     format_table(table(
@@ -217,16 +217,16 @@ A @tabela:bases_domínio resume suas principais características.
 
 === #glossarium.gls("genis")
 
-O #glossarium.gls("genis") foi desenvolvido para representar o tráfego de uma rede corporativa no contexto de pequenas e médias empresas.
+A base de dados #glossarium.gls("genis") foi desenvolvida para representar o tráfego de uma rede corporativa no contexto de pequenas e médias empresas.
 Os dados foram coletados pela plataforma Airbus CyberRange, por onde se executou atividades benignas de usuários e administradores, além de cenários sequenciais de ataque @silva:2025:genis_network_intrusion.
 
 Os pacotes foram registrados em arquivos #glossarium.gls("pcap") e processados pela ferramenta HERA (#foreign_text[Holistic nEtwork featuRes Aggregator]) para gerar fluxos e extrair características.
 O conjunto foi disponibilizado em versões com intervalos de fluxo de 5, 10, 30 e 60 segundos, totalizando 2.806.168 fluxos na versão de 5 segundos e 368.556 na versão de 60 segundos.
 
 A base possui três níveis de rotulação.
-O primeiro simplesmente distingue tráfego benigno e malicioso.
-O segundo organiza os fluxos em quatro categorias: benigno, força bruta, negação de serviço e reconhecimento.
-O terceiro detalha essas categorias em tipos específicos de atividades benignas (se desempenhadas por usuário comum ou administrador) ou de ataques (protocolo utilizado, ou método de negação de serviço).
+O primeiro simplesmente distingue tráfego benigno de malicioso.
+O segundo organiza os fluxos em quatro categorias: benigno, força bruta, #glossarium.gls("dos"), e reconhecimento.
+O terceiro detalha essas categorias em tipos específicos de atividades benignas (se desempenhadas por usuário comum ou administrador) ou de ataques (protocolo utilizado, ou método de #glossarium.gls-long("dos")).
 
 Além dos arquivos de fluxos, os autores disponibilizaram as capturas de pacotes em seus formatos originais, os cenários de ataque, e versões pré-processadas em formato #glossarium.gls("csv").
 No escopo deste relatório, utilizamos os dados processados para fluxos de 60 segundos, e consideramos o nível médio de granularidade, que contém 4 classes.
@@ -234,12 +234,12 @@ No escopo deste relatório, utilizamos os dados processados para fluxos de 60 se
 
 === #glossarium.gls("rosids")
 
-O #glossarium.gls("rosids") foi desenvolvido para investigar a segurança de sistemas robóticos baseados em #glossarium.gls("ros").
-Sua coleta foi realizada no IFARLab-DIH, laboratório da Universidade de Eskişehir Osmangazi dedicado à pesquisa em sistemas robóticos e industriais.
+A base de dados #glossarium.gls("rosids") foi desenvolvida para investigar a segurança de sistemas robóticos baseados em #glossarium.gls("ros", first: true).
+Sua coleta foi realizada no IFARLab-DIH, laboratório da Universidade de Eskişehir Osmangazi dedicado à pesquisa em sistemas robóticos e industriais @degirmenci:2023:rosids23_network_intrusion.
 
 Os componentes utilizados no experimento são: um ROS Master, um dispositivo controlador, um dispositivo associado ao braço robótico, um dispositivo responsável pelo registro do tráfego, e um dispositivo atacante.
 O ROS Master coordena o registro dos componentes e a comunicação entre os nós do sistema.
-O dispositivo atacante foi conectado à mesma infraestrutura de rede para produzir o tráfego associado aos cenários de intrusão @degirmenci:2023:rosids23_network_intrusion.
+O dispositivo atacante foi conectado à mesma infraestrutura de rede para produzir o tráfego associado aos cenários de intrusão.
 
 Os ataques considerados exploram mecanismos gerais da rede e características específicas do middleware #glossarium.gls("ros").
 Por exemplo, os ataques de publicação e de subscrição não autorizadas exploram a possibilidade de um nó não autorizado publicar ou acessar dados.
@@ -259,16 +259,16 @@ Os pacotes foram registrados no formato #glossarium.gls("pcap") com a ferramenta
 Nem todos os pacotes capturados eram representativos do contexto, mas resultavam dos componentes necessários para executar o experimento.
 Dessa forma, os pesquisadores montaram duas versões dos dados: a reduzida corresponde apenas ao contexto simulado, com 48.657 fluxos; enquanto a estendida inclui todos os pacotes, com 68.729.
 
-Os pacotes foram coletados individualmente por três pontos de rede posicionados de forma diversa na topologia.
+Os pacotes foram coletados individualmente por três pontos de rede posicionados de forma distinta na topologia.
 Assim, foi gerado um arquivo #glossarium.gls("csv") de fluxos de rede para cada ponto, que descreve 50 características.
 Isso permite realizar análises acerca da capacidade de um ponto conseguir detectar uma intrusão sozinho, e de implementar métodos de detecção federados.
 
-O experimento executou seis tipos de eventos: conexões SSH corretas, conexões SSH sem sucesso, dispositivos recebem IP inválido, dispositivos recebem o mesmo IP, escaneamento de portas, e #foreign_text[man-in-the-middle].
+O experimento executou seis tipos de eventos: conexões #glossarium.gls("ssh") corretas; conexões #glossarium.gls("ssh") sem sucesso; dispositivos recebem endereço IP inválido; dispositivos recebem o mesmo endereço IP; escaneamento de portas; e #foreign_text[man-in-the-middle].
 
 Acerca do rotulamento, os autores executaram dois métodos concomitantemente.
 No primeiro, todo tráfego ocorrido durante um evento anômalo é assim rotulado.
 Já no segundo, apenas o tráfego enviado pelo ou para o atacante é rotulado como anômalo.
-Além disso, é salvo qual evento estava sendo executado no momento do rotulamento, o que resulta em quatro características.
+Além disso, é registrado qual evento estava sendo executado no momento do rotulamento, o que resulta em duas características binárias e duas categóricas.
 
 
 == Métodos e trabalhos relacionados
@@ -283,22 +283,22 @@ Além disso, é salvo qual evento estava sendo executado no momento do rotulamen
 
 Soluções para detecção e classificação de intrusões em fluxos de rede utilizam diferentes estratégias de modelagem.
 Elencam-se primariamente métodos clássicos de classificação, que podem ser combinados em comitês.
-Além disso, estudos mais recentes usam métodos de #glossarium.gls("llm") para analisar dados de tráfego estruturados.
+Além disso, estudos mais recentes usam métodos de #glossarium.gls("llm", plural: true) para analisar dados de tráfego estruturados.
 
 #cite_prose(<umer:2018:two_stage_flow_based_intrusion_detection>) propuseram uma arquitetura de duas etapas para detecção baseada em fluxos.
 Os autores utilizam o método de #glossarium.gls("svm") na variação de #foreign_text[one-class] para separar fluxos maliciosos do tráfego normal sem utilizar exemplos rotulados.
 Então, um #glossarium.gls("som") agrupa os fluxos maliciosos em diferentes categorias de ataque.
-O estudo observou que o desempenho do SVM é sensível ao controle de outliers, e que o agrupamento requer conhecimento sobre os ataques presentes nos dados.
+O estudo observou que o desempenho do #glossarium.gls("svm", link: false) é sensível ao controle de #get_term("outlier", plural: true), e que o agrupamento requer conhecimento sobre os ataques presentes nos dados.
 
 #cite_prose(<rodriguez:2022:ml_for_flow_based_intrusion>) testam diferentes classificadores na base de dados CICIDS2017.
-Foram comparados métodos de #glossarium.gls("random_forest"), Naive Bayes, KNN, entre outros.
-Os resultados mostram desempenho superior dos métodos baseados em árvores nos experimentos de classificação binária.
-Ainda assim, erros foram mais frequentes na classificação multiclasse, indicando dificuldade para distinguir tipos específicos de intrusão.
+Foram comparados métodos de #glossarium.gls("random_forest"), #foreign_text[Naive Bayes], KNN (K vizinhos mais próximos), entre outros.
+Os resultados mostram desempenho superior dos métodos baseados em árvores nos experimentos de #glossarium.gls("classificação_binária").
+Ainda assim, erros foram mais frequentes na #glossarium.gls("classificação_multiclasse"), indicando dificuldade para distinguir tipos específicos de intrusão.
 
-#cite_prose(<mehavilla:2026:llm_flow_intrusion_detection>) realizaram uma comparação entre #glossarium.gls("llm", plural: true), métodos clássicos --- #glossarium.gls("decision_tree"), #glossarium.gls("random_forest") e XGBoost --- e modelos de aprendizado profundo.
-Os experimentos incluíram classificação binária e multiclasse, além de análise de tempo de inferência e de consumo de recursos.
+#cite_prose(<mehavilla:2026:llm_flow_intrusion_detection>) realizaram uma comparação entre #glossarium.gls("llm", plural: true, link: false), métodos clássicos --- #glossarium.gls("decision_tree"), #glossarium.gls("random_forest", link: false) e XGBoost ---, e modelos de aprendizado profundo.
+Os experimentos incluíram binária e multiclasse, além de análise de tempo de inferência e de consumo de recursos.
 Os #glossarium.gls("llm", plural: true) avaliados apresentaram F1 superior a 0,95, mas não superaram os métodos clássicos de #glossarium.gls("machine_learning"), que requerem menor custo computacional.
 
-Métodos baseados em árvores se mostram efetivos e eficientes na tarefa de classificação de fluxos de rede, cujos dados frequentemente apresentam outliers.
-Trabalhos recentes investigam o uso de #glossarium.gls("llm"), avaliando seu custo computacional.
+Métodos baseados em árvores se mostram efetivos e eficientes na tarefa de classificação de fluxos de rede, cujos dados frequentemente apresentam #get_term("outlier", plural: true).
+Trabalhos recentes investigam o uso de #glossarium.gls("llm", plural: true, link: false), avaliando seu custo computacional.
 O presente relatório busca avaliar ambos os métodos em protocolo comum de classificação de intrusões multiclasse.

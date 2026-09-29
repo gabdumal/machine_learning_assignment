@@ -8,7 +8,7 @@
 ]
 
 Esta seção descreve os procedimentos utilizados para a realização dos experimentos, desde a preparação das bases de dados até a avaliação dos modelos.
-São apresentados os conjuntos de dados utilizados, as etapas de preparação e pré-processamento, os modelos de referência, os comitês de modelos, as abordagens baseadas em modelos de linguagem, o protocolo experimental, as métricas de avaliação e os detalhes de implementação necessários para a reprodução dos experimentos.
+São apresentados os conjuntos de dados utilizados, as etapas de preparação e pré-processamento, o protocolo experimental, as métricas de avaliação, os modelos de referência, os comitês de modelos, as abordagens baseadas em #glossarium.gls("llm", plural: true, first: true), e os detalhes de implementação necessários para a reprodução dos experimentos.
 
 
 == Bases de dados utilizadas
@@ -27,7 +27,7 @@ Assim, foram eliminadas características de metadados, que poderiam identificar 
 Os autores da base de dados @silva:2025:genis_network_intrusion disponibilizaram os fluxos de rede já processados e divididos em partições de treino e teste de forma estratificada em proporção de 75% e 25%.
 Esses dados se encontram nos arquivos `genis-60-sec-train.csv` e `genis-60-sec-test.csv`, que correspondem à versão com fluxos agregados em intervalos de 60 segundos.
 
-Extraímos das colunas dos arquivos 68 características preditoras e uma variável-alvo, além de demais atributos de metadados, que foram desconsiderados no experimento.
+Extraímos das colunas dos arquivos as 68 características preditoras e uma variável-alvo, além de demais atributos de metadados, que foram desconsiderados no experimento.
 A variável-alvo, chamada de #foreign_text[Category Label], é identificada pelo rótulo `category_label` e é do tipo categórico.
 A distribuição de instâncias rotuladas com cada classe é exibida na @tabela:genis_distribuição.
 Por sua vez, as características preditoras, com seus nomes, rótulos e tipos de dado, são listadas na @tabela:genis_características.
@@ -41,59 +41,59 @@ Por sua vez, as características preditoras, com seus nomes, rótulos e tipos de
       table.header([Partição], [Classe], [Instâncias], [Proporção]),
 
       table.cell(rowspan: 5)[Treino],
-      table.cell()[#get_term("dos")],
+      table.cell()[dos],
       table.cell()[236 512],
       table.cell()[80,21%],
-      table.cell()[#get_term("recon")],
+      table.cell()[recon],
       table.cell()[22 186],
       table.cell()[7,52%],
-      table.cell()[#get_term("benign")],
+      table.cell()[benign],
       table.cell()[21 720],
       table.cell()[7,37%],
-      table.cell()[#get_term("bruteforce")],
+      table.cell()[bruteforce],
       table.cell()[14 426],
       table.cell()[4,90%],
       table.cell()[*Total*],
       table.cell()[294 844],
-      table.cell()[100%],
+      table.cell()[100,00%],
 
       table.hline(stroke: 0.5pt),
 
       table.cell(rowspan: 5)[Teste],
-      table.cell()[#get_term("dos")],
+      table.cell()[dos],
       table.cell()[59 128],
       table.cell()[80,21%],
-      table.cell()[#get_term("recon")],
+      table.cell()[recon],
       table.cell()[5 547],
       table.cell()[7,53%],
-      table.cell()[#get_term("benign")],
+      table.cell()[benign],
       table.cell()[5 430],
       table.cell()[7,37%],
-      table.cell()[#get_term("bruteforce")],
+      table.cell()[bruteforce],
       table.cell()[3 607],
       table.cell()[4,89%],
       table.cell()[*Total*],
       table.cell()[73 712],
-      table.cell()[100%],
+      table.cell()[100,00%],
 
       table.hline(stroke: 0.5pt),
 
       table.cell(rowspan: 5)[Agrupado],
-      table.cell()[#get_term("dos")],
+      table.cell()[dos],
       table.cell()[295 640],
       table.cell()[80,22%],
-      table.cell()[#get_term("recon")],
+      table.cell()[recon],
       table.cell()[27 733],
       table.cell()[7,52%],
-      table.cell()[#get_term("benign")],
+      table.cell()[benign],
       table.cell()[27 150],
       table.cell()[7,37%],
-      table.cell()[#get_term("bruteforce")],
+      table.cell()[bruteforce],
       table.cell()[18 033],
       table.cell()[4,89%],
       table.cell()[*Total*],
       table.cell()[368 556],
-      table.cell()[100%],
+      table.cell()[100,00%],
     )),
   ) <tabela:genis_distribuição>],
 )
@@ -184,7 +184,7 @@ A divisão entre treino e teste foi mantida conforme fornecida pelo conjunto de 
 Não foram identificados valores ausentes nem linhas duplicadas nas duas partições.
 
 Muitas características apresentam um comportamento de concentração de valores próximos a zero para uma grande parte das instâncias, mas de limites máximos expressivamente altos.
-Isso faz com que o cuidado com outliers seja fundamental, o que motiva a escolha de métodos de classificação baseados em árvores.
+Isso faz com que o cuidado com #get_term("outlier", plural: true) seja fundamental, o que motiva a escolha de métodos de classificação baseados em árvores.
 Um exemplo é a característica #foreign_text[Source Application Bytes], cuja distribuição de valores se verifica nas @figura:boxplot_source_application_bytes e @figura:histograma_source_application_bytes.
 
 #describe_figure(
@@ -376,10 +376,10 @@ Por sua vez, as 66 características preditoras, com seus nomes, rótulos e tipos
 )
 
 Não foram identificadas linhas duplicadas.
-Na característica #foreign_text[Flow Bytes per Second], foram identificados 272 valores ausentes e 3 valores incorretamente atribuídos como infinito.
-Além disso, destaca-se a característica #foreign_text[Initial Backward Window Bytes], que apresenta o valor `-1` como indicador de valor ausente em 1.263 registros.
+Na característica #foreign_text[Flow Bytes per Second], foram identificados 272 valores ausentes e 3 valores incorretamente atribuídos como infinito por erro de cálculo.
+Além disso, destaca-se a característica #foreign_text[Initial Backward Window Bytes], que apresenta o valor sentinela `-1` como indicador de valor ausente em 1.263 registros.
 
-Similarmente às características da base de dados #glossarium.gls("genis"), muitos atributos apresentam uma variação muito expressiva no valor, o que requer cuidado com outliers.
+Similarmente às características da base de dados #glossarium.gls("genis"), muitos atributos apresentam uma variação expressiva no valor, o que requer cuidado com #get_term("outlier", plural: true).
 A característica #foreign_text[Flow Bytes per Second] serve como exemplo desse fenômeno, como é mostrado na @figura:histograma_flow_bytes_per_second.
 
 #describe_figure(
@@ -410,7 +410,7 @@ A característica #foreign_text[Flow Bytes per Second] serve como exemplo desse 
 
 === Seleção de características
 
-Inicialmente, foram consideradas aptas apenas as características com capacidade de predição e a variável-alvo.
+Como primeiro critério de seleção, foram consideradas aptas apenas as características com capacidade de predição e uma única variável-alvo.
 Todas as colunas de identificadores e metadados foram removidas.
 
 Em seguida, cada característica foi analisada em função da quantidade de valores distintos apresentados.
@@ -424,7 +424,7 @@ Para o #glossarium.gls("genis"), as colunas a seguir apresentam o mesmo valor pa
 + `state_tst`,
 + `state_urh`, e
 + `state_urhpro`.
-A característica `protocol_ipv6_icmp` apresentou valores positivos em uma quantidade muito pequena de entradas.
+A característica binária `protocol_ipv6_icmp` apresentou valores positivos em uma quantidade muito pequena de entradas.
 Neste caso, em vez de eliminá-la, ela foi agregada à coluna `protocol_icmp`, que apresenta diversidade adequada.
 
 Tratamento idêntico ocorreu para o #glossarium.gls("rosids") quanto às colunas a seguir, que foram eliminadas por apresentarem o mesmo valor para todas as entradas:
@@ -443,7 +443,7 @@ Tratamento idêntico ocorreu para o #glossarium.gls("rosids") quanto às colunas
 + `initial_forward_window_bytes`, e
 + `forward_segment_size_minimum`.
 
-Especificamente para o #glossarium.gls("genis"), algumas características apresentaram valores que refletiam muito diretamente o cenário de simulação, de forma a levar ao vazamento da classe-alvo.
+Ainda especificamente para o #glossarium.gls("genis"), algumas características apresentaram valores que refletiam muito diretamente o cenário de simulação, de forma a levar ao vazamento da classe-alvo.
 Por esse motivo, foram removidas:
 `destination_tcp_base`, `source_tcp_base`, e `source_tos`.
 
@@ -452,24 +452,24 @@ Por esse motivo, foram removidas:
 
 Após a seleção, algumas características foram transformadas para melhorar o aproveitamento de seus valores.
 Algumas portas de rede são alocadas para protocolos específicos, o que as torna mais visadas para ataques.
-Além disso, portas são categorizadas em faixas que representam seu uso esperado, quais sejam: `well_known`, `registered` e `dynamic`, além da categoria `not_applicable` para quando um fluxo de rede não utilizar uma porta.
+Além disso, portas são categorizadas em faixas que representam seu uso esperado, quais sejam: `well_known`, `registered`, e `dynamic`; além da categoria `not_applicable` para quando um fluxo de rede não utiliza uma porta.
 
-As portas que apresentavam padrão de acesso específico nos fluxos de rede foram: 21 (FTP), 22 (SSH), 23 (Telnet), 53 (DNS), 80 (HTTP), 137 e 138 (NETBIOS), 443 (HTTPS), 445 (SMB), 587 (SMTPS), 1900 (SSDP), 5353 (mDNS), e 11311 (ROS).
+As portas que apresentavam padrão de acesso específico nos fluxos de rede foram: 21 (FTP); 22 (SSH); 23 (Telnet); 53 (DNS); 80 (HTTP); 137 e 138 (NETBIOS); 443 (HTTPS); 445 (SMB); 587 (SMTPS); 1900 (SSDP); 5353 (mDNS); e 11311 (ROS).
 
 No #glossarium.gls("genis"), as características `destination_port` e `source_port` representavam o número da porta de rede em que o fluxo ocorreu.
 Elas foram convertidas nas colunas `destination_port_category` e `source_port_category` com base nas portas de destaque e, caso o valor não esteja entre elas, nas faixas de uso.
 A mesma transformação foi feita para o #glossarium.gls("rosids") com características homônimas.
 
-Ainda no #glossarium.gls("rosids"), a característica `protocol` apresentava apenas os valores `0`, `6` e `17`, que representam, respectivamente, as categorias `not_applicable`, `tcp` e `udp`.
+Ainda no #glossarium.gls("rosids"), a característica `protocol` apresentava apenas os valores `0`, `6` e `17`, que representam, respectivamente, as categorias `not_applicable`, `tcp`, e `udp`.
 Logo, assim foi feita a transformação em dados categóricos.
 
-Também foi identificado que características calculadas com base na razão entre outros valores numéricos podem apresentar valores indeterminados ou infinitos quando o valor daquelas é igual a zero.
+Também foi identificado que características calculadas com base na razão entre outros dados numéricos podem apresentar valores indeterminados ou infinitos quando o valor daquelas é igual a zero.
 Assim, todos os casos de dados vazios ou inválidos foram imputados como o valor de NaN da biblioteca `pandas`, de forma que possam ser utilizados nos algoritmos de #glossarium.gls("machine_learning").
-Por fim, na característica `initial_backward_window_bytes`, o valor `-1` é utilizado para representar dados ausentes.
-Logo, essas entradas foram imputadas com o tipo NaN do `pandas`.
+Por fim, na característica `initial_backward_window_bytes` da base #glossarium.gls("rosids"), o valor sentinela `-1` é utilizado para representar dados ausentes.
+Portanto, essas entradas também foram imputadas com o tipo NaN do `pandas`.
 
 As transformações foram aplicadas deterministicamente sobre as partições de treino e de teste.
-Dado que nenhuma dessas transformações utilizou informações descobertas na base, o tratamento não configura leakage.
+Dado que nenhuma dessas transformações utilizou informações descobertas na base, o tratamento não configura #glossarium.gls("data_leakage").
 
 
 == Protocolo experimental
@@ -482,43 +482,50 @@ Dado que nenhuma dessas transformações utilizou informações descobertas na b
   Descreva detalhadamente o protocolo de validação e comparação.
 ]
 
-O protocolo experimental foi organizado a partir de partições de treinamento e teste previamente definidas para cada base de dados.
-A partição de teste permaneceu separada durante toda a etapa de validação e seleção dos modelos.
-A validação cruzada foi realizada exclusivamente sobre a partição de treinamento, enquanto os modelos finais foram avaliados no conjunto de teste somente após a definição da configuração de cada modelo.
+O protocolo experimental foi organizado a partir de partições de treinamento e de teste separadas de forma estratificada.
+Para a base de dados #glossarium.gls("genis"), essa divisão havia sido fornecida pelos autores na proporção de 75% e 25%.
+Já para a base #glossarium.gls("rosids"), fizemos essa partição na proporção de 80% e 20%.
 
-A etapa de validação utiliza um pipeline de classificação composto por pré-processamento das características, balanceamento das classes e treinamento do classificador.
-O pré-processamento é realizado por meio de um `ColumnTransformer`, que separa as características numéricas e categóricas e descarta as demais colunas.
-Para as características numéricas, valores infinitos são convertidos para `NaN` e os valores ausentes são posteriormente substituídos pela mediana calculada nos dados de treinamento.
-Não é aplicada normalização ou padronização.
-Para as características categóricas, os valores ausentes são substituídos pela categoria mais frequente e, em seguida, as categorias são transformadas por one-hot encoding, mantendo uma representação consistente para categorias não observadas durante o treinamento.
+A partição de teste permaneceu separada durante toda a etapa de validação e seleção dos modelos.
+A validação cruzada foi realizada exclusivamente sobre a partição de treinamento, enquanto os modelos finais foram avaliados no conjunto de teste somente após a definição da configuração de hiperparâmetros de cada modelo.
+
+A validação cruzada utiliza três #get_term("fold", plural: true) estratificados, com embaralhamento das instâncias.
+Foram realizadas três repetições do procedimento, utilizando as #get_term("seed", plural: true): 27, 32, e 59.
+Assim, cada configuração é avaliada em nove configurações ao todo, correspondentes aos três #get_term("fold", plural: true) de cada uma das três #get_term("seed", plural: true).
+
+Em cada execução, uma fração da partição de treinamento é separada para ser utilizada exclusivamente como validação.
+A fração restante (#get_term("out_of_fold")) é utilizada para treinar o classificador.
+A proporção dessa divisão foi mantida como padrão da biblioteca.
+
+As transformações descritas no #get_term("pipeline") são aplicadas somente sobre a partição de treinamento.
+Ele é composto pelas etapas de: pré-processamento das características, balanceamento das classes, e treinamento do classificador.
+
+O pré-processamento é realizado por meio de um `ColumnTransformer`.
+Para as características numéricas, valores infinitos são convertidos para `NaN` e os valores ausentes são substituídos pela mediana calculada nos dados de treinamento.
+Não é aplicada normalização ou padronização, dado que os métodos baseados em árvore não requerem esse tratamento.
+Em relação às características categóricas, não foram encontrados valores ausentes.
+Para manter a padronização com as bases de dados, as categorias são transformadas por #glossarium.gls("one_hot").
 
 O balanceamento das classes pode assumir duas configurações: `passthrough`, que mantém a distribuição original, ou `random_over_sampler`.
-Quando essa segunda configuração é utilizada, a amostragem é realizada somente sobre os dados de treinamento do fold, depois da aplicação do pré-processamento.
+Quando essa segunda configuração é utilizada, a amostragem é realizada somente sobre os dados de treinamento do #get_term("fold"), depois da aplicação do pré-processamento.
 Os dados de validação permanecem sem alteração na sua distribuição original.
 Como a escolha entre utilizar ou não o balanceamento pode influenciar o desempenho e os hiperparâmetros adequados ao classificador, essa decisão também faz parte do espaço de configurações avaliado durante a validação cruzada.
 
-A validação cruzada utiliza três folds estratificados, com embaralhamento das instâncias.
-Foram realizadas três repetições do procedimento, utilizando as #get_term("seed", plural: true) 27, 32 e 59.
-Assim, cada configuração é avaliada em nove folds ao todo, correspondentes aos três folds de cada uma das três #get_term("seed", plural: true).
-Em cada fold, uma parte da partição de treinamento é utilizada para ajustar o pré-processamento e o classificador, enquanto a parte restante é utilizada exclusivamente para validação.
-
-O ajuste do pré-processamento é realizado de forma independente em cada fold.
-Dessa forma, parâmetros obtidos a partir dos dados, como a mediana utilizada na imputação e as categorias identificadas pelo codificador, são calculados somente a partir da parcela de treinamento daquele fold.
-Posteriormente, essa transformação é aplicada à parcela de validação correspondente.
-Quando configurado, o `RandomOverSampler` também utiliza somente os dados de treinamento do fold, evitando que informações da validação participem do ajuste do modelo.
-
-Para cada combinação de hiperparâmetros, são calculadas as métricas accuracy, precision, recall, Macro F1, ROC-AUC, PR-AUC, MCC e balanced accuracy.
-Para cada #get_term("seed"), os valores obtidos nos três folds são promediados, produzindo um resultado de validação por #get_term("seed") para cada configuração.
+Para cada combinação de hiperparâmetros, são calculadas as métricas: #get_term("accuracy"), #get_term("precision"), #get_term("recall"), #get_term("macro_f1"), #get_term("roc_auc"), #get_term("pr_auc"), #get_term("mcc"), e #get_term("balanced_accuracy").
+Para cada #get_term("seed"), os valores obtidos nos três #get_term("fold", plural: true) são promediados, produzindo um resultado de validação por #get_term("seed") para cada configuração.
 Em seguida, os resultados das três #get_term("seed", plural: true) são agregados pela média e pelo desvio-padrão.
-A configuração selecionada é aquela que apresenta o maior Macro F1 médio entre as #get_term("seed", plural: true).
+A configuração selecionada é aquela que apresenta o maior #get_term("macro_f1") médio entre as #get_term("seed", plural: true).
 
-Após a seleção da configuração, o modelo é treinado novamente utilizando toda a partição de treinamento.
-Esse treinamento definitivo é realizado separadamente para cada uma das três #get_term("seed", plural: true), mantendo a configuração selecionada para o respectivo classificador.
-Nenhuma decisão de seleção ou ajuste é realizada a partir dos resultados do conjunto de teste.
+Após a seleção da configuração de balanceamento e de hiperparâmetros, em uma #get_term("seed"), o modelo é treinado novamente.
+Agora, é utilizada toda a partição de treinamento, incluindo a fração que anteriormente era exclusiva para a validação.
+A mesma #get_term("pipeline") de processamento é aplicada.
+Esse procedimento gera três modelos para cada algoritmo de #glossarium.gls("machine_learning").
 
-A avaliação final utiliza os modelos treinados na etapa anterior sobre as respectivas partições de teste.
-Para cada semente, são obtidas as classes previstas e as probabilidades das classes, a partir das quais são calculadas as métricas finais e a matriz de confusão.
-Os resultados entre as três #get_term("seed", plural: true) são posteriormente resumidos por média e desvio-padrão.
+Então, é realizada a fase de avaliação final.
+Ela é feita para cada um dos modelos salvos em cada #get_term("seed").
+A esses, são fornecidas as entradas da partição exclusiva de teste.
+Para cada #get_term("seed"), são obtidas as classes previstas e suas probabilidades, a partir das quais são calculadas as métricas finais e a matriz de confusão.
+Posteriormente, os resultados entre as três #get_term("seed", plural: true) de um mesmo modelo são resumidos por média e desvio-padrão.
 
 
 == Métricas de avaliação
@@ -531,21 +538,21 @@ Os resultados entre as três #get_term("seed", plural: true) são posteriormente
   Defina as métricas usadas e justifique sua escolha.
 ]
 
-Foram utilizadas as métricas accuracy, precision, recall, Macro F1, ROC-AUC, PR-AUC, MCC e balanced accuracy.
-A seleção considera a necessidade de avaliar o desempenho global e o comportamento entre as diferentes classes, tendo em vista o desbalanceamento presente nas bases de dados.
-Entre essas métricas, o Macro F1 constitui a principal medida utilizada na etapa de validação, sendo adotado como critério para a seleção das configurações dos modelos clássicos.
+Para fim de completude, foram calculadas sempre que possível as métricas de: #get_term("accuracy"), #get_term("precision"), #get_term("recall"), #get_term("macro_f1"), #get_term("roc_auc"), #get_term("pr_auc"), #get_term("mcc"), e #get_term("balanced_accuracy").
+Essa seleção visa a avaliar o desempenho global, e o comportamento entre as diferentes classes.
+Isso tem maior relevância ao considerar o desbalanceamento presente nas bases de dados.
+Entre essas métricas, o #get_term("macro_f1") constitui a principal medida utilizada na etapa de validação, sendo adotado como critério para a seleção das configurações dos modelos clássicos.
 
-A accuracy complementa essa análise como medida geral do desempenho, enquanto precision, recall e Macro F1 permitem considerar as classes individualmente por meio da agregação macro.
-ROC-AUC e PR-AUC foram incluídas para os classificadores que produzem probabilidades por classe.
-MCC e balanced accuracy foram utilizadas como medidas adicionais para a comparação em função do desbalanceamento das classes.
+A #get_term("accuracy") complementa essa análise como medida geral do desempenho, enquanto #get_term("precision") e #get_term("recall") permitem considerar as classes individualmente.
+#get_term("mcc") e #get_term("balanced_accuracy") foram utilizadas como medidas adicionais para a comparação em função do desbalanceamento.
 As métricas são calculadas de forma consistente entre validação e teste para os modelos clássicos.
 
-A matriz de confusão foi utilizada como complemento às métricas agregadas, permitindo analisar os erros de classificação por classe.
-São armazenadas versões em valores absolutos e normalizadas por classe.
+As matrizes de confusão foram utilizadas como complemento às métricas agregadas, permitindo analisar os erros de classificação por classe.
+São armazenadas versões em valores absolutos e normalizadas pela quantidade de instâncias.
 
-Para as abordagens com LLM, são utilizadas as mesmas métricas baseadas em rótulos das demais abordagens.
-ROC-AUC e PR-AUC não são calculadas, pois as respostas do modelo são categóricas e não fornecem probabilidades por classe.
-Respostas inválidas são contabilizadas como classificações incorretas nas métricas principais.
+Para as abordagens com #glossarium.gls("llm", plural: true), não é possível calcular #get_term("roc_auc") e #get_term("pr_auc"), pois as respostas do modelo são categóricas e não fornecem probabilidades por classe.
+Para os métodos clássicos e para os comitês, elas foram calculadas.
+Respostas inválidas dos #glossarium.gls("llm", plural: true, link: false), são contabilizadas como classificações incorretas nas métricas principais.
 
 
 == Modelos de referência
@@ -559,10 +566,10 @@ Respostas inválidas são contabilizadas como classificações incorretas nas m�
 ]
 
 Foram selecionados três modelos de classificação como referência para os experimentos: #glossarium.gls("decision_tree"), floresta aleatória, e XGBoost.
-Todos os modelos têm significativa capacidade de lidar com valores em escalas distintas e com outliers.
+Todos os modelos têm significativa capacidade de lidar com valores em escalas distintas e com #get_term("outlier", plural: true).
 
 A #glossarium.gls("decision_tree") foi selecionada como #get_term("baseline") por apresentar uma única estrutura de decisão.
-A floresta aleatória foi utilizada para representar a combinação de múltiplas árvores em um #glossarium.gls("model_ensemble").
+A floresta aleatória foi utilizada para representar a combinação de múltiplas árvores em um comitê de modelos.
 O XGBoost foi selecionado para representar uma abordagem de #glossarium.gls("gradient_boosting") baseada em árvores.
 
 Os hiperparâmetros de cada modelo foram definidos a partir de grades de valores avaliadas durante os experimentos (GridSearch).

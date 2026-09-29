@@ -115,29 +115,51 @@
     short: [Westermo],
   ),
   (
-    key: "dos",
-    short: "DoS",
-  ),
-  (
-    key: "recon",
-    short: "Recon",
-  ),
-  (
-    key: "benign",
-    short: "Benign",
-  ),
-  (
-    key: "bruteforce",
-    short: "Bruteforce",
-  ),
-  (
     key: "seed",
     short: foreign_text[seed],
+    plural: foreign_text[seeds],
   ),
   (
     key: "fold",
     short: foreign_text[fold],
     plural: foreign_text[folds],
+  ),
+  (
+    key: "outlier",
+    short: foreign_text[outlier],
+    plural: foreign_text[outliers],
+  ),
+  (
+    key: "accuracy",
+    short: foreign_text[accuracy],
+  ),
+  (
+    key: "balanced_accuracy",
+    short: foreign_text[balanced accuracy],
+  ),
+  (
+    key: "precision",
+    short: foreign_text[precision],
+  ),
+  (
+    key: "recall",
+    short: foreign_text[recall],
+  ),
+  (
+    key: "macro_f1",
+    short: [Macro F1],
+  ),
+  (
+    key: "roc_auc",
+    short: [ROC-AUC],
+  ),
+  (
+    key: "pr_auc",
+    short: [PR-AUC],
+  ),
+  (
+    key: "mcc",
+    short: [MCC],
   ),
 )
 
