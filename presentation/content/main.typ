@@ -752,3 +752,266 @@ Transformações aplicadas apenas sobre a fração de #stress[treinamento].
   [min_child_weight], [`1`], [`1`],
   [subsample], [`0.8`], [`0.8`],
 )
+
+#title_slide("Resultados dos modelos de referência")
+
+== #glossarium.gls-short("genis")
+
+- A base permite classificação perfeita.
+
+#align(center + horizon)[
+  #set text(size: 19pt)
+  #table(
+    columns: (auto, 1fr, 1fr, 1fr),
+    inset: 8pt,
+
+    table.header(strong[Métrica], strong[Árvore de decisão], strong[Floresta aleatória], strong[XGBoost]),
+
+    [#get_term("accuracy", capitalize: true)],
+    [0.99995 ± 0.00002],
+    strong[1.00000 ± 0.00000],
+    strong[1.00000 ± 0.00000],
+
+    [#get_term("precision", capitalize: true)],
+    [0.99986 ± 0.00005],
+    strong[1.00000 ± 0.00000],
+    strong[1.00000 ± 0.00000],
+
+    [#get_term("recall", capitalize: true)], [0.99989 ± 0.00004], strong[1.00000 ± 0.00000], strong[1.00000 ± 0.00000],
+
+    [#get_term("macro_f1")], [0.99987 ± 0.00004], strong[1.00000 ± 0.00000], strong[1.00000 ± 0.00000],
+
+    [#get_term("roc_auc")], [0.99993 ± 0.00002], strong[1.00000 ± 0.00000], strong[1.00000 ± 0.00000],
+
+    [#get_term("pr_auc")], [0.99976 ± 0.00007], strong[1.00000 ± 0.00000], strong[1.00000 ± 0.00000],
+
+    [#get_term("mcc")], [0.99987 ± 0.00006], strong[1.00000 ± 0.00000], strong[1.00000 ± 0.00000],
+
+    [#get_term("balanced_accuracy", capitalize: true)],
+    [0.99989 ± 0.00004],
+    strong[1.00000 ± 0.00000],
+    strong[1.00000 ± 0.00000],
+  )
+]
+
+#align(center + horizon)[
+  #set text(size: 19pt)
+  #table(
+    columns: (auto, auto, 1fr, 1fr, 1fr),
+    inset: 8pt,
+
+    table.header(
+      strong[Classe], strong[Métrica], strong[Árvore de decisão], strong[Floresta aleatória], strong[XGBoost]
+    ),
+
+    table.cell(rowspan: 3)[benign],
+    [#get_term("precision", capitalize: true)],
+    [0.99945 ± 0.00018],
+    strong[1.00000 ± 0.00000],
+    strong[1.00000 ± 0.00000],
+
+    [#get_term("recall", capitalize: true)],
+    [0.99994 ± 0.00011],
+    strong[1.00000 ± 0.00000],
+    strong[1.00000 ± 0.00000],
+
+    [#get_term("f1")], [0.99969 ± 0.00014], strong[1.00000 ± 0.00000], strong[1.00000 ± 0.00000],
+
+    table.hline(stroke: 0.5pt),
+
+    table.cell(rowspan: 3)[bruteforce],
+    [#get_term("precision", capitalize: true)],
+    strong[1.00000 ± 0.00000],
+    strong[1.00000 ± 0.00000],
+    strong[1.00000 ± 0.00000],
+
+    [#get_term("recall", capitalize: true)],
+    [0.99963 ± 0.00016],
+    strong[1.00000 ± 0.00000],
+    strong[1.00000 ± 0.00000],
+
+    [#get_term("f1")], [0.99982 ± 0.00008], strong[1.00000 ± 0.00000], strong[1.00000 ± 0.00000],
+
+    table.hline(stroke: 0.5pt),
+
+    table.cell(rowspan: 3)[dos],
+    [#get_term("precision", capitalize: true)],
+    [0.99999 ± 0.00001],
+    strong[1.00000 ± 0.00000],
+    strong[1.00000 ± 0.00000],
+
+    [#get_term("recall", capitalize: true)],
+    [0.99997 ± 0.00002],
+    strong[1.00000 ± 0.00000],
+    strong[1.00000 ± 0.00000],
+
+    [#get_term("f1")], [0.99998 ± 0.00002], strong[1.00000 ± 0.00000], strong[1.00000 ± 0.00000],
+
+    table.hline(stroke: 0.5pt),
+
+    table.cell(rowspan: 3)[recon],
+    [#get_term("precision", capitalize: true)],
+    strong[1.00000 ± 0.00000],
+    strong[1.00000 ± 0.00000],
+    strong[1.00000 ± 0.00000],
+
+    [#get_term("recall", capitalize: true)],
+    strong[1.00000 ± 0.00000],
+    strong[1.00000 ± 0.00000],
+    strong[1.00000 ± 0.00000],
+
+    [#get_term("f1")], strong[1.00000 ± 0.00000], strong[1.00000 ± 0.00000], strong[1.00000 ± 0.00000],
+  )
+]
+
+#align(center + horizon)[
+  #image("/assets/images/genis_decision_tree_confusion_matrix.png")
+  #image("/assets/images/genis_random_forest_confusion_matrix.png")
+  #image("/assets/images/genis_xgboost_confusion_matrix.png")
+]
+
+#align(center + horizon)[
+  #set text(size: 22pt)
+
+  #table(
+    inset: 8pt,
+    columns: (auto, 1fr, 1fr, 1fr),
+
+    table.header(
+      strong[Modelo], strong[Treinamento (s)], strong[Inferência (s)], strong[Inferência por 100 instâncias (s)]
+    ),
+
+    [Árvore de decisão], strong[11.6581 ± 0.1602], strong[0.4750 ± 0.0130], strong[0.000644 ± 0.000018],
+
+    [Floresta aleatória], [135.4474 ± 5.6204], [1.2795 ± 0.0077], [0.001736 ± 0.000010],
+
+    [XGBoost], [29.5189 ± 0.2098], [1.1153 ± 0.0039], [0.001513 ± 0.000005],
+  )
+]
+
+#align(center + horizon)[
+  #image("/assets/images/genis_feature_importance_heatmap.png")
+]
+
+#pagebreak()
+
+== #glossarium.gls-short("rosids")
+
+#align(center + horizon)[
+  #set text(size: 19pt)
+  #table(
+    columns: (auto, 1fr, 1fr, 1fr),
+    inset: 8pt,
+
+    table.header(strong[Métrica], strong[Árvore de decisão], strong[Floresta aleatória], strong[XGBoost]),
+
+    [#get_term("accuracy", capitalize: true)], [0.97348 ± 0.00018], strong[0.97789 ± 0.00020], [0.97721 ± 0.00011],
+
+    [#get_term("precision", capitalize: true)], [0.94650 ± 0.00060], strong[0.95714 ± 0.00056], [0.95520 ± 0.00044],
+
+    [#get_term("recall", capitalize: true)], [0.94620 ± 0.00015], strong[0.95337 ± 0.00050], [0.95274 ± 0.00045],
+
+    [#get_term("macro_f1")], [0.94632 ± 0.00026], strong[0.95513 ± 0.00042], [0.95388 ± 0.00043],
+
+    [#get_term("roc_auc")], [0.98471 ± 0.00007], [0.99610 ± 0.00004], strong[0.99658 ± 0.00004],
+
+    [#get_term("pr_auc")], [0.94496 ± 0.00040], [0.97187 ± 0.00014], strong[0.97351 ± 0.00036],
+
+    [#get_term("mcc")], [0.96134 ± 0.00026], strong[0.96777 ± 0.00029], [0.96677 ± 0.00016],
+
+    [#get_term("balanced_accuracy", capitalize: true)],
+    [0.94620 ± 0.00015],
+    strong[0.95337 ± 0.00050],
+    [0.95274 ± 0.00045],
+  )
+]
+
+#align(center + horizon)[
+  #set text(size: 19pt)
+  #table(
+    columns: (auto, auto, 1fr, 1fr, 1fr),
+    inset: 8pt,
+
+    table.header(
+      strong[Classe], strong[Métrica], strong[Árvore de decisão], strong[Floresta aleatória], strong[XGBoost]
+    ),
+
+    table.cell(rowspan: 3)[Benign],
+    [#get_term("precision", capitalize: true)], [0.97105 ± 0.00011], strong[0.97396 ± 0.00020], [0.97319 ± 0.00009],
+
+    [#get_term("recall", capitalize: true)], [0.97555 ± 0.00049], strong[0.98105 ± 0.00040], [0.98030 ± 0.00026],
+
+    [#get_term("f1")], [0.97330 ± 0.00023], strong[0.97749 ± 0.00021], [0.97673 ± 0.00012],
+
+    table.hline(stroke: 0.5pt),
+
+    table.cell(rowspan: 3)[DoS],
+    [#get_term("precision", capitalize: true)],
+    [0.99941 ± 0.00019],
+    strong[1.00000 ± 0.00000],
+    strong[1.00000 ± 0.00000],
+
+    [#get_term("recall", capitalize: true)],
+    strong[0.99968 ± 0.00000],
+    strong[0.99968 ± 0.00000],
+    strong[0.99968 ± 0.00000],
+
+    [#get_term("f1")], [0.99954 ± 0.00009], strong[0.99984 ± 0.00000], strong[0.99984 ± 0.00000],
+
+    table.hline(stroke: 0.5pt),
+
+    table.cell(rowspan: 3)[Subflood],
+    [#get_term("precision", capitalize: true)], [0.98798 ± 0.00035], strong[0.99252 ± 0.00019], [0.99228 ± 0.00039],
+
+    [#get_term("recall", capitalize: true)], [0.97544 ± 0.00010], strong[0.97772 ± 0.00017], [0.97611 ± 0.00053],
+
+    [#get_term("f1")], [0.98167 ± 0.00014], strong[0.98506 ± 0.00017], [0.98413 ± 0.00027],
+
+    table.hline(stroke: 0.5pt),
+
+    table.cell(rowspan: 3)[UnauthPub],
+    [#get_term("precision", capitalize: true)], [0.90820 ± 0.00121], [0.91802 ± 0.00170], strong[0.92164 ± 0.00033],
+
+    [#get_term("recall", capitalize: true)], [0.92621 ± 0.00037], [0.94327 ± 0.00074], strong[0.94562 ± 0.00000],
+
+    [#get_term("f1")], [0.91712 ± 0.00076], [0.93047 ± 0.00065], strong[0.93347 ± 0.00017],
+
+    table.hline(stroke: 0.5pt),
+
+    table.cell(rowspan: 3)[UnauthSub],
+    [#get_term("precision", capitalize: true)], [0.86586 ± 0.00208], strong[0.90121 ± 0.00119], [0.88889 ± 0.00196],
+
+    [#get_term("recall", capitalize: true)], [0.85413 ± 0.00144], strong[0.86515 ± 0.00273], [0.86200 ± 0.00250],
+
+    [#get_term("f1")], [0.85995 ± 0.00087], strong[0.88282 ± 0.00185], [0.87524 ± 0.00214],
+  )
+]
+
+#align(center + horizon)[
+  #image("/assets/images/rosids_decision_tree_confusion_matrix.png")
+  #image("/assets/images/rosids_random_forest_confusion_matrix.png")
+  #image("/assets/images/rosids_xgboost_confusion_matrix.png")
+]
+
+#align(center + horizon)[
+  #set text(size: 22pt)
+
+  #table(
+    inset: 8pt,
+    columns: (auto, 1fr, 1fr, 1fr),
+
+    table.header(
+      strong[Modelo], strong[Treinamento (s)], strong[Inferência (s)], strong[Inferência por 100 instâncias (s)]
+    ),
+
+    [Árvore de decisão], strong[2.7532 ± 0.0080], strong[0.1613 ± 0.0042], strong[0.000590 ± 0.000015],
+
+    [Floresta aleatória], [24.2634 ± 0.2256], [0.7219 ± 0.0045], [0.002641 ± 0.000016],
+
+    [XGBoost], [19.4177 ± 0.3645], [0.6331 ± 0.0020], [0.002316 ± 0.000007],
+  )
+]
+
+#align(center + horizon)[
+  #image("/assets/images/rosids_feature_importance_heatmap.png")
+]
