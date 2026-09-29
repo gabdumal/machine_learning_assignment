@@ -177,7 +177,6 @@ Por outro lado, a #glossarium.gls("decision_tree", link: false) apresenta melhor
   ) <tabela:genis_métodos_clássicos_tempos>],
 )
 
-
 Finalmente, a @figura:genis_métodos_clássicos_características permite visualizar a importância das características para cada algoritmo.
 Percebe-se que a porta de destino do fluxo, que foi transformada em uma característica categórica, assume 30,37% de importância para o #glossarium.gls("xgboost", link: false), o que ressalta que determinados tipos de ataques são direcionados para um conjunto pequeno de portas.
 Ao mesmo tempo, a #glossarium.gls("decision_tree", link: false) priorizou a demora máxima entre pacotes no tráfego de origem.
@@ -186,7 +185,7 @@ Por outro lado, a #glossarium.gls("random_forest", link: false) mostrou uma dist
 #describe_figure(
   placement: auto,
   [#figure(
-    caption: [Matrizes de confusão dos métodos clássicos na base de dados genis],
+    caption: [Matrizes de confusão dos métodos clássicos na base de dados #glossarium.gls-short("genis")],
     [
       #image("/assets/images/genis_feature_importance_heatmap.png")
     ],
@@ -401,13 +400,13 @@ No #glossarium.gls("rosids", link: false), a distribuição também permanece pr
 
 === #glossarium.gls-short("genis")
 
-A @tabela:genis_comites_resultados apresenta os resultados das quatro estratégias de comitê no conjunto de teste do #glossarium.gls("genis"), considerando as três #get_term("seed", plural: true) utilizadas no experimento.
+A @tabela:genis_comites_resultados apresenta os resultados das quatro estratégias de comitê na base de dados #glossarium.gls("genis"), considerando as três #get_term("seed", plural: true) utilizadas no experimento.
 O #get_term("hard_voting") e sua versão ponderada apresentaram os mesmos resultados em todas as métricas, sem cometer erros.
 As estratégias baseadas em #get_term("soft_voting") também apresentaram desempenho excepcional, mas com pequenas variações.
 
 #describe_figure(
   [#figure(
-    caption: [Desempenho dos comitês no conjunto de teste do #glossarium.gls-short("genis")],
+    caption: [Desempenho dos comitês na base de dados #glossarium.gls-short("genis")],
     format_table(
       table(
         columns: (auto, auto, auto, auto, auto, auto, auto),
@@ -469,12 +468,12 @@ As pequenas diferenças observadas entre as estratégias indicam que, para essa 
 
 === #glossarium.gls-short("rosids")
 
-A @tabela:rosids_comites_resultados apresenta os resultados das quatro estratégias de comitê no conjunto de teste do #glossarium.gls("rosids", link: false), considerando as três #get_term("seed", plural: true) do experimento.
+A @tabela:rosids_comites_resultados apresenta os resultados das quatro estratégias de comitê na base de dados #glossarium.gls("rosids", link: false), considerando as três #get_term("seed", plural: true) do experimento.
 O #get_term("hard_voting") apresentou #get_term("macro_f1") médio de 0,95606, tendo sido ligeiramente melhor que os outros métodos de comitê e tradicionais.
 
 #describe_figure(
   [#figure(
-    caption: [Desempenho dos comitês no conjunto de teste do #glossarium.gls-short("rosids")],
+    caption: [Desempenho dos comitês na base de dados #glossarium.gls-short("rosids")],
     format_table(
       table(
         columns: (auto, auto, auto, auto, auto, auto, auto),
@@ -606,12 +605,13 @@ A #glossarium.gls("decision_tree", link: false) apresenta as maiores diferenças
 A comparação com o #glossarium.gls("llm") foi realizada considerando os protocolos #get_term("zero_shot") e #get_term("few_shot") sobre as mesmas bases de dados utilizadas na avaliação dos métodos de referência.
 Para tornar os resultados comparáveis, ao mesmo tempo em que o experimento possa ser factível nas limitações de poder computacional, a avaliação do modelo de linguagem foi realizada sobre um subconjunto estratificado e determinístico de 2.000 instâncias do conjunto de teste exclusivo de cada base.
 
-A @tabela:gpt_resultados_gerais mostra as métricas para as classificações por meio do modelo de linguagem.
-Os resultados evidenciam uma melhora consistente do #get_term("few_shot") em relação ao #get_term("zero_shot") nas duas bases, embora com comportamentos distintos.
+A fim de fazer uma comparação justa, a fase de teste para os algoritmos clássicos foi efetuada novamente, sendo fornecidas as mesmas 2000 instâncias selecionadas para o #glossarium.gls("llm").
+A @tabela:gpt_resultados_gerais mostra as métricas para as classificações por meio do modelo de linguagem e suas comparações com os modelos clássicos.
+Em relação a estes, todas as métricas foram expressivamente piores.
 
 #describe_figure(
   [#figure(
-    caption: [Desempenho e custo de inferência do modelo de linguagem],
+    caption: [Desempenho do modelo de linguagem e dos algoritmos clássicos],
     format_table(
       table(
         columns: (auto, auto, auto, auto, auto, auto, auto, auto),
@@ -626,8 +626,8 @@ Os resultados evidenciam uma melhora consistente do #get_term("few_shot") em rel
           [#foreign_text[B. Accur.]],
         ),
 
-        [#glossarium.gls("genis", link: false)],
-        [Zero-shot],
+        table.cell(rowspan: 5)[#glossarium.gls("genis", link: false)],
+        [#get_term("zero_shot", capitalize: true)],
         [0,31550],
         strong[0,68153],
         [0,56070],
@@ -635,8 +635,7 @@ Os resultados evidenciam uma melhora consistente do #get_term("few_shot") em rel
         [0,24113],
         [0,56070],
 
-        [#glossarium.gls("genis", link: false)],
-        [Few-shot],
+        [#get_term("few_shot", capitalize: true)],
         strong[0,56650],
         [0,58147],
         strong[0,82175],
@@ -644,21 +643,76 @@ Os resultados evidenciam uma melhora consistente do #get_term("few_shot") em rel
         strong[0,45068],
         strong[0,82175],
 
+        table.hline(stroke: 0.25pt),
+
+        [Árvore de decisão],
+        [1,00000],
+        [1,00000],
+        [1,00000],
+        [1,00000],
+        [1,00000],
+        [1,00000],
+
+        [Floresta aleatória],
+        [1,00000],
+        [1,00000],
+        [1,00000],
+        [1,00000],
+        [1,00000],
+        [1,00000],
+
+        [XGBoost],
+        [1,00000],
+        [1,00000],
+        [1,00000],
+        [1,00000],
+        [1,00000],
+        [1,00000],
+
         table.hline(stroke: 0.5pt),
 
-        [ROSIDS], [Zero-shot], [0,43700], [0,18993], [0,22740], [0,19311], [0,08680], [0,22740],
-        [ROSIDS],
-        [Few-shot],
+        table.cell(rowspan: 5)[#glossarium.gls("rosids", link: false)],
+        [#get_term("zero_shot", capitalize: true)], [0,43700], [0,18993], [0,22740], [0,19311], [0,08680], [0,22740],
+
+        [#get_term("few_shot", capitalize: true)],
         strong[0,61500],
         strong[0,54943],
         strong[0,57854],
         strong[0,52129],
         strong[0,54393],
         strong[0,57854],
+
+        table.hline(stroke: 0.25pt),
+
+        [Árvore de decisão],
+        [0,97217],
+        [0,94960],
+        [0,94797],
+        [0,94864],
+        [0,95943],
+        [0,94797],
+
+        [Floresta aleatória],
+        [0,97750],
+        [0,96465],
+        [0,96038],
+        [0,96208],
+        [0,96722],
+        [0,96038],
+
+        [XGBoost],
+        [0,97750],
+        [0,96208],
+        [0,95790],
+        [0,95947],
+        [0,96722],
+        [0,95790],
       ),
     ),
   ) <tabela:gpt_resultados_gerais>],
 )
+
+Avaliando o desempenho apenas entre os métodos de #glossarium.gls("llm"), resultados evidenciam uma melhora consistente do #get_term("few_shot") em relação ao #get_term("zero_shot") nas duas bases, embora com comportamentos distintos.
 
 No #glossarium.gls("genis", link: false), a #get_term("accuracy") aumentou de 0,3155 para 0,5665 e o #get_term("macro_f1") de 0,4913 para 0,5904.
 O maior ganho ocorreu no #get_term("recall"), que passou de 0,5607 para 0,8218, acompanhado, entretanto, por uma redução da #get_term("precision"), de 0,6815 para 0,5815.
@@ -671,8 +725,136 @@ Portanto, diferentemente da #glossarium.gls("genis", link: false), a inclusão d
 
 A comparação entre as bases também evidencia a sensibilidade do desempenho ao cenário de classificação.
 No protocolo #get_term("zero_shot"), a #glossarium.gls("genis", link: false) apresentou #get_term("macro_f1") substancialmente superior ao observado na #glossarium.gls("rosids", link: false) (0,4913 contra 0,1933). Com a adoção do #get_term("few_shot"), essa diferença diminuiu, com resultados de 0,5904 e 0,5213, respectivamente.
-Esse resultado sugere que exemplos de classificação fornecidos no prompt podem contribuir para adaptar o comportamento do modelo às características específicas da tarefa, reduzindo parte da dificuldade observada no protocolo #get_term("zero_shot").
 
+Analisando as matrizes de confusão do #glossarium.gls("genis", link: false) e do #glossarium.gls("rosids", link: false) dispostos nos @quadro:llm_matriz_confusao_genis e @quadro:llm_matriz_confusao_rosids, respectivamente, constatamos que o modelo de linguagem tem muita dificuldade em distinguir o fluxo malicioso, sendo a classe benígna sempre superrepresentada.
+
+#describe_figure(
+  sticky: true,
+  [#figure(
+    caption: [Matrizes de confusão relativas do modelo de linguagem na base de dados #glossarium.gls-short("genis")],
+    supplement: "Quadro",
+    kind: "quadro",
+    (
+      table(
+        columns: (auto, auto, 1fr, 1fr, 1fr, 1fr),
+        align: end,
+
+        table.cell(rowspan: 2, align: horizon)[Protocolo],
+        table.cell(rowspan: 2, align: horizon)[#strong[Classe real]],
+        table.cell(colspan: 4, align: center)[#strong[Classe predita]],
+
+        [benign], [bruteforce], [dos], [recon],
+
+        table.hline(stroke: 2pt),
+
+        table.cell(rowspan: 4)[#get_term("zero_shot", capitalize: true)],
+        [benign], [70,75], [0], [27,89], [1,36],
+        [bruteforce], [45,45], [54,55], [0], [0],
+        [dos], [75,69], [0,06], [22,32], [1,93],
+        [recon], [22,00], [0], [1,33], [76,67],
+
+        table.hline(stroke: 1.5pt),
+
+        table.cell(rowspan: 4)[#get_term("few_shot", capitalize: true)],
+        [benign], [83,67], [0,68], [0], [15,65],
+        [bruteforce], [0], [100,00], [0], [0],
+        [dos], [43,14], [6,86], [47,69], [2,31],
+        [recon], [0], [0], [2,67], [97,33],
+      )
+    ),
+  ) <quadro:llm_matriz_confusao_genis>],
+)
+
+#describe_figure(
+  sticky: true,
+  [#figure(
+    caption: [Matrizes de confusão relativas do modelo de linguagem na base de dados #glossarium.gls-short("rosids")],
+    supplement: "Quadro",
+    kind: "quadro",
+    (
+      table(
+        columns: (auto, auto, 1fr, 1fr, 1fr, 1fr, 1fr),
+        align: end,
+
+        table.cell(rowspan: 2, align: horizon)[Protocolo],
+        table.cell(rowspan: 2, align: horizon)[#strong[Classe real]],
+        table.cell(colspan: 5, align: center)[#strong[Classe predita]],
+
+        [Benign], [DoS], [Subflood], [UnauthPub], [UnauthSub],
+
+        table.hline(stroke: 2pt),
+
+        table.cell(rowspan: 5)[#get_term("zero_shot", capitalize: true)],
+        [Benign], [82,71], [0], [7,77], [0], [9,52],
+        [DoS], [86,97], [0], [13,02], [0], [0],
+        [Subflood], [61,99], [0], [25,79], [0], [12,22],
+        [UnauthPub], [92,10], [0], [0], [0], [7,89],
+        [UnauthSub], [81,82], [0], [12,99], [0], [5,19],
+
+        table.hline(stroke: 1.5pt),
+
+        table.cell(rowspan: 5)[#get_term("few_shot", capitalize: true)],
+        [Benign], [34,46], [1,75], [19,15], [12,80], [31,84],
+        [DoS], [0], [100,00], [0], [0], [0],
+        [Subflood], [1,36], [1,13], [90,27], [2,71], [4,52],
+        [UnauthPub], [23,68], [0], [12,28], [35,96], [28,07],
+        [UnauthSub], [31,17], [0], [35,06], [5,19], [28,57],
+      )
+    ),
+  ) <quadro:llm_matriz_confusao_rosids>],
+)
+
+Ainda assim, os dados reforçam a melhoria de qualidade do método #get_term("few_shot").
+Por exemplo, a classe `bruteforce` do #glossarium.gls("genis", link: false) teve aumento de acerto de 54,55% para 100%; além de aumentar o acerto da classe `dos`, que era mais comumente confundida com `benign` do que corretamente identificada pelo #get_term("zero_shot").
+
+Uma melhoria similar ocorreu para a classe `DoS` do #glossarium.gls("rosids", link: false), que teve erro total na abordagem #get_term("zero_shot"), e acerto total na #get_term("few_shot").
+Nessa base, em geral, todas as classes foram expressivamente confundidas com a `Benign` na abordagem #get_term("zero_shot").
+Contudo, ao mesmo passo em que elas tiveram acertos melhorados na classificação #get_term("few_shot"), a própria classe `Benign` perdeu o acerto de 82,71% para 34,46%.
+
+Ainda, a qualidade menor do modelo de linguagem é acompanhada de um custo de tempo muito elevado.
+Nas mesmas condições computacionais, um exeprimento que considera 2.000 amostras para cada base de dados levou horas para ser executado, como mostrado na @tabela:llm_tempos.
+Ao passo em que os modelos clássicos levam alguns segundos para classificarem milhares de instâncias.
+
+#describe_figure(
+  [#figure(
+    caption: [Tempo e custo do modelo de linguagem],
+    format_table(
+      table(
+        columns: (auto, 1fr, 1fr, 1fr, 1fr, 1fr),
+
+        table.header([Base], [Método], [Tempo total (min)], [Tempo / 100 amostras (s)], [Tokens totais], [Tokens / s]),
+
+        table.cell(rowspan: 2)[#glossarium.gls("genis", link: false)],
+        [#get_term("zero_shot", capitalize: true)],
+        [96,73],
+        [290,21],
+        [4.312.875],
+        [742,11],
+
+        [#get_term("few_shot", capitalize: true)],
+        [127,33],
+        [381,99],
+        [20.088.759],
+        [2.629,52],
+
+        table.hline(stroke: 0.5pt),
+
+        table.cell(rowspan: 2)[#glossarium.gls("rosids", link: false)],
+        [#get_term("zero_shot", capitalize: true)],
+        [106,31],
+        [318,92],
+        [4.667.364],
+        [731,76],
+
+        [#get_term("few_shot", capitalize: true)],
+        [155,94],
+        [467,81],
+        [26.143.275],
+        [2.794,21],
+      ),
+    ),
+  ) <tabela:llm_tempos>],
+)
 
 == Comparação entre os datasets
 
