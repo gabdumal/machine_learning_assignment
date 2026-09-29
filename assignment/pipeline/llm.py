@@ -3,8 +3,9 @@
 The module is the experiment and artifact-persistence layer for the GPT/LLM
 comparison. It deliberately mirrors the project's classical experiment
 architecture: dataset preparation remains in ``pipeline.*``, this module runs
-inference on a deterministic stratified subset of the frozen test partition,
-and reporting is left to ``reporting.llm``.
+inference on a deterministic stratified subset of the frozen test partition
+selected by the shared helper in ``pipeline.common``, and reporting is left to
+``reporting.llm``.
 
 Two protocols are supported:
 
@@ -34,8 +35,6 @@ unavailable rather than being fabricated from non-probabilistic responses.
 Invalid responses are persisted explicitly and count as incorrect predictions
 for the principal classification metrics.
 """
-
-from __future__ import annotations
 
 import argparse
 import csv
@@ -67,30 +66,28 @@ from sklearn.metrics import (
 )
 
 from definitions import SEED
-from pipeline.common import ARTIFACT_ROOT
-from schema.common import TransformedDatasetSchema
+from pipeline.common import ARTIFACT_ROOT, select_stratified_test_indices
 from pipeline.llm_api import (
-    APIBackend,
     DEFAULT_API_BACKEND,
     DEFAULT_CONCURRENT_PREDICTIONS,
     DEFAULT_MAX_TOKENS,
-    DEFAULT_MODEL_ID,
+    DEFAULT_PARALLEL,
     DEFAULT_TEMPERATURE,
     DEFAULT_TIMEOUT_SECONDS,
     DEFAULT_TOP_K,
     DEFAULT_TOP_P,
     LLAMA_SERVER_LOG_FILE_NAME,
-    DEFAULT_PARALLEL,
     LLM_API_BACKENDS,
-    create_api_client,
+    APIBackend,
     api_backend_configuration,
     api_configuration,
     build_chat_messages,
+    create_api_client,
     request_completion,
     running_api,
     validate_api_model,
 )
-
+from schema.common import TransformedDatasetSchema
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -274,7 +271,7 @@ class LLMExperimentPaths:
     few_shot_directory: Path
 
     @classmethod
-    def from_root(cls, root: Path) -> LLMExperimentPaths:
+    def from_root(cls, root: Path) -> LLMExperimentPaths:  # noqa: F821
         """Create all artifact paths beneath ``root``."""
         return cls(
             root=root,
@@ -1106,7 +1103,7 @@ def build_prompt_messages(
     if row_position < 0:
         raise ValueError("row_position must be non-negative.")
 
-    dataset = _sample_test_partition(
+    dataset = _select_test_partition(
         load_dataset_configuration(normalized_dataset),
         sample_size=test_sample_size,
         sample_seed=test_sample_seed,
@@ -2155,101 +2152,26 @@ def _normalize_methods(methods: Sequence[str]) -> tuple[LLMMethod, ...]:
     return cast(tuple[LLMMethod, ...], normalized)
 
 
-def _sample_test_partition(
+def _select_test_partition(
     dataset: LLMDatasetConfiguration,
     *,
-    sample_size: int | None,
+    sample_size: int,
     sample_seed: int,
 ) -> LLMDatasetConfiguration:
-    """Return a deterministic, proportionally stratified test subset."""
-    if sample_size is None:
-        return dataset
-
-    test_row_count = len(dataset.test_features)
-    if sample_size <= 0:
-        raise ValueError("test_sample_size must be positive.")
-    if sample_size >= test_row_count:
-        return dataset
-
-    labels = dataset.test_target.astype(str)
-    class_groups = [
-        (class_label, labels[labels == class_label].index.to_numpy())
-        for class_label in sorted(labels.unique())
-    ]
-    class_count = len(class_groups)
-    if sample_size < class_count:
-        raise ValueError(
-            "test_sample_size must be at least the number of test classes "
-            f"({class_count})."
-        )
-
-    counts = np.asarray(
-        [len(indices) for _, indices in class_groups],
-        dtype=int,
+    """Return the deterministic stratified subset selected by ``pipeline.common``."""
+    selected_indices = select_stratified_test_indices(
+        dataset.test_target,
+        sample_size=sample_size,
+        sample_seed=sample_seed,
     )
-    quotas = counts.astype(float) * (float(sample_size) / test_row_count)
 
-    # Start with proportional integer quotas, require at least one row per
-    # class, then reconcile the total with the largest-remainder rule.
-    allocations = np.floor(quotas).astype(int)
-    allocations = np.maximum(allocations, 1)
-    allocations = np.minimum(allocations, counts)
-
-    remainders = quotas - np.floor(quotas)
-    while int(allocations.sum()) < sample_size:
-        candidates = [
-            index for index, count in enumerate(counts) if allocations[index] < count
-        ]
-        if not candidates:
-            break
-        candidates.sort(
-            key=lambda index: (remainders[index], counts[index], -index),
-            reverse=True,
-        )
-        allocations[candidates[0]] += 1
-
-    while int(allocations.sum()) > sample_size:
-        candidates = [
-            index for index, allocation in enumerate(allocations) if allocation > 1
-        ]
-        if not candidates:
-            break
-        candidates.sort(
-            key=lambda index: (remainders[index], -counts[index], index),
-        )
-        allocations[candidates[0]] -= 1
-
-    if int(allocations.sum()) != sample_size:
-        raise RuntimeError(
-            "Could not construct the requested deterministic stratified "
-            "test sample size."
-        )
-
-    rng = np.random.default_rng(sample_seed)
-    selected_indices: list[int] = []
-    for (_, indices), allocation in zip(
-        class_groups,
-        allocations,
-        strict=True,
-    ):
-        sampled_positions = rng.choice(
-            len(indices),
-            size=int(allocation),
-            replace=False,
-        )
-        selected_indices.extend(
-            int(indices[position]) for position in sampled_positions
-        )
-
-    selected_indices.sort()
-    selected_index = pd.Index(selected_indices, dtype="int64")
     return LLMDatasetConfiguration(
         dataset_name=dataset.dataset_name,
         schema=dataset.schema,
         train_features=dataset.train_features,
         train_target=dataset.train_target,
-        test_features=dataset.test_features.loc[selected_index],
-        test_target=dataset.test_target.loc[selected_index],
+        test_features=dataset.test_features.loc[selected_indices],
+        test_target=dataset.test_target.loc[selected_indices],
     )
 
 
@@ -2265,7 +2187,7 @@ def run_dataset_llm_experiment(
     dataset = load_dataset_configuration(normalized_dataset)
     experiment_config = config
     normalized_methods = _normalize_methods(methods)
-    dataset = _sample_test_partition(
+    dataset = _select_test_partition(
         dataset,
         sample_size=experiment_config.test_sample_size,
         sample_seed=experiment_config.test_sample_seed,
@@ -2707,31 +2629,31 @@ def main() -> None:
 
 __all__ = [
     "ADDITIONAL_METRIC_COLUMNS",
-    "CONFUSION_MATRIX_INVALID_LABEL",
-    "DATASET_NAMES",
-    "DEFAULT_CONCURRENT_PREDICTIONS",
-    "FEW_SHOT_DIRECTORY_NAME",
-    "LLM_METHODS",
-    "METRIC_COLUMNS",
-    "PREDICTION_COLUMNS",
-    "PREDICTIONS_FILE_NAME",
     "CHECKPOINT_FILE_NAME",
     "CONFUSION_MATRIX_FILE_NAME",
+    "CONFUSION_MATRIX_INVALID_LABEL",
+    "DATASET_NAMES",
+    "DEFAULT_API_BACKEND",
+    "DEFAULT_CONCURRENT_PREDICTIONS",
+    "FEW_SHOT_DIRECTORY_NAME",
+    "LLM_API_BACKENDS",
+    "LLM_METHODS",
+    "METRIC_COLUMNS",
     "NORMALIZED_CONFUSION_MATRIX_FILE_NAME",
+    "PREDICTIONS_FILE_NAME",
+    "PREDICTION_COLUMNS",
     "TIMING_FILE_NAME",
     "ZERO_SHOT_DIRECTORY_NAME",
+    "APIBackend",
     "FewShotExample",
     "LLMDatasetConfiguration",
     "LLMExperimentPaths",
     "LLMExperimentResult",
     "LLMInferenceConfig",
-    "APIBackend",
-    "DEFAULT_API_BACKEND",
-    "LLM_API_BACKENDS",
     "build_few_shot_user_prompt",
+    "build_prompt_messages",
     "build_system_prompt",
     "build_zero_shot_user_prompt",
-    "build_prompt_messages",
     "load_dataset_configuration",
     "load_llm_few_shot_examples",
     "load_llm_metadata",

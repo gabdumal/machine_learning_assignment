@@ -1,5 +1,6 @@
 """Reusable machine-learning experiment engine."""
 
+import argparse
 import hashlib
 import json
 from collections.abc import Sequence
@@ -152,6 +153,154 @@ XGBOOST_PARAM_GRID: Final[ParameterGrid] = {
         1.0,
     ),
 }
+
+
+# ----------------------------------------
+# Test-sample selection
+# ----------------------------------------
+
+
+def select_stratified_test_indices(
+    target: pd.Series,
+    *,
+    sample_size: int,
+    sample_seed: int,
+) -> pd.Index:
+    """Select a deterministic, proportionally stratified subset of row indices."""
+    if sample_size <= 0:
+        raise ValueError("sample_size must be positive.")
+
+    test_row_count = len(target)
+    if test_row_count == 0:
+        raise ValueError("target must contain at least one row.")
+
+    if sample_size > test_row_count:
+        raise ValueError(
+            f"sample_size ({sample_size}) cannot exceed the number of rows "
+            f"in target ({test_row_count})."
+        )
+
+    if not target.index.is_unique:
+        raise ValueError("target index must not contain duplicate row indices.")
+
+    if not all(isinstance(value, (int, np.integer)) for value in target.index):
+        raise TypeError("target row indices must be integer-like.")
+
+    if target.isna().any():
+        raise ValueError("target contains missing labels.")
+
+    if sample_size == test_row_count:
+        return pd.Index(target.index, dtype="int64")
+
+    labels = target.astype(str)
+    class_groups = [
+        (
+            class_label,
+            labels[labels == class_label].index.to_numpy(dtype=np.int64),
+        )
+        for class_label in sorted(labels.unique())
+    ]
+
+    class_count = len(class_groups)
+    if sample_size < class_count:
+        raise ValueError(
+            "sample_size must be at least the number of target classes "
+            f"({class_count})."
+        )
+
+    counts = np.asarray(
+        [len(indices) for _, indices in class_groups],
+        dtype=int,
+    )
+    quotas = counts.astype(float) * (float(sample_size) / test_row_count)
+
+    allocations = np.floor(quotas).astype(int)
+    allocations = np.maximum(allocations, 1)
+    allocations = np.minimum(allocations, counts)
+
+    remainders = quotas - np.floor(quotas)
+    while int(allocations.sum()) < sample_size:
+        candidates = [
+            index for index, count in enumerate(counts) if allocations[index] < count
+        ]
+        if not candidates:
+            break
+        candidates.sort(
+            key=lambda index: (remainders[index], counts[index], -index),
+            reverse=True,
+        )
+        allocations[candidates[0]] += 1
+
+    while int(allocations.sum()) > sample_size:
+        candidates = [
+            index for index, allocation in enumerate(allocations) if allocation > 1
+        ]
+        if not candidates:
+            break
+        candidates.sort(
+            key=lambda index: (remainders[index], -counts[index], index),
+        )
+        allocations[candidates[0]] -= 1
+
+    if int(allocations.sum()) != sample_size:
+        raise RuntimeError(
+            "Could not construct the requested deterministic stratified "
+            "test sample size."
+        )
+
+    rng = np.random.default_rng(sample_seed)
+    selected_indices: list[int] = []
+    for (_, indices), allocation in zip(
+        class_groups,
+        allocations,
+        strict=True,
+    ):
+        sampled_positions = rng.choice(
+            len(indices),
+            size=int(allocation),
+            replace=False,
+        )
+        selected_indices.extend(
+            int(indices[position]) for position in sampled_positions
+        )
+
+    selected_indices.sort()
+    return pd.Index(selected_indices, dtype="int64")
+
+
+def export_stratified_test_indices(
+    *,
+    dataset: str,
+    sample_size: int,
+    sample_seed: int,
+    output_path: Path,
+) -> None:
+    """Export deterministic stratified test-row indices for one dataset."""
+    normalized_dataset = dataset.strip().lower()
+
+    if normalized_dataset == "genis":
+        from pipeline.genis import GENIS_Y_TEST
+
+        target = GENIS_Y_TEST
+    elif normalized_dataset == "rosids":
+        from pipeline.rosids import ROSIDS_Y_TEST
+
+        target = ROSIDS_Y_TEST
+    else:
+        raise ValueError(f"Unknown dataset {dataset!r}. Expected 'genis' or 'rosids'.")
+
+    selected_indices = select_stratified_test_indices(
+        target,
+        sample_size=sample_size,
+        sample_seed=sample_seed,
+    )
+
+    output_path = output_path.expanduser().resolve()
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    _atomic_write_dataframe(
+        pd.DataFrame({"row_index": selected_indices}),
+        output_path,
+    )
 
 
 # ----------------------------------------
@@ -2807,3 +2956,59 @@ def load_feature_importances(
         ),
         ignore_index=True,
     )
+
+
+# ----------------------------------------
+# Command-line interface
+# ----------------------------------------
+
+
+def _build_export_indices_argument_parser() -> argparse.ArgumentParser:
+    """Build the command-line parser for test-index export."""
+    parser = argparse.ArgumentParser(
+        description=(
+            "Export deterministic, proportionally stratified test-row indices."
+        ),
+    )
+    parser.add_argument(
+        "--dataset",
+        choices=("genis", "rosids"),
+        required=True,
+        help="Dataset whose frozen test partition will be sampled.",
+    )
+    parser.add_argument(
+        "--sample-size",
+        type=int,
+        required=True,
+        help="Number of test-row indices to export.",
+    )
+    parser.add_argument(
+        "--sample-seed",
+        type=int,
+        default=int(SEEDS[0]),
+        help=(f"Seed controlling deterministic sampling (default: {int(SEEDS[0])})."),
+    )
+    parser.add_argument(
+        "--output",
+        type=Path,
+        required=True,
+        help="Output CSV path.",
+    )
+    return parser
+
+
+def main() -> None:
+    """Export the requested deterministic test-row indices."""
+    parser = _build_export_indices_argument_parser()
+    arguments = parser.parse_args()
+
+    export_stratified_test_indices(
+        dataset=arguments.dataset,
+        sample_size=arguments.sample_size,
+        sample_seed=arguments.sample_seed,
+        output_path=arguments.output,
+    )
+
+
+if __name__ == "__main__":
+    main()

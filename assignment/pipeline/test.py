@@ -1,18 +1,19 @@
 """Final evaluation of persisted models on frozen test sets.
 
 This module does not train or tune models. It loads the seed-specific final
-models already persisted by the validation phase, evaluates them on the
-existing transformed test partitions, measures frozen-test inference time, and persists
-test-evaluation results.
+models already persisted by the validation phase, evaluates them on the existing
+transformed test partitions or on an externally supplied subset of their row
+indices, measures frozen-test inference time, and persists test-evaluation results.
 
 Run from the project root, for example:
 
-    python -m pipeline.test
     python -m pipeline.test --dataset genis
     python -m pipeline.test --dataset rosids --classifier xgboost
+    python -m pipeline.test --dataset genis --test-indices test_indices.csv
 """
 
 import argparse
+import hashlib
 import json
 from collections.abc import Sequence
 from pathlib import Path
@@ -94,9 +95,9 @@ INFERENCE_TIMING_OPERATION: Final[str] = "final_model_predict_and_predict_proba"
 INFERENCE_TIMING_CLOCK: Final[str] = "time.perf_counter"
 INFERENCE_TIMING_SCOPE: Final[str] = (
     "Frozen-test prediction using a persisted final model; includes the complete "
-    "model.predict and model.predict_proba calls on the full transformed test "
-    "partition; excludes model loading, metric calculation, confusion-matrix "
-    "construction, and artifact writing."
+    "model.predict and model.predict_proba calls on the evaluation test rows "
+    "(full partition or externally selected subset); excludes model loading, "
+    "metric calculation, confusion-matrix construction, and artifact writing."
 )
 
 INFERENCE_TIMING_COLUMNS: Final[tuple[str, ...]] = (
@@ -123,6 +124,104 @@ DATASET_CONFIGURATIONS: Final[dict[str, tuple[str, pd.DataFrame, pd.Series]]] = 
         ROSIDS_Y_TEST,
     ),
 }
+
+
+# ----------------------------------------
+# Test-row selection helpers
+# ----------------------------------------
+
+
+def _integer_index_digest(index: Sequence[object] | pd.Index) -> str:
+    """Return a SHA-256 digest over the set of integer row indices."""
+    values: list[int] = []
+    for value in index:
+        if not isinstance(value, (int, np.integer)):
+            raise TypeError("Test row indices must be integer-like.")
+        values.append(int(value))
+
+    digest = hashlib.sha256()
+    for value in sorted(values):
+        digest.update(f"{value}\n".encode("ascii"))
+    return digest.hexdigest()
+
+
+def _load_test_indices(
+    *,
+    path: Path,
+    available_index: pd.Index,
+) -> pd.Index:
+    """Load and validate externally supplied test row indices."""
+    path = path.expanduser().resolve()
+    if not path.is_file():
+        raise FileNotFoundError(f"Test-indices file does not exist: '{path}'.")
+
+    frame = pd.read_csv(path)
+    if "row_index" not in frame.columns:
+        raise ValueError("Test-indices file must contain a 'row_index' column.")
+
+    raw_indices = frame["row_index"]
+    if raw_indices.isna().any():
+        raise ValueError("Test-indices file contains missing row indices.")
+
+    try:
+        numeric_indices = pd.to_numeric(raw_indices, errors="raise")
+    except (TypeError, ValueError) as error:
+        raise ValueError(
+            "Test-indices file contains non-numeric row indices."
+        ) from error
+
+    if (numeric_indices % 1 != 0).any():
+        raise ValueError("Test-indices file contains non-integer row indices.")
+
+    indices = pd.Index(numeric_indices.astype("int64"), dtype="int64")
+    if indices.empty:
+        raise ValueError("Test-indices file does not contain any row indices.")
+
+    if indices.duplicated().any():
+        raise ValueError("Test-indices file contains duplicate row indices.")
+
+    available = pd.Index(available_index, dtype="int64")
+    missing = indices.difference(available)
+    if not missing.empty:
+        preview = tuple(int(value) for value in missing[:10])
+        suffix = "..." if len(missing) > 10 else ""
+        raise ValueError(
+            "Test-indices file contains row indices that are not present in "
+            f"the frozen test partition: {preview!r}{suffix}"
+        )
+
+    return indices
+
+
+def _select_test_rows(
+    *,
+    test_features: pd.DataFrame,
+    test_target: pd.Series,
+    indices_path: Path | None,
+) -> tuple[pd.DataFrame, pd.Series, pd.Index, str, str | None]:
+    """Return the evaluation rows, their indices, and selection metadata."""
+    if not test_features.index.equals(test_target.index):
+        raise ValueError("Test features and target indices are not aligned.")
+
+    if indices_path is None:
+        selected_indices = pd.Index(test_features.index, dtype="int64")
+        selection = "full_test_partition"
+        source = None
+    else:
+        selected_indices = _load_test_indices(
+            path=indices_path,
+            available_index=test_features.index,
+        )
+        selection = "external_index_file"
+        source = str(indices_path.expanduser().resolve())
+
+    selected_features = test_features.loc[selected_indices]
+    selected_target = test_target.loc[selected_indices]
+
+    if selected_features.empty:
+        raise ValueError("The evaluation test selection is empty.")
+
+    return selected_features, selected_target, selected_indices, selection, source
 
 
 # ----------------------------------------
@@ -885,6 +984,9 @@ def _persist_test_artifacts(
     per_class_results: pd.DataFrame,
     inference_timing: pd.DataFrame,
     test_row_count: int,
+    test_row_index_digest: str,
+    test_row_selection: str,
+    test_indices_source: str | None,
     confusion_matrices: dict[
         int,
         tuple[pd.DataFrame, pd.DataFrame],
@@ -938,6 +1040,9 @@ def _persist_test_artifacts(
         "classifier_name": classifier_name,
         "evaluation_type": "frozen_test_set",
         "test_row_count": int(test_row_count),
+        "test_row_selection": test_row_selection,
+        "test_row_index_digest": test_row_index_digest,
+        "test_indices_source": test_indices_source,
         "seed_count": len(seed_results),
         "seeds": [int(seed) for seed in sorted(seed_results["seed"].unique())],
         "configuration_ids": sorted(
@@ -987,10 +1092,13 @@ def run_classifier_test(
     *,
     dataset_key: str,
     classifier_name: str,
+    test_indices_path: Path | None = None,
 ) -> pd.DataFrame:
-    """Evaluate the persisted final models for one dataset/classifier.
+    """Evaluate persisted final models for one dataset/classifier.
 
-    No fitting, hyperparameter search, or model selection occurs here.
+    No fitting, hyperparameter search, or model selection occurs here. When
+    ``test_indices_path`` is provided, only those rows of the frozen test
+    partition are evaluated.
     """
     normalized_dataset_key = dataset_key.lower()
     normalized_classifier_name = classifier_name.lower()
@@ -1086,6 +1194,20 @@ def run_classifier_test(
             f"required by the persisted experiment: {sorted(missing_features)!r}.",
         )
 
+    (
+        evaluation_test_features,
+        evaluation_test_target,
+        evaluation_test_indices,
+        test_row_selection,
+        test_indices_source,
+    ) = _select_test_rows(
+        test_features=test_features,
+        test_target=test_target,
+        indices_path=test_indices_path,
+    )
+    evaluation_test_row_count = len(evaluation_test_features)
+    evaluation_test_row_index_digest = _integer_index_digest(evaluation_test_indices)
+
     seed_rows: list[dict[str, object]] = []
     per_class_frames: list[pd.DataFrame] = []
     inference_timing_rows: list[dict[str, object]] = []
@@ -1108,8 +1230,8 @@ def run_classifier_test(
         ) = _evaluate_seed(
             model=model,
             classifier_name=normalized_classifier_name,
-            test_features=test_features,
-            test_target=test_target,
+            test_features=evaluation_test_features,
+            test_target=evaluation_test_target,
         )
 
         timing["dataset"] = dataset_name
@@ -1130,7 +1252,7 @@ def run_classifier_test(
         )
 
         actual_labels = np.asarray(
-            test_target.astype(str),
+            evaluation_test_target.astype(str),
             dtype=object,
         )
 
@@ -1205,7 +1327,7 @@ def run_classifier_test(
         expected_seeds=tuple(
             int(seed) for seed in sorted(seed_results["seed"].unique())
         ),
-        test_row_count=len(test_features),
+        test_row_count=evaluation_test_row_count,
     )
 
     summary_row = _build_summary_row(
@@ -1221,7 +1343,10 @@ def run_classifier_test(
         seed_results=seed_results,
         per_class_results=per_class_results,
         inference_timing=inference_timing,
-        test_row_count=len(test_features),
+        test_row_count=evaluation_test_row_count,
+        test_row_index_digest=evaluation_test_row_index_digest,
+        test_row_selection=test_row_selection,
+        test_indices_source=test_indices_source,
         confusion_matrices=confusion_matrices,
         summary_row=summary_row,
     )
@@ -1233,12 +1358,15 @@ def run_classifier_test(
 
 def run_dataset_test(
     dataset_key: str,
+    *,
+    test_indices_path: Path | None = None,
 ) -> pd.DataFrame:
     """Evaluate all three classifiers for one dataset."""
     summaries = [
         run_classifier_test(
             dataset_key=dataset_key,
             classifier_name=classifier_name,
+            test_indices_path=test_indices_path,
         )
         for classifier_name in CLASSIFIER_NAMES
     ]
@@ -1328,8 +1456,18 @@ def _build_argument_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--dataset",
         choices=tuple(DATASET_CONFIGURATIONS),
+        required=True,
+        help="Dataset to evaluate.",
+    )
+
+    parser.add_argument(
+        "--test-indices",
+        type=Path,
         default=None,
-        help="Evaluate one dataset; omit to evaluate both.",
+        help=(
+            "Optional CSV file containing a 'row_index' column. When supplied, "
+            "only those rows from the frozen test partition are evaluated."
+        ),
     )
 
     parser.add_argument(
@@ -1350,19 +1488,16 @@ def main() -> None:
     parser = _build_argument_parser()
     arguments = parser.parse_args()
 
-    if arguments.classifier is not None and arguments.dataset is None:
-        parser.error("--classifier requires --dataset.")
-
-    if arguments.dataset is None:
-        summary = run_all_tests()
-    elif arguments.classifier is None:
+    if arguments.classifier is None:
         summary = run_dataset_test(
             arguments.dataset,
+            test_indices_path=arguments.test_indices,
         )
     else:
         summary = run_classifier_test(
             dataset_key=arguments.dataset,
             classifier_name=arguments.classifier,
+            test_indices_path=arguments.test_indices,
         )
 
     print()
