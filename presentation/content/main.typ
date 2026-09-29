@@ -644,6 +644,32 @@ Transformações aplicadas apenas sobre a fração de #stress[treinamento].
   ],
 )
 
+#title_slide("Reprodutibilidade")
+
+#table(
+  columns: (auto, 1fr),
+  align: (start, start),
+
+  table.header(strong[Item], strong[Informação]),
+
+  [Linguagem], [Python 3.14],
+
+  [Bibliotecas],
+  [imbalanced-learn>=0.14.2\ ipython>=9.17.1\ matplotlib>=3.11.2\ numpy>=2.5.3\ openai>=3.19.2\ pandas>=3.0.6\ scikit-learn>=1.9.1\ seaborn>=0.13.2\ xgboost>=3.4.1 ],
+
+  [Semente(s)], [27, 32, 59],
+
+  [Hardware], [AMD Ryzen 5 5600G with Radeon Graphics × 12;\ 32 GB de memória RAM a 3200 MHz],
+
+  [Modelo GPT/LLM], [Gemma 4 E2B IT QAT, identificado como `gemma-4-e2b-it-qat`],
+
+  [Interface de inferência], [LM Studio],
+
+  [Parâmetros de geração], [`temperature = 0`; `top_p = 1`; `top_k = 1`; `max_tokens = 8192`; raciocínio desabilitado],
+
+  [Código], link("https://github.com/gabdumal/machine_learning_assignment"),
+)
+
 #title_slide("Modelos de referência")
 
 == Árvore de decisão
@@ -1014,4 +1040,177 @@ Transformações aplicadas apenas sobre a fração de #stress[treinamento].
 
 #align(center + horizon)[
   #image("/assets/images/rosids_feature_importance_heatmap.png")
+]
+
+#title_slide("Comitês")
+
+#grid(
+  columns: (1fr, 3fr),
+  gutter: leading,
+
+  [
+    Cada comitê montado utiliza os três modelos de referência.
+
+    == Estratégias
+
+    - #get_term("hard_voting", capitalize: true),
+    - #get_term("hard_voting_ponderado", capitalize: true),
+    - #get_term("soft_voting", capitalize: true), e
+    - #get_term("soft_voting_ponderado", capitalize: true).
+  ],
+
+  [
+    == Cálculo dos pesos
+    - Os resultados da fase de validação foram salvos.
+    - Para cada algoritmo $A$, recupera os hiperparâmetros ideais $H_A$.
+    - Busca, no histórico da fase de validação, os registros da #get_term("seed") $S(H_A)$.
+    - Obtém #get_term("macro_f1") médio ($F 1_S$) dos #get_term("fold", plural: true).
+    - Calcula média das #get_term("seed", plural: true) $overline(F 1)_A = sum_(S=1)^3 F 1_S$.
+    - O peso de cada modelo é:
+    $ w_A = frac(overline(F 1)_A, overline(F 1)_"DT" + overline(F 1)_"RF" + overline(F 1)_"XGB") $
+  ],
+)
+
+#colbreak()
+
+== Pesos calculados
+
+#table(
+  columns: (auto, 1fr, auto, auto),
+  table.header(strong[Base], strong[Modelo], strong[#get_term("macro_f1") na validação], strong[Peso]),
+
+  table.cell(rowspan: 3)[#glossarium.gls("genis", link: false)], [Árvore de decisão], [0,99984], [0,33332],
+  [Floresta aleatória], [0,99993], [0,33335],
+  [XGBoost], [0,99990], [0,33334],
+  table.hline(stroke: 0.5pt),
+  table.cell(rowspan: 3)[#glossarium.gls("rosids", link: false)], [Árvore de decisão], [0,94202], [0,33085],
+  [Floresta aleatória], [0,95197], [0,33435],
+  [XGBoost], [0,95326], [0,33480],
+)
+
+#pagebreak()
+
+== Teste
+
+- Cada uma das quatro estratégias é executada nas #stress[#get_term("seed", plural: true)]: 27, 32, e 59.
+  - Foram calculados média e desvio-padrão.
+
+- Em caso de empate no #get_term("hard_voting"), a classe com maior probabilidade média entre os modelos é utilizada como critério de desempate.
+  - Persistindo o empate, a ordem das classes armazenada nos resultados determina a classe selecionada.
+
+#pagebreak()
+
+== Resultados
+
+=== #glossarium.gls("genis", link: false)
+
+#align(center + horizon)[
+  #set text(size: 18pt)
+
+  #table(
+    inset: 8pt,
+    columns: (auto, auto, auto, auto, auto, auto, auto),
+    align: start,
+
+    table.header(
+      [Estratégia],
+      strong[#get_term("accuracy", capitalize: true)],
+      strong[#get_term("precision", capitalize: true)],
+      strong[#get_term("recall", capitalize: true)],
+      strong[#get_term("macro_f1")],
+      strong[#get_term("roc_auc")],
+      strong[#get_term("pr_auc")],
+    ),
+
+    [#get_term("hard_voting", capitalize: true)],
+    strong[1,00000\ ± 0,00000],
+    strong[1,00000\ ± 0,00000],
+    strong[1,00000\ ± 0,00000],
+    strong[1,00000\ ± 0,00000],
+    strong[1,00000\ ± 0,00000],
+    strong[1,00000\ ± 0,00000],
+
+    [#get_term("hard_voting_ponderado", capitalize: true)],
+    strong[1,00000\ ± 0,00000],
+    strong[1,00000\ ± 0,00000],
+    strong[1,00000\ ± 0,00000],
+    strong[1,00000\ ± 0,00000],
+    strong[1,00000\ ± 0,00000],
+
+    strong[1,00000\ ± 0,00000],
+
+    [#get_term("soft_voting", capitalize: true)],
+    [1,00000\ ± 0,00001],
+    strong[1,00000\ ± 0,00000],
+    [0,99998\ ± 0,00003],
+    [0,99999\ ± 0,00001],
+    strong[1,00000\ ± 0,00000],
+    strong[1,00000\ ± 0,00000],
+
+    [#get_term("soft_voting_ponderado", capitalize: true)],
+    [1,00000\ ± 0,00001],
+    strong[1,00000\ ± 0,00000],
+    [0,99998\ ± 0,00003],
+    [0,99999\ ± 0,00001],
+    strong[1,00000\ ± 0,00000],
+    strong[1,00000\ ± 0,00000],
+  )
+]
+
+#colbreak()
+
+#copy_last_heading()
+
+=== #glossarium.gls("rosids", link: false)
+
+#align(center + horizon)[
+  #set text(size: 18pt)
+
+  #table(
+    inset: 8pt,
+    columns: (auto, auto, auto, auto, auto, auto, auto),
+    align: start,
+
+    table.header(
+      [Estratégia],
+      strong[#get_term("accuracy", capitalize: true)],
+      strong[#get_term("precision", capitalize: true)],
+      strong[#get_term("recall", capitalize: true)],
+      strong[#get_term("macro_f1")],
+      strong[#get_term("roc_auc")],
+      strong[#get_term("pr_auc")],
+    ),
+
+    [#get_term("hard_voting", capitalize: true)],
+    [0,97831\ ± 0,00019],
+    [0,95694\ ± 0,00037],
+    strong[0,95537\ ± 0,00038],
+    strong[0,95606\ ± 0,00030],
+    [0,97825\ ± 0,00003],
+    [0,93324\ ± 0,00020],
+
+    [#get_term("hard_voting_ponderado", capitalize: true)],
+    strong[0,97837\ ± 0,00014],
+    strong[0,95732\ ± 0,00021],
+    [0,95496\ ± 0,00033],
+    [0,95604\ ± 0,00017],
+    [0,97826\ ± 0,00003],
+    [0,93347\ ± 0,00018],
+
+    [#get_term("soft_voting", capitalize: true)],
+    [0,97799\ ± 0,00002],
+    [0,95526\ ± 0,00021],
+    [0,95471\ ± 0,00003],
+    [0,95491\ ± 0,00011],
+    strong[0,99658\ ± 0,00004],
+    strong[0,97398\ ± 0,00015],
+
+    [#get_term("soft_voting_ponderado", capitalize: true)],
+    [0,97800\ ± 0,00004],
+    [0,95531\ ± 0,00025],
+    [0,95472\ ± 0,00002],
+    [0,95494\ ± 0,00013],
+    strong[0,99658\ ± 0,00004],
+    [0,97398\ ± 0,00016],
+  )
 ]
