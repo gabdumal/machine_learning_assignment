@@ -40,6 +40,9 @@ Em uma tarefa de #stress[#glossarium.gls("multiclass_classification", link: fals
 
 Podem representar diferentes tipos de comportamento de rede, incluindo tráfego #strong[benigno] e diferentes #strong[categorias de ataques] (DoS, Recon, #sym.dots).
 
+#title_slide("Trabalhos relacionados")
+
+#note_from_gabriel(note: todo_note)[Escrever]
 
 #title_slide("Bases de dados")
 
@@ -337,54 +340,201 @@ Modela capacidade de um modelo relacionar a diferença de acessos entre pontos.
   ),
 )
 
-// == Características
 
-// As entradas são compostas por: imagem, sexo, idade, #stress[segmentações].
+#title_slide("Descrição das bases")
 
-// - As segmentações foram realizadas #strong[manualmente] por especialistas:
-//   - #strong[Numeração] dos dentes conforme padrão internacional (FDI).
-//   - Identificação de #stress[características] de interesse acerca de cada dente presente e da boca por inteiro.
+== #glossarium.gls-short("genis")
 
-// - Cada segmentação contém a caixa de delimitação na imagem e uma #stress[categoria] associada.
+Os autores já forneceram os dados processados e separados entre treino e teste de forma estratificada em proporção 75% a 25%.
 
-// #pagebreak()
+Não foram identificados valores ausentes nem duplicatas.
 
-// #grid(
-//   row-gutter: leading / 2,
-//   strong("Condição da boca"),
-//   pad(
-//     left: leading,
-//     table(
-//       columns: 4,
-//       column-gutter: (0pt, small_leading, 0pt),
-//       [Ed], [Sem dentes], [De], [Dentes presentes],
-//       [Me], [Maxilar sem dentes], [Mne], [mandíbula sem dentes],
-//     ),
-//   ),
-// )
+#table(
+  columns: (1fr, 1fr, 1fr, 1fr),
+  align: (start + horizon, end + horizon, end + horizon, end + horizon),
 
-// #grid(
-//   row-gutter: leading / 2,
-//   strong("Condição de um dente"),
-//   pad(
-//     left: leading,
-//     table(
-//       columns: 4,
-//       column-gutter: (0pt, 12pt, 0pt),
-//       [H], [Saudável], [R], [Restauração],
-//       [Di], [Desgaste do incisivo], [C], [Cáries],
-//       [I], [Impactado], [Im], [Implante],
-//       [M3i], [3º molar impactado], [M3f], [3º molar desenvolvendo],
-//       [P], [Pôntico], [Dc], [Coroa destruída],
-//       [Te], [Tratamento endodôntico], [TeM], [Tratamento endodôntico misto],
-//       [Ri], [Pino intrarradicular], [RiM], [Pino intrarradicular misto],
-//       [Cp], [Coroa prostética], [CpuM], [Coroa prostética mista],
-//       [Rr], [Raiz residual],
-//     ),
-//   ),
-// )
+  table.header(strong[Partição], strong[Classe], strong[Instâncias], strong[Proporção]),
 
-// #pagebreak()
+  table.cell(rowspan: 5)[Treino],
+  table.cell()[#get_term("dos")],
+  table.cell()[236 512],
+  table.cell()[80,21%],
+  table.cell()[#get_term("recon")],
+  table.cell()[22 186],
+  table.cell()[7,52%],
+  table.cell()[#get_term("benign")],
+  table.cell()[21 720],
+  table.cell()[7,37%],
+  table.cell()[#get_term("bruteforce")],
+  table.cell()[14 426],
+  table.cell()[4,90%],
+  table.cell()[*Total*],
+  table.cell()[294 844],
+  table.cell()[100%],
+)
+
+#table(
+  columns: (1fr, 1fr, 1fr, 1fr),
+  align: (start + horizon, end + horizon, end + horizon, end + horizon),
+
+  table.header(strong[Partição], strong[Classe], strong[Instâncias], strong[Proporção]),
+
+  table.cell(rowspan: 5)[Teste],
+  table.cell()[#get_term("dos")],
+  table.cell()[59 128],
+  table.cell()[80,21%],
+  table.cell()[#get_term("recon")],
+  table.cell()[5 547],
+  table.cell()[7,53%],
+  table.cell()[#get_term("benign")],
+  table.cell()[5 430],
+  table.cell()[7,37%],
+  table.cell()[#get_term("bruteforce")],
+  table.cell()[3 607],
+  table.cell()[4,89%],
+  table.cell()[*Total*],
+  table.cell()[73 712],
+  table.cell()[100%],
+
+  table.hline(stroke: 2pt),
+
+  table.cell(rowspan: 5)[Agrupado],
+  table.cell()[#get_term("dos")],
+  table.cell()[295 640],
+  table.cell()[80,22%],
+  table.cell()[#get_term("recon")],
+  table.cell()[27 733],
+  table.cell()[7,52%],
+  table.cell()[#get_term("benign")],
+  table.cell()[27 150],
+  table.cell()[7,37%],
+  table.cell()[#get_term("bruteforce")],
+  table.cell()[18 033],
+  table.cell()[4,89%],
+  table.cell()[*Total*],
+  table.cell()[368 556],
+  table.cell()[100%],
+)
+
+#pagebreak()
+
+Características #stress[numéricas] incluem: contagem de pacotes em fluxos de origem e destino, tamanho dos pacotes (em bytes), duração dos fluxos, atrasos, e similares.
+
+As portas de rede utilizadas pela origem e pelo destino são valores #stress[textuais], por não terem relação de ordenação entre si.
+
+O protocolo utilizado no fluxo, que é uma característica #stress[categórica] já foi fornecida na forma de #foreign_text[one-hot encoding].
+
+#foreign_text[Flags] de comunicação e o estado da transação são características #stress[binárias].
+
+#pagebreak()
+
+Muitas características numéricas apresentam, ao mesmo tempo:
+- grande quantidade de entradas com valores iguais ou próximos a #strong[0],
+- menor quantidade de entradas com valores #strong[muito elevados].
+
+Isso faz com que um tratamento ingênuo de #stress[outliers] por intervalo interquartil (IQR) não seja possível.
+
+Para identificação do tipo de tráfego, é relevante se o valor é muito pequeno ou muito grande, mas não necessariamente a distância entre esses limites.
+
+Esse fenômeno motiva a selecionar métodos de #glossarium.gls("machine_learning") que lidem melhor com outliers e discrepâncias, como aqueles baseados em #stress[árvores].
+
+#colbreak()
+
+#align(
+  center + horizon,
+  image("/assets/images/source_application_bytes_boxplot.png"),
+)
+
+#align(
+  center + horizon,
+  image("/assets/images/source_application_bytes_histogram.png"),
+)
+
+== #glossarium.gls-short("rosids")
+
+Os dados foram separados em treino e teste de forma estratificada na proporção de 80% a 20% no protocolo experimental.
+
+#table(
+  columns: (1fr, 1fr, 1fr, 1fr),
+  align: (start + horizon, end + horizon, end + horizon, end + horizon),
+
+  table.header(strong[Partição], strong[Classe], strong[Instâncias], strong[Proporção]),
+
+  table.cell(rowspan: 6)[Treino],
+  table.cell()[Benign],
+  table.cell()[50 008],
+  table.cell()[45,73%],
+  table.cell()[DoS],
+  table.cell()[24 800],
+  table.cell()[22,68%],
+  table.cell()[Subflood],
+  table.cell()[24 051],
+  table.cell()[22,00%],
+  table.cell()[UnauthPub],
+  table.cell()[6 254],
+  table.cell()[5,72%],
+  table.cell()[UnauthSub],
+  table.cell()[4 231],
+  table.cell()[3,87%],
+  table.cell()[*Total*],
+  table.cell()[109 344],
+  table.cell()[100%],
+)
+
+#table(
+  columns: (1fr, 1fr, 1fr, 1fr),
+  align: (start + horizon, end + horizon, end + horizon, end + horizon),
+
+  table.header(strong[Partição], strong[Classe], strong[Instâncias], strong[Proporção]),
+
+  table.cell(rowspan: 6)[Teste],
+  table.cell()[Benign],
+  table.cell()[12 503],
+  table.cell()[45,74%],
+  table.cell()[DoS],
+  table.cell()[6 200],
+  table.cell()[22,68%],
+  table.cell()[Subflood],
+  table.cell()[6 013],
+  table.cell()[22,00%],
+  table.cell()[UnauthPub],
+  table.cell()[1 563],
+  table.cell()[5,72%],
+  table.cell()[UnauthSub],
+  table.cell()[1 058],
+  table.cell()[3,87%],
+  table.cell()[*Total*],
+  table.cell()[27 337],
+  table.cell()[100%],
+
+  table.hline(stroke: 2pt),
+
+  table.cell(rowspan: 6)[Agrupado],
+  table.cell()[Benign],
+  table.cell()[62 511],
+  table.cell()[45,73%],
+  table.cell()[DoS],
+  table.cell()[31 000],
+  table.cell()[22,68%],
+  table.cell()[Subflood],
+  table.cell()[30 064],
+  table.cell()[22,00%],
+  table.cell()[UnauthPub],
+  table.cell()[7 817],
+  table.cell()[5,72%],
+  table.cell()[UnauthSub],
+  table.cell()[5 289],
+  table.cell()[3,87%],
+  table.cell()[*Total*],
+  table.cell()[136 681],
+  table.cell()[100%],
+)
+
+#colbreak()
+
+As características #stress[numéricas] seguem o mesmo conteúdo que quelas da base #glossarium.gls("genis"), com coleta adicional dos tamanhos de cabeçalhos.
+
+Em vez de representar o estado da conexão por características #stress[binárias], a base registra a contagem de #foreign_text[flags] ocorridas no fluxo.
 
 // == Abordagem
 
