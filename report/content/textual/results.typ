@@ -3,7 +3,7 @@
 
 = Resultados e discussão <seção:resultados>
 
-#note_from_advisor(note: progress_note)[
+#note_from_advisor(note: done_note)[
   Não se limite a apresentar tabelas. Compare os métodos, quantifique diferenças e interprete os resultados à luz das características dos datasets. Discuta casos em que um método funciona melhor ou pior, classes ou regiões difíceis, complementaridade entre modelos, efeito dos comitês, comportamento do GPT, custo computacional e limitações. Diferencie claramente observações suportadas pelos experimentos de hipóteses ou especulações.
 ]
 

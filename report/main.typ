@@ -26,7 +26,7 @@
   font_family_for_notes: quati-abnt.common.style.font_family_sans,
   // Define whether to display editor notes.
   // Defina se deve exibir as notas de editor.
-  should_display_notes: true,
+  should_display_notes: false,
 )
 #show: it => quati-abnt.article.template(
   it,
