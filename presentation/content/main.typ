@@ -1537,7 +1537,8 @@ Do not use a single feature as a deterministic rule unless the overall traffic p
 
 - A modelagem do tráfego na forma de fluxos de rede em intervalos fixos consegue coletar dados relevantes.
 
-- Identificar o tipo de ataque em uma #glossarium.gls("classificação_multiclasse") de granularidade média é um problema fácil para modelos baseados em árvores.
+- Detectar o tipo de ataque em uma #glossarium.gls("classificação_multiclasse") de granularidade média é trivial para modelos baseados em árvores.
+  - Pode-se tentar classificar em níveis mais detahados.
 
 - É necessário investigar se faltou remover alguma característica que não estaria disponível de fato para um sistema detector em tempo real.
 

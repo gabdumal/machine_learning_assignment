@@ -594,11 +594,11 @@ A #glossarium.gls("decision_tree", link: false) apresenta as maiores diferenças
 
 == Comparação com GPT
 
-#note_from_advisor[
+#note_from_advisor(note: done_note)[
   Compare zero-shot, few-shot e, quando utilizado, embeddings + classificador com os mesmos baselines e nos mesmos exemplos de avaliação. Além das métricas preditivas, relate tempo por 100 amostras e custo estimado quando houver API. Discuta também saídas inválidas, sensibilidade ao prompt e outras limitações observadas. Para tarefas não classificatórias, adapte ou remova esta subseção conforme definido com o professor.
 ]
 
-#note_from_advisor(note: todo_note)[
+#note_from_advisor(note: done_note)[
   Apresente e discuta a comparação entre GPT/LLM e os métodos clássicos.
 ]
 
@@ -856,15 +856,40 @@ Ao passo em que os modelos clássicos levam alguns segundos para classificarem m
   ) <tabela:llm_tempos>],
 )
 
+É necessário pontuar que o desempenho aparente de vazão de tokens no método #get_term("few_shot") é um artefato da capacidade de o modelo realizar cache do #foreign_text[system prompt].
+As primeiras execuções dos prompts levaram cerca de 60 segundos para processar.
+Contudo, dado que o prompt de sistema é imutável dentro de uma base de dados, as requisições logo passaram a demorar cerca de 3 segundos.
+
 == Comparação entre os datasets
 
-#note_from_advisor[
+#note_from_advisor(note: done_note)[
   Como o trabalho exige pelo menos dois datasets, compare o comportamento dos métodos entre eles. Procure explicar se diferenças de tamanho, dimensionalidade, desbalanceamento, ruído, domínio ou dificuldade ajudam a entender as mudanças de desempenho.
 ]
 
-#note_from_advisor(note: todo_note)[
+#note_from_advisor(note: done_note)[
   Compare os resultados obtidos nas diferentes bases.
 ]
+
+Os resultados obtidos nas duas bases de dados evidenciam diferenças importantes na dificuldade da tarefa de classificação. A #glossarium.gls("genis") contém 368.556 fluxos e 122 características preditoras, distribuídos em quatro classes, enquanto a #glossarium.gls("rosids") contém 136.681 fluxos, 83 características e cinco classes.
+
+As distribuições também apresentam comportamentos distintos: na primeira, a classe `dos` concentra 80,22% das instâncias, ao passo em que, na segunda, a classe majoritária `Benign` representa 45,73% dos dados, seguida por `DoS` e `Subflood`, com 22,68% e 22,00%, respectivamente.
+
+Além dessas diferenças quantitativas, os conjuntos representam contextos experimentais distintos. A #glossarium.gls("genis") foi construída para representar uma rede corporativa em um ambiente Airbus CyberRange, com atividades benignas e cenários sequenciais de ataque, enquanto a #glossarium.gls("rosids") foi coletada em um sistema robótico baseado em #glossarium.gls("ros"), no qual os cenários de intrusão foram executados separadamente sobre uma infraestrutura composta por diferentes dispositivos do sistema. Portanto, os resultados não devem ser interpretados apenas em função do tamanho das bases, mas também das características do ambiente e da forma como o tráfego de cada cenário foi produzido.
+
+Essa diferença de contexto é acompanhada por uma diferença expressiva no desempenho dos modelos de referência. Na #glossarium.gls("genis"), os três classificadores apresentaram #get_term("macro_f1") entre 0,99987 e 1,00000, com #glossarium.gls("random_forest") e #glossarium.gls("xgboost") atingindo valor máximo em todas as métricas consideradas. Na #glossarium.gls("rosids"), por outro lado, os valores de #get_term("macro_f1") ficaram entre 0,94632 e 0,95513.
+
+A diferença não é explicada apenas pela presença de uma classe adicional, uma vez que também se observa maior heterogeneidade no desempenho por classe em #glossarium.gls("rosids"). Enquanto DoS é identificada com #get_term("f1") próximo de 1 pelos três modelos, UnauthPub e principalmente UnauthSub apresentam desempenho inferior, indicando que determinadas categorias de tráfego são mais difíceis de distinguir.
+
+Assim, #glossarium.gls("rosids") oferece um cenário no qual as limitações dos classificadores individuais são mais evidentes, enquanto os resultados da #glossarium.gls("genis") indicam uma separação quase completa entre as classes sob o protocolo adotado.
+
+O desempenho praticamente perfeito observado na #glossarium.gls("genis"), entretanto, merece uma interpretação mais cautelosa. Embora os resultados demonstrem que as características utilizadas permitem separar as classes com elevada precisão no conjunto de teste fornecido, a própria forma de construção da base constitui uma possível explicação para a facilidade observada. Os dados foram coletados em um ambiente de simulação controlado, no qual atividades benignas e cenários de ataque são executados de forma planejada e sequencial @silva:2025:genis_network_intrusion.
+
+Essa estrutura pode produzir padrões relativamente específicos aos experimentos realizados, fazendo com que parte da capacidade preditiva dos modelos esteja menos associada aos padrões simulados.
+Essa hipótese não pode ser confirmada apenas pelos resultados deste trabalho, mas a ocorrência simultânea de desempenho perfeito nos três modelos torna razoável questionar a construção da base.
+
+Essa preocupação é particularmente relevante porque os arquivos processados disponibilizados pelos autores continham, além das características utilizadas para classificação, outras colunas de metadados.
+No processamento realizado neste trabalho, foram removidas as colunas identificadas como identificadores ou metadados e, especificamente na #glossarium.gls("genis"), também foram excluídas características previamente identificadas como potencialmente relacionadas diretamente ao cenário de simulação, como `destination_tcp_base`, `source_tcp_base` e `source_tos`.
+Ainda assim, a possibilidade de alguma informação residual relacionada ao experimento ter permanecido entre as características utilizadas não pode ser completamente descartada sem uma auditoria específica de todas as colunas originais e de sua relação com os cenários de coleta.
 
 == Análise de erros
 

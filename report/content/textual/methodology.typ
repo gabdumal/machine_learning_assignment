@@ -565,10 +565,6 @@ Respostas inválidas dos #glossarium.gls("llm", plural: true, link: false), são
   Descreva os modelos de referência e suas configurações.
 ]
 
-#note_from_gabriel(note: todo_note)[
-  Listar parâmetros selecionados
-]
-
 Foram selecionados três modelos de #glossarium.gls("classificação_multiclasse") como referência para os experimentos: #glossarium.gls("decision_tree"), #glossarium.gls("random_forest"), e #glossarium.gls("xgboost").
 Todos os modelos têm significativa capacidade de lidar com valores em escalas distintas e com #get_term("outlier", plural: true).
 
