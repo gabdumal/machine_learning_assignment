@@ -942,13 +942,45 @@ Esses resultados reforçam que as métricas agregadas, embora necessárias para 
 
 == Custo computacional e eficiência
 
-#note_from_advisor[
+#note_from_advisor(note: done_note)[
   Compare tempo de treinamento/inferência, memória ou custo de API quando esses fatores forem relevantes. Um método mais complexo deve justificar o custo adicional por ganhos de desempenho, estabilidade, interpretabilidade ou outra vantagem prática.
 ]
 
-#note_from_advisor(note: todo_note)[
+#note_from_advisor(note: done_note)[
   Discuta custo computacional, tempo e/ou custo financeiro quando aplicável.
 ]
+
+Os resultados de custo computacional dos modelos de referência mostram diferenças relevantes entre complexidade e tempo de execução.
+Na #glossarium.gls("genis"), a #glossarium.gls("decision_tree") apresentou o menor tempo de treinamento, com 11,66 s, seguida pelo #glossarium.gls("xgboost"), com 29,52 s, e pela #glossarium.gls("random_forest"), com 135,45 s.
+Assim, o treinamento da #glossarium.gls("random_forest") demandou aproximadamente 11,6 vezes o tempo da #glossarium.gls("decision_tree") e 4,6 vezes o do #glossarium.gls("xgboost").
+Na inferência, as diferenças foram menores, mas mantiveram a mesma ordem: 0,475 s para a #glossarium.gls("decision_tree"), 1,115 s para o #glossarium.gls("xgboost") e 1,280 s para a #glossarium.gls("random_forest").
+Considerando o conjunto completo da #glossarium.gls("genis"), portanto, os três modelos conseguem processar centenas de milhares de fluxos em poucos segundos, embora apresentem custos distintos durante o treinamento e a inferência.
+
+Na #glossarium.gls("rosids"), observa-se uma relação semelhante entre custo e desempenho.
+A #glossarium.gls("decision_tree") novamente apresentou o menor custo, com 2,75 s de treinamento e 0,161 s de inferência, mas também obteve o menor #get_term("macro_f1") entre os três modelos.
+A #glossarium.gls("random_forest") alcançou o maior #get_term("macro_f1"), porém apresentou custo consideravelmente superior, exigindo aproximadamente 8,8 vezes o tempo de treinamento e 4,5 vezes o tempo de inferência da #glossarium.gls("decision_tree").
+O #glossarium.gls("xgboost"), por sua vez, obteve desempenho próximo ao da #glossarium.gls("random_forest"): a diferença entre seus #get_term("macro_f1") médios foi de apenas 0,00125, enquanto o tempo de treinamento do #glossarium.gls("xgboost") foi aproximadamente 20% menor e o tempo de inferência cerca de 12% menor.
+
+Para os comitês, existe ainda um custo adicional associado à execução e combinação das previsões dos três modelos componentes.
+No caso da #glossarium.gls("genis"), esse custo não é acompanhado por ganho relevante sobre os melhores modelos individuais, que já apresentam desempenho perfeito ou praticamente perfeito.
+Na #glossarium.gls("rosids"), por outro lado, o #get_term("hard_voting") apresentou um pequeno aumento no #get_term("macro_f1") em relação aos classificadores individuais, passando de 0,95513 na #glossarium.gls("random_forest") para 0,95606.
+Esse ganho deve ser interpretado em conjunto com a necessidade de executar os três classificadores para cada instância e realizar a etapa adicional de combinação.
+Como o tempo de execução dos comitês não foi medido separadamente no experimento, não é possível quantificar diretamente esse custo adicional; ainda assim, sua existência deve ser considerada ao avaliar se uma pequena melhoria de desempenho compensa a maior complexidade do procedimento.
+
+A diferença de eficiência é ainda mais acentuada na comparação com o #glossarium.gls("llm").
+A avaliação do modelo de linguagem foi realizada sobre apenas 2.000 instâncias por base.
+Para a #glossarium.gls("genis"), o protocolo #get_term("zero_shot") levou 96,73 min, correspondendo a 290,21 s por 100 amostras, e o #get_term("few_shot") levou 127,33 min, ou 381,99 s por 100 amostras.
+Na #glossarium.gls("rosids"), esses valores foram de 106,31 min e 318,92 s por 100 amostras no #get_term("zero_shot"), e de 155,94 min e 467,81 s por 100 amostras no #get_term("few_shot").
+
+Portanto, mesmo considerando um subconjunto de apenas 2.000 instâncias, a inferência com o modelo de linguagem apresentou uma ordem de grandeza de tempo muito superior à observada nos classificadores tradicionais.
+Além disso, o protocolo #get_term("few_shot") aumentou o tempo total em aproximadamente 32% na #glossarium.gls("genis") e 47% na #glossarium.gls("rosids") em relação ao #get_term("zero_shot"), acompanhando também um aumento expressivo no número de tokens processados.
+
+A métrica de tokens por segundo, contudo, precisa ser interpretada com cautela
+O #get_term("few_shot") apresentou vazão aparente muito superior à do #get_term("zero_shot"), chegando a 2.629,52 e 2.794,21 tokens/s, respectivamente, nas duas bases.
+Esse comportamento está relacionado ao cache do #foreign_text[system prompt]: como o prompt de sistema permanece inalterado durante o experimento dentro de cada base, o custo associado às primeiras execuções é amortizado nas requisições seguintes.
+As primeiras chamadas levaram aproximadamente 60 s, enquanto as posteriores passaram a levar cerca de 3 s.
+Dessa forma, a vazão agregada de tokens não deve ser interpretada isoladamente como indicador de eficiência, já que parte relevante do processamento foi beneficiada pelo mecanismo de cache.
+Em termos práticos, os resultados mostram que os métodos clássicos apresentam custo computacional muito menor no protocolo avaliado, enquanto a abordagem com #glossarium.gls("llm") requer tempo de inferência significativamente maior e, no conjunto de experimentos realizado, não apresentou ganho preditivo que compensasse essa diferença de custo.
 
 == Discussão geral e limitações
 
