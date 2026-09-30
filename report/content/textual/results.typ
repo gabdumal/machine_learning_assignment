@@ -984,10 +984,16 @@ Em termos práticos, os resultados mostram que os métodos clássicos apresentam
 
 == Discussão geral e limitações
 
-#note_from_advisor[
+#note_from_advisor(note: done_note)[
   Sintetize os principais achados e suas limitações. Discuta tamanho e representatividade dos dados, dependência de um domínio específico, hiperparâmetros, orçamento experimental, possíveis vieses, limitações das métricas e outras restrições que afetem a interpretação dos resultados.
 ]
 
-#note_from_advisor(note: todo_note)[
+#note_from_advisor(note: done_note)[
   Discuta os resultados de forma integrada e apresente as principais limitações.
 ]
+
+Em conjunto, os resultados mostram que os modelos baseados em árvores apresentaram desempenho elevado nas duas bases, enquanto os benefícios dos comitês dependeram da existência de erros complementares entre os classificadores. Na #glossarium.gls("genis"), a ausência quase completa de discordância entre os modelos limitou qualquer ganho adicional da combinação; na #glossarium.gls("rosids"), a maior diversidade de erros permitiu ao #get_term("hard_voting") obter uma melhoria pequena, porém mensurável. As abordagens com #glossarium.gls("llm"), por sua vez, apresentaram desempenho inferior aos modelos clássicos, embora o uso de exemplos #get_term("few_shot") tenha produzido melhorias expressivas em relação ao #get_term("zero_shot").
+
+Do ponto de vista de uma aplicação prática, a eficiência computacional é fundamental. Um sistema automatizado de detecção de intrusões precisa analisar potencialmente uma quantidade muito elevada de fluxos por segundo, de modo que pequenas diferenças no tempo de inferência podem se acumular rapidamente em escala de produção. Nesse contexto, os resultados indicam uma vantagem importante dos modelos clássicos, que processaram centenas de milhares de fluxos em poucos segundos, enquanto a abordagem com #glossarium.gls("llm") apresentou custo muito superior mesmo quando avaliada sobre apenas 2.000 instâncias. Assim, no protocolo considerado, o aumento de desempenho obtido pelos comitês foi pequeno e localizado, enquanto o custo adicional das abordagens avaliadas com #glossarium.gls("llm") foi substancial.
+
+Os resultados devem, contudo, ser interpretados considerando as limitações do estudo. Em particular, o desempenho praticamente perfeito observado na #glossarium.gls("genis") exige cautela, devido à natureza controlada de sua geração, à possibilidade de baixa variabilidade entre experimentos e ao risco de permanência de alguma informação relacionada ao cenário de coleta entre as características utilizadas, apesar da remoção das colunas identificadas como metadados. Além disso, foram avaliadas apenas duas bases, três algoritmos clássicos e uma configuração de modelo de linguagem, o que limita a generalização dos resultados. Dessa forma, as conclusões obtidas caracterizam o comportamento dos métodos sob o protocolo experimental adotado, não permitindo inferir diretamente seu desempenho em redes reais ou em cenários de tráfego não representados nas bases avaliadas.
