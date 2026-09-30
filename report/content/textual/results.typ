@@ -893,13 +893,52 @@ Ainda assim, a possibilidade de alguma informação residual relacionada ao expe
 
 == Análise de erros
 
-#note_from_advisor[
+#note_from_advisor(note: done_note)[
   Analise onde os modelos falham. Em classificação, use matrizes de confusão e exemplos de falsos positivos/falsos negativos ou classes confundidas. Em regressão/séries, examine erros grandes, horizontes ou regiões problemáticas. Em agrupamento, investigue pontos ambíguos e estrutura dos grupos. Sempre preserve a privacidade e as regras de uso dos dados.
 ]
 
-#note_from_advisor(note: todo_note)[
+#note_from_advisor(note: done_note)[
   Apresente uma análise qualitativa e/ou quantitativa dos erros.
 ]
+
+A análise das matrizes de confusão permite identificar diferenças que não são evidentes nas métricas agregadas, especialmente quanto às classes responsáveis pelos erros observados. Na #glossarium.gls("genis"), os modelos de referência apresentaram desempenho praticamente perfeito, e as poucas diferenças entre eles estão concentradas na #glossarium.gls("decision_tree").
+Considerando a #get_term("seed") 27, utilizada para a visualização das matrizes de confusão, a #glossarium.gls("decision_tree", link: false) classificou como benign uma instância pertencente à classe dos e outra pertencente à classe bruteforce, enquanto a #glossarium.gls("random_forest", link: false) e o #glossarium.gls("xgboost", link: false) não apresentaram erros.
+
+Na #glossarium.gls("rosids"), o padrão de erros é mais diversificado e permite observar com maior clareza as limitações dos modelos.
+Na matriz referente à #get_term("seed") 27, a classe `UnauthSub` foi classificada como `Benign` em 146 instâncias pela #glossarium.gls("decision_tree"), 133 pela #glossarium.gls("random_forest") e 138 pelo #glossarium.gls("xgboost").
+Para `UnauthPub`, foram observadas 55, 64 e 81 classificações como `Benign`, respectivamente.
+A classe `Subflood` também apresenta parte de seus erros nessa direção, enquanto `DoS` apresenta somente uma instância incorretamente classificada por cada modelo.
+Esse comportamento explica por que `UnauthSub` apresenta os menores valores de #get_term("f1") entre as classes avaliadas, variando de 0,85995 na árvore a 0,88282 na floresta.
+Portanto, embora as métricas globais permaneçam elevadas, a análise por classe mostra que o desempenho não é homogêneo: determinadas categorias de intrusão são consideravelmente mais difíceis de distinguir do tráfego benigno, sobretudo aquelas mais específicas do domínio da rede.
+
+A distribuição dos erros também ajuda a explicar o comportamento dos comitês.
+Na #glossarium.gls("genis"), a quantidade de erros individuais é tão pequena que há pouco espaço para uma combinação produzir ganho sobre os melhores classificadores.
+A #glossarium.gls("decision_tree") apresenta duas classificações incorretas na matriz da #get_term("seed") 27, enquanto os outros dois modelos não apresentam erros.
+Consequentemente, as estratégias de #get_term("hard_voting") eliminam esses dois erros ao combinar as previsões, mas não ultrapassam o desempenho já perfeito de #glossarium.gls("random_forest") e #glossarium.gls("xgboost").
+
+Na #glossarium.gls("rosids"), por outro lado, os classificadores apresentam padrões de erro menos coincidentes.
+A discordância entre os pares varia de 0,00718 a 0,01347, enquanto os coeficientes de Jaccard dos conjuntos de erros variam de 0,59778 a 0,74842.
+Essa menor sobreposição indica que diferentes modelos deixam de acertar conjuntos parcialmente distintos de instâncias, criando condições para que a combinação das previsões corrija alguns erros individuais.
+O resultado é observado no #get_term("hard_voting"), cujo #get_term("macro_f1") médio de 0,95606 supera em 0,00093 o valor obtido pela #glossarium.gls("random_forest") e em 0,00218 o valor do #glossarium.gls("xgboost").
+O ganho, entretanto, permanece pequeno, indicando que a complementaridade existente é suficiente para produzir uma melhoria mensurável, mas não para alterar substancialmente o desempenho do conjunto.
+
+O modelo de linguagem apresenta um padrão de erros qualitativamente diferente dos classificadores tradicionais.
+Em ambas as bases, a abordagem #get_term("zero_shot") demonstra forte tendência a atribuir as instâncias à classe benigna.
+Na #glossarium.gls("genis"), apenas 22,32% das instâncias dos são corretamente identificadas, enquanto 75,69% são classificadas como `benign`; para `bruteforce`, o percentual correto é de 54,55%, com os demais casos também classificados como `benign`.
+Na #glossarium.gls("rosids"), o efeito é ainda mais acentuado: apenas 5,19% das instâncias `UnauthSub` são corretamente identificadas, enquanto 81,82% são atribuídas a `Benign`, e nenhuma instância de `DoS` é corretamente classificada no protocolo #get_term("zero_shot").
+
+A inclusão de exemplos no prompt modifica substancialmente esse comportamento.
+Na #glossarium.gls("genis"), o percentual de acerto de `bruteforce` passa de 54,55% para 100%, enquanto o de `dos` aumenta para 47,69%.
+Na #glossarium.gls("rosids"), `DoS` passa de 0% para 100% de acerto e `Subflood` de 25,79% para 90,27%.
+Contudo, a melhoria vem acompanhada de uma redistribuição dos erros: o acerto de `Benign` cai de 82,71% para 34,46%, enquanto `UnauthPub` e `UnauthSub` passam a ser distribuídas entre várias classes.
+Dessa forma, o #get_term("few_shot") reduz a tendência de classificar quase tudo como benigno e melhora a identificação de ataques, mas não elimina as ambiguidades entre as classes.
+
+Em conjunto, os padrões de confusão mostram que a dificuldade da tarefa não se distribui uniformemente entre as classes nem entre os métodos.
+Nos modelos clássicos, os erros da #glossarium.gls("rosids") estão principalmente associados à distinção entre determinadas categorias de tráfego não autorizado e o tráfego benigno, enquanto na #glossarium.gls("genis") praticamente não são observadas confusões.
+Nos comitês, essa análise evidencia que o ganho obtido pela combinação está relacionado à existência de erros parcialmente complementares entre os classificadores.
+No modelo de linguagem, por sua vez, os erros revelam uma dificuldade mais ampla em identificar corretamente as classes de ataque, especialmente no protocolo #get_term("zero_shot"), e uma forte sensibilidade à inclusão de exemplos no prompt.
+Esses resultados reforçam que as métricas agregadas, embora necessárias para comparar os métodos, não são suficientes para caracterizar seu comportamento: a distribuição dos erros entre as classes é essencial para compreender tanto as diferenças entre os datasets quanto os benefícios e limitações das estratégias de combinação.
+
 
 == Custo computacional e eficiência
 
